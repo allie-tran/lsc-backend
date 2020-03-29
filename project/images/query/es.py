@@ -69,7 +69,7 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     # MUST
     if expansion:
         must_queries.append({"terms": {
-                                    "descriptions_and_mc":  expansion }})
+                                    "descriptions_and_mc":  expansion  }})
 
     if region:
         must_queries.append({"terms_set": {"region": {"terms": region,
@@ -185,9 +185,9 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     if test:
         functions = []
         for word in expansion:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": score[word]})
+            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": score[word] if word in score else 1})
         for word in must_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": 3 * score[word]})
+            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": 3 * score[word] if word in score else 1})
 
         main_query = {"function_score": {
                                     "query": main_query,
