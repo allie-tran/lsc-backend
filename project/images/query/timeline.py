@@ -47,7 +47,7 @@ def get_full_scene_from_image(image, group_factor='group'):
                                 for img in group_info[date][group_id][scene]]
     else:
         scene_id = grouped_info_dict[image]["scene"]
-        return [img for img in group_info[date][group_id][scene]]
+        return [img for img in group_info[date][group_id][scene_id]]
 
 # For ARRON, use something like this
-# print(get_full_scene_from_image("2016-08-15/20160815_052416_000.jpg", group_factor="group"))
+print(get_full_scene_from_image("2016-08-15/20160815_052416_000.jpg", group_factor="scene"))
