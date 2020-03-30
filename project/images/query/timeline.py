@@ -37,3 +37,17 @@ def get_timeline(images, timeline_type="after"):
                                 for img in group_info[date][new_group_id][scene]])
 
     return scenes
+
+def get_full_scene_from_image(image, group_factor='group'):
+    assert group_factor in ["group", "scene"], f"Invalid value of group_factor({group_factor}). Use \"scene\" or \"group\"."
+    group_id = grouped_info_dict[image]["group"]
+    date = group_id.split("_")[0]
+    if group_factor == "group":
+        return [img for scene in group_info[date][group_id]
+                                for img in group_info[date][group_id][scene]]
+    else:
+        scene_id = grouped_info_dict[image]["scene"]
+        return [img for img in group_info[date][group_id][scene]]
+
+# For ARRON, use something like this
+# print(get_full_scene_from_image("2016-08-15/20160815_052416_000.jpg", group_factor="group"))
