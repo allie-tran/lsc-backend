@@ -80,7 +80,7 @@ def get_most_similar(model, word, vocabulary):
         if vocabulary:
             return sorted(zip(vocabulary, model.wv.distances(word, vocabulary)), key=lambda x: x[1])
     else:
-        print("Word not in word2vec model")
+        print(f"{word} not in word2vec model")
     return []
 
 
