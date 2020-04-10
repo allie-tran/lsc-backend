@@ -38,7 +38,7 @@ def jsonize(response):
 
 @csrf_exempt
 def index(request):
-    image = json.loads(request.body.decode('utf-8'))["image"]
+    # image = json.loads(request.body.decode('utf-8'))["image"]
     image = random.choice(images)
     similar_images = get_neighbors(image)
     response = {"image": image, "images": similar_images}
