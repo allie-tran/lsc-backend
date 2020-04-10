@@ -61,7 +61,6 @@ def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'
         images = []
         for index in group_range:
             new_group_id = f"{date}_{index}"
-            print(new_group_id)
             if new_group_id in group_info[date]:
                 images.extend([img for scene in group_info[date][new_group_id]
                                 for img in group_info[date][new_group_id][scene]])
@@ -74,7 +73,6 @@ def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'
         scene_range = range(min_scene, max_scene + 1)
         for index in group_range:
             new_group_id = f"{date}_{index}"
-            print(new_group_id)
             if new_group_id in group_info[date]:
                 images.extend([img for scene in group_info[date][new_group_id]
                                 for img in group_info[date][new_group_id][scene] if int(scene.split('_')[1]) in scene_range])

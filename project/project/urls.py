@@ -18,5 +18,6 @@ from django.conf.urls.static import static
 from django.urls import path, include
 
 urlpatterns = [
-                  path('', include('images.urls')),
-              ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    path('', include('images.urls')),
+    path('similar/', include('similar.urls'))
+] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
