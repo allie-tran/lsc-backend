@@ -7,23 +7,47 @@ from django.views.decorators.csrf import csrf_exempt
 import joblib
 import random
 from sklearn.metrics.pairwise import cosine_distances
+import requests
 
 COMMON_PATH = os.getenv('COMMON_PATH')
-feature_dict = joblib.load(f'{COMMON_PATH}/feature_dict.joblib')
-images = list(feature_dict.keys())
-model = joblib.load(f'{COMMON_PATH}/image_model.joblib')
-distance_matrix = joblib.load(
-    f'{COMMON_PATH}/distance_matrix.joblib')
+images = json.load(open(
+    '/home/tlduyen/LSC2020/common_full/full_similar_images.json'))
+
+
+def post_request(json_query, index="lsc2019_combined_text_bow"):
+    headers = {"Content-Type": "application/json"}
+    response = requests.post(
+        f"http://localhost:9200/{index}/_search", headers=headers, data=json_query)
+    if response.status_code == 200:
+        # stt = "Success"
+        response_json = response.json()  # Convert to json as dict formatted
+        id_images = [[d["_source"], d["_score"]]
+                     for d in response_json["hits"]["hits"]]
+    else:
+        print('Wrong')
+        # print(json_query)
+        print(response.status_code)
+        id_images = []
+    return id_images
 
 
 def get_neighbors(image):
     img_index = images.index(image)
-    dist = distance_matrix[img_index]
-    k_nearest = model.kneighbors([dist])
-    distance = k_nearest[0][0]
-    k_nearest_index = k_nearest[1][0]
-    rank_list = [images[index] for index in k_nearest_index][:100]
-    return rank_list
+    if img_index >= 0:
+        request = {
+            "size": 1,
+            "_source": {
+                "includes": ["similars"]
+            },
+            "query": {
+                "term": {"image_index": img_index}
+            }
+        }
+
+        results = post_request(json.dumps(request), "lsc2020_similar")
+        if results:
+            return [images[r] for r in results[0][0]["similars"]][:500]
+    return []
 
 
 def jsonize(response):
@@ -38,8 +62,7 @@ def jsonize(response):
 
 @csrf_exempt
 def index(request):
-    print(request)
-    image = json.loads(request.body.decode('utf-8'))["image"]
+    image = request.GET.get('image_id')
     if image not in images:
         image = random.choice(images)
     similar_images = get_neighbors(image)
