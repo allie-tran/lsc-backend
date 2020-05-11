@@ -22,16 +22,21 @@ def query_all(includes, index, group_factor):
     }
     return group_results(post_request(json.dumps(request), index), group_factor)
 
+
 def es(query, gps_bounds):
     print(query, gps_bounds)
     if query["before"] and query["after"]:
-        last_results = es_three_events(query["current"], query["before"], query["beforewhen"], query["after"], query["afterwhen"], gps_bounds)
+        last_results = es_three_events(
+            query["current"], query["before"], query["beforewhen"], query["after"], query["afterwhen"], gps_bounds)
     elif query["before"]:
-        last_results = es_two_events(query["current"], query["before"], "before", query["beforewhen"], gps_bounds)
+        last_results = es_two_events(
+            query["current"], query["before"], "before", query["beforewhen"], gps_bounds)
     elif query["after"]:
-        last_results = es_two_events(query["current"], query["after"], "after", query["afterwhen"], gps_bounds)
+        last_results = es_two_events(
+            query["current"], query["after"], "after", query["afterwhen"], gps_bounds)
     else:
-        last_results = individual_es(query["current"], gps_bounds, group_factor="scene")
+        last_results = individual_es(
+            query["current"], gps_bounds, group_factor="scene")
     return last_results
 
 
@@ -52,7 +57,8 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
 
     loc, keywords, info, weekday, months, timeofday, activity, region, must_not_terms = process_query(
         query)
-    must_terms, expansion, score = process_string(info, keywords, must_not_terms)
+    must_terms, expansion, score = process_string(
+        info, keywords, must_not_terms)
 
     if not (loc or keywords or info or weekday or months or timeofday or activity or region or must_not_terms):
         return query_all(includes, "lsc2020", group_factor)
@@ -69,12 +75,12 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     # MUST
     if expansion:
         must_queries.append({"terms": {
-                                    "descriptions_and_mc":  expansion  }})
+            "scene_concepts":  expansion}})
 
     if region:
         must_queries.append({"terms_set": {"region": {"terms": region,
-                                                 "minimum_should_match_script": {
-                                                        "source": "1"}}}})
+                                                      "minimum_should_match_script": {
+                                                          "source": "1"}}}})
 
     if loc:
         must_queries.append({"match": {"location": {"query": ' '.join(loc)}}})
@@ -82,22 +88,22 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     # SHOULDS
     if keywords["microsoft"]:
         should_queries.append({"terms_set": {
-                                    "microsoft": {
-                                                "terms": keywords["microsoft"],
-                                                "minimum_should_match_script": {
-                                                    "source": "1"
-                                                }
-                                                }
-                                }})
+            "microsoft_tags": {
+                "terms": keywords["microsoft"],
+                "minimum_should_match_script": {
+                    "source": "1"
+                }
+            }
+        }})
     if keywords["descriptions"]:
         should_queries.append({"terms_set": {
-                                    "descriptions": {
-                                                "terms": keywords["descriptions"],
-                                                "minimum_should_match_script": {
-                                                    "source": "1"
-                                                }
-                                                }
-                                }})
+            "descriptions": {
+                "terms": keywords["descriptions"],
+                "minimum_should_match_script": {
+                    "source": "1"
+                }
+            }
+        }})
     # if must_terms:
     #     should_queries.append({"terms_set": {
     #                                 "descriptions_and_mc": {
@@ -163,39 +169,49 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
         must_not_queries.append({
             "terms": {
                 "descriptions": must_not_terms}
-            })
+        })
 
     # CONSTRUCT JSON
     main_query = {}
     test = True
 
     if must_queries:
-        main_query["must"] = must_queries[0] if len(must_queries) == 1 else must_queries
+        main_query["must"] = must_queries[0] if len(
+            must_queries) == 1 else must_queries
     else:
         main_query["must"] = {"match_all": {}}
     if should_queries:
-        main_query["should"] = should_queries[0] if len(should_queries) == 1 else should_queries
+        main_query["should"] = should_queries[0] if len(
+            should_queries) == 1 else should_queries
     if filter_queries:
-        main_query["filter"] = filter_queries[0] if len(filter_queries) == 1 else filter_queries
+        main_query["filter"] = filter_queries[0] if len(
+            filter_queries) == 1 else filter_queries
     if must_not_queries:
-        main_query["must_not"] = must_not_queries[0] if len(must_not_queries) == 1 else must_not_queries
+        main_query["must_not"] = must_not_queries[0] if len(
+            must_not_queries) == 1 else must_not_queries
     main_query = {"bool": main_query}
 
     # TEST
     if test:
         functions = []
         for word in expansion:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": score[word] if word in score else 1})
+            functions.append({"filter": {"terms": {"descriptions_and_mc": [
+                             word]}}, "weight": score[word] if word in score else 1})
+            functions.append({"filter": {"terms": {"scene_concepts": [
+                             word]}}, "weight": score[word] * 0.5 if word in score else 0.5})
         for word in must_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [word]}}, "weight": 3 * score[word] if word in score else 1})
+            functions.append({"filter": {"terms": {"descriptions_and_mc": [
+                             word]}}, "weight": 3 * score[word] if word in score else 1})
+            functions.append({"filter": {"terms": {"scene_concepts": [
+                             word]}}, "weight": 1.5 * score[word] if word in score else 0.5})
 
         main_query = {"function_score": {
-                                    "query": main_query,
-                                    "boost": 5,
-                                    "functions": functions,
-                                    "score_mode": "sum",
-                                    "boost_mode": "sum"
-                                }}
+            "query": main_query,
+            "boost": 5,
+            "functions": functions,
+            "score_mode": "sum",
+            "boost_mode": "sum"
+        }}
     # END TEST
 
     # =============

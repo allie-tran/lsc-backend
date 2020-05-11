@@ -28,15 +28,15 @@ locations = set([img["location"].lower()
 regions = set([w.strip().lower() for img in grouped_info_dict.values()
                for w in img["region"]])
 deeplab = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["deeplab_concepts"]])
+                for w in img["deeplab"]])
 coco = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["concepts"]])
+                for w in img["coco"]])
 attributes = set([w.replace('_', ' ') for img in grouped_info_dict.values()
                 for w in img["attributes"]])
 category = set([w.replace('_', ' ') for img in grouped_info_dict.values()
                 for w in img["category"]])
 microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["microsoft"]])
+                 for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
 
 all_keywords = regions | deeplab | coco | attributes | category | microsoft
 old_keywords = regions | deeplab | coco | attributes | category

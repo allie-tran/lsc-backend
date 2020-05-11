@@ -9,7 +9,7 @@ import requests
 COMMON_PATH = os.getenv("COMMON_PATH")
 group_info = json.load(open(f"{COMMON_PATH}/group_info.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
-scene_info = json.load(open(f"{COMMON_PATH}/scene_info.json"))
+
 
 def distance(lt1, ln1, lt2, ln2):
     return (geopy.distance.distance([lt1, ln1], [lt2, ln2]).km)
@@ -34,7 +34,7 @@ def filter_sorted_gps(gps_points):
     return []
 
 
-
+# TODO!: not sorted by image but time
 def get_gps(images):
     if images:
         if isinstance(images[0], str):
@@ -85,11 +85,13 @@ def find_place_in_available_group(regrouped_results, new_group, group_time=2):
 
 def get_min_event(images, event_type="group"):
     return np.argmin([int(image[event_type].split('_')[-1])
-                           for image in images])
+                      for image in images])
+
 
 def get_max_event(images, event_type="group"):
     return np.argmax([int(image[event_type].split('_')[-1])
-                           for image in images])
+                      for image in images])
+
 
 def get_before_after(images):
     min_group = get_min_event(images)
@@ -131,7 +133,8 @@ def group_results(results, factor="group", sort_by_time=False):
                               regrouped_results[group]["begin_time"],
                               regrouped_results[group]["end_time"]))
 
-    sorted_groups = sorted(sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
+    sorted_groups = sorted(
+        sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
 
     final_results = []
 
@@ -185,3 +188,26 @@ def find_time_span(groups):
             times[f"time_{count}"] = {"begin_time": begin_time,
                                       "end_time": end_time}
     return times.values()
+
+
+def find_gps_path(pair):
+    start_id = min([grouped_info_dict[img]["id"] for img in pair["before"]])
+    end_id = max([grouped_info_dict[img]["id"] for img in pair["after"]])
+    gps_query = {
+        "_source": {
+            "includes": ["id", "image_path"]
+        },
+        "query": {
+            "range": {
+                "id": {
+                    "gte": start_id,
+                    "lte": end_id
+                }
+            }
+        },
+        "sort":
+        {"id": {"order": "asc"}}
+    }
+    gps_data = [img[0]["gps"]
+                for img in post_request(json.dumps(gps_query), "lsc2020")]
+    return gps_data
