@@ -37,15 +37,12 @@ def es(query, gps_bounds):
     else:
         last_results = individual_es(
             query["current"], gps_bounds, group_factor="scene")
-    return last_results
+    return add_gps_path(last_results)
 
 
 def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, group_factor="group"):
-    includes = ["image_path",
-                "descriptions",
-                "activity",
-                "location",
-                "weekday",
+    includes = ["id",
+                "image_path",
                 "time",
                 "gps",
                 "scene",
@@ -262,15 +259,13 @@ def add_pairs(main_events, conditional_events, condition, time_limit):
                                     "before": main_event["before"],
                                     "after": conditional_event["current"],
                                     "begin_time": main_event["begin_time"],
-                                    "end_time": main_event["end_time"],
-                                    "gps": main_event["gps"][:2] + [conditional_event["gps"][1]]})
+                                    "end_time": main_event["end_time"]})
             elif condition == "before" and timedelta() < main_event["begin_time"] - conditional_event["begin_time"] < timedelta(hours=float(time_limit) + 2):
                 pair_events.append({"current": main_event["current"],
                                     "before": conditional_event["current"],
                                     "after": main_event["after"],
                                     "begin_time": main_event["begin_time"],
-                                    "end_time": main_event["end_time"],
-                                    "gps": [conditional_event["gps"][1]] + main_event["gps"][1:]})
+                                    "end_time": main_event["end_time"]})
     return pair_events
 
 
@@ -321,8 +316,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds):
                                     "before": before_pair["before"],
                                     "after": after_event["current"],
                                     "begin_time": before_pair["begin_time"],
-                                    "end_time": before_pair["end_time"],
-                                    "gps": before_pair["gps"][:2] + [after_event["gps"][1]]})
+                                    "end_time": before_pair["end_time"]})
     return pair_events
 
 
