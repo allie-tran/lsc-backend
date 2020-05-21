@@ -247,11 +247,11 @@ def get_all_similar(words, keywords, must_not_terms):
             # elif dist < 0.5:
             # shoulds.add(w)
             # print(w.ljust(20), round(dist, 2))
-    print(keywords)
+    # print(keywords)
     for keyword in keywords["descriptions"]["expanded"]:
         for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
             expansion[w].append(1-dist)
-            print(w.ljust(20), round(dist, 2))
+            # print(w.ljust(20), round(dist, 2))
 
     final_expansions = []
     score = {}
