@@ -215,7 +215,9 @@ def to_deeplab(word):
 
 def get_all_similar(words, keywords, must_not_terms):
     expansion = defaultdict(lambda: [])
-    musts = set()
+    exacts = set([w for t in keywords for w in keywords[t]["exact"]])
+    musts = set([w for t in keywords for w in keywords[t]
+                 ["exact"] + keywords[t]["expanded"]])
     for word in words:
         word = word.replace('_', ' ')
         possible_words = []
@@ -227,8 +229,8 @@ def get_all_similar(words, keywords, must_not_terms):
         if possible_words:
             for w in possible_words:
                 if w in microsoft:
-                    keywords["microsoft"].append(w)
-                keywords["descriptions"].append(w)
+                    keywords["microsoft"]["expanded"].append(w)
+                keywords["descriptions"]["expanded"].append(w)
             musts.update(possible_words)
         else:
             similars = get_similar(word)
@@ -246,7 +248,7 @@ def get_all_similar(words, keywords, must_not_terms):
             # shoulds.add(w)
             # print(w.ljust(20), round(dist, 2))
     print(keywords)
-    for keyword in keywords["descriptions"]:
+    for keyword in keywords["descriptions"]["expanded"]:
         for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
             expansion[w].append(1-dist)
             print(w.ljust(20), round(dist, 2))
@@ -262,11 +264,10 @@ def get_all_similar(words, keywords, must_not_terms):
                 final_expansions.append(w)
             score[w] = mean_dist
 
-
     musts = musts.difference(must_not_terms)
     musts = musts.difference(["airplane", "plane"])
-    print("Must and should: ", musts, final_expansions)
-    return list(musts), final_expansions, score
+    print("Must and should: ", exacts, musts, final_expansions)
+    return list(exacts), list(musts), final_expansions, score
 
 
 categories = ["animal", "object", "location", "plant", "person", "food", "room", 'device',

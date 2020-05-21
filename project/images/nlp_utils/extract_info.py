@@ -306,11 +306,25 @@ def process_query(sent):
     print(f"Location: {loc}, weekday: {weekday}, month: {month}, timeofday: {timeofday}, activity: {activity}, region: {region}, must-not: {must_not_terms}")
     print(f"Keywords:", keywords, "Rest:", info)
 
-    split_keywords = {"descriptions": keywords, "concepts": [], "microsoft" : []}
+    split_keywords = {"descriptions": {"exact": [], "expanded": []},
+                      "coco": {"exact": [], "expanded": []},
+                      "microsoft": {"exact": [], "expanded": []}}
+
     for keyword in keywords:
-        if keyword in microsoft:
-            split_keywords["microsoft"].append(keyword)
-        if keyword in coco:
-            split_keywords["concepts"].append(coco)
+        for kw in microsoft:
+            if kw == keyword:
+                split_keywords["microsoft"]["exact"].append(kw)
+            if kw in keyword or keyword in kw:
+                split_keywords["microsoft"]["expanded"].append(kw)
+        for kw in coco:
+            if kw == keyword:
+                split_keywords["coco"]["exact"].append(kw)
+            if kw in keyword or keyword in kw:
+                split_keywords["coco"]["expanded"].append(kw)
+        for kw in all_keywords:
+            if kw == keyword:
+                split_keywords["descriptions"]["exact"].append(kw)
+            if kw in keyword or keyword in kw:
+                split_keywords["descriptions"]["expanded"].append(kw)
 
     return loc, split_keywords, info, weekday, month, timeofday, list(set(activity)), list(set(region)), must_not_terms

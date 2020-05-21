@@ -41,7 +41,7 @@ def get_gps(images):
         sorted_by_time = [image["gps"] for image in sorted(
             images, key=lambda x: x["id"])]
         return sorted_by_time
-    return None
+    return []
 
 
 def post_request(json_query, index="lsc2019_combined_text_bow"):
@@ -182,48 +182,50 @@ def find_time_span(groups):
 
 
 def add_gps_path(pairs):
-    return pairs
     new_pairs = []
     for pair in pairs:
-        if pair["before"]:
-            start_id = min([grouped_info_dict[img]["id"]
-                            for img in pair["before"]])
-        else:
-            start_id = min([grouped_info_dict[img]["id"]
-                            for img in pair["current"]])
-        if pair["after"]:
-            end_id = max([grouped_info_dict[img]["id"]
-                          for img in pair["after"]])
-        else:
-            end_id = max([grouped_info_dict[img]["id"]
-                          for img in pair["current"]])
-        start_current_id = min([grouped_info_dict[img]["id"]
-                            for img in pair["current"]])
-        end_current_id = max([grouped_info_dict[img]["id"]
-                                       for img in pair["current"]])
-        gps_query = {
-            "size": end_id - start_id + 1,
-            "_source": {
-                "includes": ["id", "gps", "image_path"]
-            },
-            "query": {
-                "range": {
-                    "id": {
-                        "gte": start_id,
-                        "lte": end_id
-                    }
-                }
-            },
-            "sort":
-            {"id": {"order": "asc"}}
-        }
-        gps_data = post_request(json.dumps(gps_query), "lsc2020")
-        pair["gps_path"] = [img[0]["gps"]
-                            for img in gps_data]
+        # if pair["before"]:
+        #     start_id = min([grouped_info_dict[img]["id"]
+        #                     for img in pair["before"]])
+        # else:
+        #     start_id = min([grouped_info_dict[img]["id"]
+        #                     for img in pair["current"]])
+        # if pair["after"]:
+        #     end_id = max([grouped_info_dict[img]["id"]
+        #                   for img in pair["after"]])
+        # else:
+        #     end_id = max([grouped_info_dict[img]["id"]
+        #                   for img in pair["current"]])
+        # start_current_id = min([grouped_info_dict[img]["id"]
+        #                         for img in pair["current"]])
+        # end_current_id = max([grouped_info_dict[img]["id"]
+        #                       for img in pair["current"]])
+        # gps_query = {
+        #     "size": end_id - start_id + 1,
+        #     "_source": {
+        #         "includes": ["id", "gps", "image_path"]
+        #     },
+        #     "query": {
+        #         "range": {
+        #             "id": {
+        #                 "gte": start_id,
+        #                 "lte": end_id
+        #             }
+        #         }
+        #     },
+        #     "sort":
+        #     {"id": {"order": "asc"}}
+        # }
+        # gps_data = post_request(json.dumps(gps_query), "lsc2020")
+        # pair["gps_path"] = [img[0]["gps"]
+        #                     for img in gps_data]
 
-        pair["gps"] = [pair["gps_path"][:start_current_id - start_id],
-                       pair["gps_path"][start_current_id -
-                                        start_id:end_current_id + 1],
-                       pair["gps_path"][end_current_id + 1:]]
+        # pair["gps"] = [pair["gps_path"][:start_current_id - start_id],
+        #                pair["gps_path"][start_current_id -
+        #                                 start_id:end_current_id + 1],
+                    #    pair["gps_path"][end_current_id + 1:]]
+        pair["gps"] = [get_gps(pair["before"]), get_gps(
+            pair["current"]), get_gps(pair["after"])]
+        pair["gps_path"] = pair["gps"][0] + pair["gps"][1] + pair["gps"][2]
         new_pairs.append(pair)
     return new_pairs

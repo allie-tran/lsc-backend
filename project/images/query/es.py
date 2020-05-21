@@ -54,14 +54,14 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
 
     loc, keywords, info, weekday, months, timeofday, activity, region, must_not_terms = process_query(
         query)
-    must_terms, expansion, score = process_string(
+    exact_terms, must_terms, expansion, score = process_string(
         info, keywords, must_not_terms)
 
     if not (loc or keywords or info or weekday or months or timeofday or activity or region or must_not_terms):
         return query_all(includes, "lsc2020", group_factor)
 
     expansion.extend(must_terms)
-    expansion.extend(keywords["descriptions"])
+    expansion.extend(keywords["descriptions"]["expanded"])
     expansion = list(set(expansion))
 
     must_queries = []
@@ -83,19 +83,19 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
         must_queries.append({"match": {"location": {"query": ' '.join(loc)}}})
 
     # SHOULDS
-    if keywords["microsoft"]:
+    if keywords["microsoft"]["expanded"]:
         should_queries.append({"terms_set": {
             "microsoft_tags": {
-                "terms": keywords["microsoft"],
+                "terms": keywords["microsoft"]["expanded"],
                 "minimum_should_match_script": {
                     "source": "1"
                 }
             }
         }})
-    if keywords["descriptions"]:
+    if keywords["descriptions"]["expanded"]:
         should_queries.append({"terms_set": {
             "descriptions": {
-                "terms": keywords["descriptions"],
+                "terms": keywords["descriptions"]["expanded"],
                 "minimum_should_match_script": {
                     "source": "1"
                 }
@@ -190,17 +190,27 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
 
     # TEST
     if test:
+        scores = defaultdict(lambda: 0)
         functions = []
         for word in expansion:
             functions.append({"filter": {"terms": {"descriptions_and_mc": [
                              word]}}, "weight": score[word] if word in score else 1})
             functions.append({"filter": {"terms": {"scene_concepts": [
                              word]}}, "weight": score[word] * 0.5 if word in score else 0.5})
+            scores[word] += score[word] if word in score else 1
         for word in must_terms:
             functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                             word]}}, "weight": 3 * score[word] if word in score else 1})
+                             word]}}, "weight": 3 * score[word] if word in score else 3})
             functions.append({"filter": {"terms": {"scene_concepts": [
-                             word]}}, "weight": 1.5 * score[word] if word in score else 0.5})
+                             word]}}, "weight": 1.5 * score[word] if word in score else 1.5})
+            scores[word] += 3 * score[word] if word in score else 3
+
+        for word in exact_terms:
+            functions.append({"filter": {"terms": {"descriptions_and_mc": [
+                             word]}}, "weight": 5 * score[word] if word in score else 5})
+            functions.append({"filter": {"terms": {"scene_concepts": [
+                             word]}}, "weight": 2.5 * score[word] if word in score else 2.5})
+            scores[word] += 5 * score[word] if word in score else 5
 
         main_query = {"function_score": {
             "query": main_query,
@@ -220,7 +230,10 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
         "query": main_query
     }
 
-    print(json.dumps(json_query), "lsc2020")
+    # print(json.dumps(json_query), "lsc2020")
+    print("Scores:")
+    print(json.dumps({k: v for k, v in sorted(
+        scores.items(), key=lambda item: -item[1])}).replace(", ", ",\n"))
     return group_results(post_request(json.dumps(json_query), "lsc2020"), group_factor)
 
 
