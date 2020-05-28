@@ -1,13 +1,13 @@
 from .query_types import *
 from .utils import *
-from ..nlp_utils.extract_info import process_query
+from ..nlp_utils.extract_info import process_query, process_query2
 from ..nlp_utils.synonym import process_string
 from datetime import timedelta, datetime
 
 
 def query_all(includes, index, group_factor):
     request = {
-        "size": 1000,
+        "size": 5000,
         "_source": {
             "includes": includes
         },
@@ -35,7 +35,7 @@ def es(query, gps_bounds):
         last_results = es_two_events(
             query["current"], query["after"], "after", query["afterwhen"], gps_bounds)
     else:
-        last_results = individual_es(
+        last_results, scores = individual_es(
             query["current"], gps_bounds, group_factor="scene")
     return add_gps_path(last_results)
 
@@ -51,18 +51,32 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
                 "after"]
     if not query:
         return query_all(includes, "lsc2020", group_factor)
-
-    loc, keywords, info, weekday, months, timeofday, activity, region, must_not_terms = process_query(
+    # loc, keywords, info, weekday, months, timeofday, activity, region, must_not_terms = process_query(
+        # query)
+    info, keywords, region, loc, weekday, time_filters, date_filters = process_query2(
         query)
+
+    activity = {}
+    must_not_terms = {}
+    months = {}
+    timeofday = {}
+
     exact_terms, must_terms, expansion, score = process_string(
         info, keywords, must_not_terms)
-
     if not (loc or keywords or info or weekday or months or timeofday or activity or region or must_not_terms):
         return query_all(includes, "lsc2020", group_factor)
 
     expansion.extend(must_terms)
     expansion.extend(keywords["descriptions"]["expanded"])
     expansion = list(set(expansion))
+
+    # query_info = {"expansion": expansion,
+    #               "region": region,
+    #               "location": loc,
+    #               "activity": activity,
+    #               "timeofday": timeofday,
+    #               "keywords": months,
+    #               "scrip"}
 
     must_queries = []
     should_queries = []
@@ -123,6 +137,7 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
         filter_queries.append({"terms": {"weekday": weekday}})
 
     script = extra_filter_scripts if extra_filter_scripts else []
+    script += date_filters + time_filters
     if timeofday:
         time_script = []
         for t in timeofday:
@@ -189,38 +204,35 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     main_query = {"bool": main_query}
 
     # TEST
-    if test:
-        scores = defaultdict(lambda: 0)
-        functions = []
-        for word in expansion:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                             word]}}, "weight": score[word] if word in score else 1})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                             word]}}, "weight": score[word] * 0.5 if word in score else 0.5})
-            scores[word] += score[word] if word in score else 1
-        for word in must_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                             word]}}, "weight": 3 * score[word] if word in score else 3})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                             word]}}, "weight": 1.5 * score[word] if word in score else 1.5})
-            scores[word] += 3 * score[word] if word in score else 3
+    scores = defaultdict(lambda: 0)
+    functions = []
+    for word in expansion:
+        functions.append({"filter": {"terms": {"descriptions_and_mc": [
+            word]}}, "weight": score[word] if word in score else 1})
+        functions.append({"filter": {"terms": {"scene_concepts": [
+            word]}}, "weight": score[word] * 0.5 if word in score else 0.5})
+        scores[word] += score[word] if word in score else 1
+    for word in must_terms:
+        functions.append({"filter": {"terms": {"descriptions_and_mc": [
+            word]}}, "weight": 3 * score[word] if word in score else 3})
+        functions.append({"filter": {"terms": {"scene_concepts": [
+            word]}}, "weight": 1.5 * score[word] if word in score else 1.5})
+        scores[word] += 3 * score[word] if word in score else 3
 
-        for word in exact_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                             word]}}, "weight": 5 * score[word] if word in score else 5})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                             word]}}, "weight": 2.5 * score[word] if word in score else 2.5})
-            scores[word] += 5 * score[word] if word in score else 5
-
-        main_query = {"function_score": {
-            "query": main_query,
-            "boost": 5,
-            "functions": functions,
-            "score_mode": "sum",
-            "boost_mode": "sum"
-        }}
+    for word in exact_terms:
+        functions.append({"filter": {"terms": {"descriptions_and_mc": [
+            word]}}, "weight": 5 * score[word] if word in score else 5})
+        functions.append({"filter": {"terms": {"scene_concepts": [
+            word]}}, "weight": 2.5 * score[word] if word in score else 2.5})
+        scores[word] += 5 * score[word] if word in score else 5
+    main_query = {"function_score": {
+        "query": main_query,
+        "boost": 5,
+        "functions": functions,
+        "score_mode": "sum",
+        "boost_mode": "sum"
+    }}
     # END TEST
-
     # =============
     json_query = {
         "size": size,
@@ -233,12 +245,12 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     # print(json.dumps(json_query), "lsc2020")
     print("Scores:")
     print(json.dumps({k: v for k, v in sorted(
-        scores.items(), key=lambda item: -item[1])}).replace(", ", ",\n"))
-    return group_results(post_request(json.dumps(json_query), "lsc2020"), group_factor)
+        scores.items(), key=lambda item: -item[1])[:10]}).replace(", ", ",\n"))
+    return group_results(post_request(json.dumps(json_query), "lsc2020"), group_factor), scores
 
 
 def forward_search(query, conditional_query, condition, time_limit, gps_bounds=None):
-    main_events = individual_es(
+    main_events, _ = individual_es(
         query, gps_bounds, size=1000, group_factor="scene")
     extra_filter_scripts = []
 
@@ -257,8 +269,8 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds=N
             script = f" 0 < ChronoUnit.HOURS.between({time}, doc['time'].value) &&  ChronoUnit.HOURS.between({time}, doc['time'].value) < {float(time_limit)+ 2} "
         extra_filter_scripts.append(f"({script})")
     extra_filter_scripts = [f''"||".join(extra_filter_scripts)]
-    conditional_events = individual_es(conditional_query, size=10000,
-                                       extra_filter_scripts=None)
+    conditional_events, _ = individual_es(conditional_query, size=10000,
+                                          extra_filter_scripts=None)
 
     return main_events, conditional_events, extra_filter_scripts
 
@@ -317,8 +329,8 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds):
         beforewhen = afterwhen.strip('h')
     before_pairs, extra_filter_scripts = es_two_events(
         query, before, "before", beforewhen, gps_bounds, return_extra_filter=True)
-    after_events = individual_es(after,
-                                 size=5000, extra_filter_scripts=extra_filter_scripts)
+    after_events, _ = individual_es(after,
+                                    size=5000, extra_filter_scripts=extra_filter_scripts)
     print(len(before_pairs), len(after_events))
 
     pair_events = []

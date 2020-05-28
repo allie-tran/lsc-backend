@@ -1,7 +1,6 @@
 import time
 import json
 import os
-import shelve
 import functools
 from collections import defaultdict
 
@@ -23,30 +22,6 @@ map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
 simples = json.load(open(f"{COMMON_PATH}/simples.json"))
 synsets = json.load(open(f"{LSC_PATH}/word2vec/wn.txt"))
-
-
-def cache(_func=None, *, file_name=None, separator='_'):
-    """
-    if file_name is None, just cache it using memory, else save result to file
-    """
-    if file_name:
-        d = shelve.open(file_name)
-    else:
-        d = {}
-
-    def decorator(func):
-        def new_func(*args, **kwargs):
-            param = separator.join(
-                [str(arg) for arg in args] + [str(v) for v in kwargs.values()])
-            if param not in d:
-                d[param] = func(*args, **kwargs)
-            return d[param]
-        return new_func
-
-    if _func is None:
-        return decorator
-    else:
-        return decorator(_func)
 
 
 specials = {"cloudy": "cloud"}
@@ -239,30 +214,34 @@ def get_all_similar(words, keywords, must_not_terms):
                     musts.add(word)
                 for w in similars:
                     expansion[w].append(0.8)
-
+        print('-' * 80)
+        print(word)
         for w, dist in get_most_similar(model, word, all_keywords)[:20]:
             expansion[w].append(1-dist)
             # if dist < 0.2:
             # musts.add(w)
             # elif dist < 0.5:
             # shoulds.add(w)
-            # print(w.ljust(20), round(dist, 2))
+            print(w.ljust(20), round(dist, 2))
     # print(keywords)
     for keyword in keywords["descriptions"]["expanded"]:
+        print('-' * 80)
+        print(keyword)
         for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
             expansion[w].append(1-dist)
-            # print(w.ljust(20), round(dist, 2))
+            print(w.ljust(20), round(dist, 2))
 
     final_expansions = []
     score = {}
     for w, dist in expansion.items():
         if w not in must_not_terms:
             mean_dist = sum(dist) / len(dist)
-            if mean_dist > 0.8:
+            max_dist = max(dist)
+            if mean_dist > 0.5 and max_dist > 0.75:
                 musts.add(w)
-            if mean_dist > 0.5:
+            if mean_dist > 0.5 or max_dist > 0.6:
                 final_expansions.append(w)
-            score[w] = mean_dist
+            score[w] = max_dist
 
     musts = musts.difference(must_not_terms)
     musts = musts.difference(["airplane", "plane"])

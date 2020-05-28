@@ -1,8 +1,36 @@
 from nltk import pos_tag
 from nltk.tokenize import WordPunctTokenizer
-from parsedatetime import Constants
+from parsedatetime import Constants, Calendar
 
 from ..nlp_utils.common import *
+
+more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
+                  "morning": ["breakfast"],
+                  "evening": ["nightfall", "dusk", "dinner", "dinnertime", "sunset", "twilight"],
+                  "noon": ["midday", "lunchtime", "lunch"],
+                  "night": ["nighttime"],
+                  "afternoon": ["supper", "suppertime", "teatime"]}
+
+timeofday = {"early; morning": "5am-8am",
+             "late; morning": "11am-12pm",
+             "morning": "5am-12pm",
+             "early; afternoon": "1pm-3pm",
+             "late; afternoon": "4pm-5pm",
+             "midafternoon": "2pm-3pm",
+             "afternoon": "12pm-5pm",
+             "early; evening": "5pm-7pm",
+             "midevening": "7pm-9pm",
+             "evening": "5pm-9pm",
+             "night": "9pm-4am",
+             "noon": "11am-1pm",
+             "midday": "11am-1pm",
+             "midnight": "11pm-1am",
+             "bedtime": "8pm-1am",
+             }
+
+for t in more_timeofday:
+    for synonym in more_timeofday[t]:
+        timeofday[synonym] = timeofday[t]
 
 
 class TimeTagger:
@@ -14,7 +42,8 @@ class TimeTagger:
             #     self.all_regexes.append(("TIMEPREP", r))
             if key in ["CRE_TIMEHMS", "CRE_TIMEHMS2",
                        "CRE_RTIMEHMS", "CRE_RTIMEHMS"]:
-                self.all_regexes.append(("TIME", r))  # TIME (proper time oclock)
+                # TIME (proper time oclock)
+                self.all_regexes.append(("TIME", r))
             elif key in ["CRE_DATE", "CRE_DATE3", "CRE_DATE4", "CRE_MONTH", "CRE_DAY", "",
                          "CRE_RDATE", "CRE_RDATE2"]:
                 self.all_regexes.append(("DATE", r))  # DATE (day in a month)
@@ -28,8 +57,21 @@ class TimeTagger:
             elif key in ["CRE_WEEKDAY"]:
                 self.all_regexes.append(("WEEKDAY", r))  # WEEKDAY
         # Added by myself
-        self.all_regexes.append(("TIMEOFDAY", r"\b(afternoon|noon|morning|evening|night|twilight)\b"))
-        self.all_regexes.append(("TIMEPREP", r"\b(before|after|while|late|early)\b"))
+        timeofday_regex = set()
+        for t in timeofday:
+            if ';' in t:
+                t = t.split('; ')[-1]
+            timeofday_regex.add(t)
+
+        timeofday_regex = "|".join(timeofday_regex)
+        self.all_regexes.append(
+            ("TIMEOFDAY", r"\b(" + timeofday_regex + r")\b"))
+
+        # self.all_regexes.append(
+        #     ("TIMEOFDAY", r"\b(|afternoon|noon|morning|evening|night|twilight)\b"))
+        self.all_regexes.append(
+            ("TIMEPREP", r"\b(before|after|while|late|early)\b"))
+        self.tags = [t for t, r in self.all_regexes]
 
     def merge_interval(self, intervals):
         if intervals:
@@ -89,3 +131,72 @@ class TimeTagger:
                 tag = [t[1] for t in original_tags if t[0] == word][0]  # FIXED
                 new_tags.append((word, tag))
         return new_tags
+
+
+cal = Calendar()
+month2num = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7,
+             "august": 8,
+             "september": 9, "october": 10, "november": 11, "december": 12}
+num2month = dict([(n, m) for (m, n) in month2num.items()])
+
+
+def get_day_month(date_string):
+    today = cal.parse("today")[0]
+    date = cal.parse(date_string)[0]
+    date_string = date_string.lower()
+    y, m, d = date.tm_year, date.tm_mon, date.tm_mday
+    if str(y) not in date_string:
+        y = None
+    if m == today.tm_mon and (num2month(m) not in date_string or str(m) not in date_string):
+        m = None
+    if str(d) not in date_string:
+        d = None
+    return y, m, d
+
+
+def am_pm_to_num(hour):
+    minute = 0
+    if ':' in hour:
+        minute = re.compile(r'\d+(:\d+).*').findall(hour)[0]
+        hour = hour.replace(minute, '')
+        minute = int(minute[1:])
+    if 'am' in hour:
+        hour = int(hour.replace('am', ''))
+        if hour == 12:
+            hour = 0
+    elif 'pm' in hour:
+        hour = int(hour.replace('pm', '')) + 12
+        if hour == 24:
+            hour = 12
+    print(hour, minute)
+    return hour, minute
+
+
+def adjust_start_end(mode, original, hour, minute):
+    if mode == "start":
+        if original[0] == hour:
+            return hour, max(original[1], minute)
+        elif hour > original[0]:
+            return hour, minute
+        else:
+            return original
+    if original[0] == hour:
+        return hour, min(original[1], minute)
+    elif hour < original[0]:
+        return hour, minute
+    else:
+        return original
+
+
+def time_es_query(prep, hour, minute):
+    if prep in ["before", "earlier than", "sooner than"]:
+        if hour != 24 or minute != 0:
+            return f"(doc['time'].value.getHour() < {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() <= {minute}))"
+        else:
+            return None
+    if prep in ["after", "later than"]:
+        if hour != 0 or minute != 0:
+            return f"(doc['time'].value.getHour() > {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() >= {minute}))"
+        else:
+            return None
+    return f"abs(doc['time'].value.getHour() - {hour}) < 1"

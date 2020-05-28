@@ -4,6 +4,7 @@ import re
 import nltk
 from nltk.corpus import stopwords
 import os
+import shelve
 
 stop_words = stopwords.words('english')
 stop_words += [',', '.']
@@ -28,11 +29,11 @@ locations = set([img["location"].lower()
 regions = set([w.strip().lower() for img in grouped_info_dict.values()
                for w in img["region"]])
 deeplab = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["deeplab"]])
+               for w in img["deeplab"]])
 coco = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["coco"]])
+            for w in img["coco"]])
 attributes = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["attributes"]])
+                  for w in img["attributes"]])
 category = set([w.replace('_', ' ') for img in grouped_info_dict.values()
                 for w in img["category"]])
 microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
@@ -44,6 +45,7 @@ old_keywords = regions | deeplab | coco | attributes | category
 all_address = '|'.join([re.escape(a) for a in locations])
 activities = set(["walking", "airplane", "transport"])
 phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))
+
 
 def find_regex(regex, text, escape=False):
     regex = re.compile(regex, re.IGNORECASE + re.VERBOSE)
@@ -70,3 +72,47 @@ def flatten_tree_tags(t, pos):
             return [flatten_tree_tags(l, pos) for l in t]
     else:
         return t
+
+
+def cache(_func=None, *, file_name=None, separator='_'):
+    """
+    if file_name is None, just cache it using memory, else save result to file
+    """
+    if file_name:
+        d = shelve.open(file_name)
+    else:
+        d = {}
+
+    def decorator(func):
+        def new_func(*args, **kwargs):
+            param = separator.join(
+                [str(arg) for arg in args] + [str(v) for v in kwargs.values()])
+            if param not in d:
+                d[param] = func(*args, **kwargs)
+            return d[param]
+        return new_func
+
+    if _func is None:
+        return decorator
+    else:
+        return decorator(_func)
+
+
+freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
+overlap = json.load(open(f"{COMMON_PATH}/stats/overlap_all.json"))
+
+
+@cache
+def intersect(word, keyword):
+    if word == keyword:
+        return True
+    try:
+        if word in keyword.split(' '):
+            cofreq = overlap[word][keyword]
+            return cofreq / freq[word] > 0.8
+        elif keyword in word.split(' '):
+            cofreq = overlap[keyword][word]
+            return cofreq / freq[keyword] > 0.8
+    except KeyError:
+        pass
+    return False

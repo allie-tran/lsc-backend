@@ -1,96 +1,139 @@
+from autocorrect import Speller
 from nltk import pos_tag
-
+from collections import defaultdict
 from ..nlp_utils.common import *
 from ..nlp_utils.pos_tag import *
+from ..nlp_utils.time import *
+
 
 init_tagger = Tagger(locations)
 e_tag = ElementTagger()
 
 
+def add_time_query(time_filters, prep, time):
+    query = time_es_query(prep, time[0], time[1])
+    if query:
+        time_filters.add(query)
+    return time_filters
+
+
 def extract_info_from_tag(tag_info):
-    obj_dict = {}
-    obj_past = []
-    obj_present = []
-    obj_future = []
-
-    loc_dict = {}
-    loc_past = []
-    loc_present = []
-    loc_future = []
-
+    objects = set()
+    locations = set()
+    weekdays = set()
+    time_filters = set()
+    date_filters = set()
+    region = set()
+    times = set()
+    # loc, split_keywords, info, weekday, month, timeofday,
     for action in tag_info['action']:
-        extract_action = action.split(';')
-        action_time = extract_action[0]
-        if action_time == 'past':
-            try:
-                if extract_action[2] != '':
-                    obj_past.append(extract_action[2])
-                if extract_action[3] != '':
-                    loc_past.append(extract_action[3])
-            except:
-                pass
-        if action_time == 'present':
-            try:
-                if extract_action[2] != '':
-                    obj_present.append(extract_action[2])
-                if extract_action[3] != '':
-                    loc_present.append(extract_action[3])
-            except:
-                pass
-        if action_time == 'future':
-            try:
-                if extract_action[2] != '':
-                    obj_future.append(extract_action[2])
-                if extract_action[3] != '':
-                    loc_future.append(extract_action[3])
-            except:
-                pass
+        if action.name:
+            objects.add(" ".join(action.name))
+        if action.in_obj:
+            objects.add(" ".join(action.in_obj))
+        if action.in_loc:
+            locations.add(" ".join(action.in_loc))
 
     for obj in tag_info['object']:
-        extract_object = obj.split(', ')
-        obj_is = extract_object[1]
-        if obj_is not in obj_past and obj_is not in obj_present and obj_is not in obj_future:
-            if len(obj_past) > 0:
-                obj_past.append(obj_is)
-            if len(obj_present) > 0:
-                obj_present.append(obj_is)
-            if len(obj_future) > 0:
-                obj_future.append(obj_is)
+        for name in obj.name:
+            objects.add(name)
 
     for loc in tag_info['location']:
-        extract_loc = loc.split()
-        loc_is = extract_loc[2]
-        negative = True if len(extract_loc[1]) > 2 else False
-        if negative:  # since it is NOT --> dont append it
-            try:
-                loc_past.remove(loc_is)
-                loc_present.remove(loc_is)
-                loc_future.remove(loc_is)
-            except:
-                pass
-        else:
-            if loc_is not in loc_past and loc_is not in loc_present and loc_is not in loc_future:
-                if len(loc_past) > 0:
-                    loc_past.append(loc_is)
-                if len(loc_present) > 0:
-                    loc_present.append(loc_is)
-                if len(loc_future) > 0:
-                    loc_future.append(loc_is)
+        for name, info in zip(loc.name, loc.info):
+            if info == "REGION":
+                region.add(name)
+            locations.add(name)
 
-    query_dict = {}
-    query_dict['present'] = obj_present + loc_present
-    query_dict['past'] = obj_past + loc_past
-    query_dict['future'] = obj_future + loc_future
+    start = (0, 0)
+    end = (24, 0)
+    for time in tag_info['time']:
+        if time.info == "WEEKDAY":
+            weekdays.add(" ".join(time.name))
+        elif time.info == "TIMERANGE":
+            s, e = " ".join(time.name).split("-")
+            start = adjust_start_end("start", start, *am_pm_to_num(s))
+            end = adjust_start_end("end", end, *am_pm_to_num(e))
+            # time_filters = add_time_query(time_filters, "after", start)
+            # time_filters = add_time_query(time_filters, "before", end)
+        elif time.info == "TIME":
+            if set(time.prep).intersection(["before", "earlier than", "sooner than"]):
+                end = adjust_start_end(
+                    "end", end, *am_pm_to_num(" ".join(time.name)))
+            elif set(time.prep).intersection(["after", "later than"]):
+                start = adjust_start_end(
+                    "start", start, *am_pm_to_num(" ".join(time.name)))
+            else:
+                h, m = am_pm_to_num(" ".join(time.name))
+                start = adjust_start_end("start", start, h - 1, m)
+                end = adjust_start_end("end", end, h + 1, m)
+        elif time.info == "DATE":
+            y, m, d = get_day_month(" ".join(time.name))
+            this_filter = []
+            if y:
+                this_filter.append(
+                    f" (doc['time'].value.getYear() == {y}) ")
+            if m:
+                this_filter.append(
+                    f" (doc['time'].value.getMonthValue() == {m}) ")
+            if d:
+                this_filter.append(
+                    f" (doc['time'].value.getDayOfMonth() == {d}) ")
+            date_filters.add(f' ({"&&".join(this_filter)}) ')
+        elif time.info == "TIMEOFDAY":
+            t = time.name[0]
+            if "early" in time.prep:
+                if "early; " + time.name[0] in timeofday:
+                    t = "early; " + time.name[0]
+            elif "late" in time.prep:
+                if "late; " + time.name[0] in timeofday:
+                    t = "late; " + time.name[0]
+            if t in timeofday:
+                s, e = timeofday[t].split("-")
+                start = adjust_start_end("start", start, *am_pm_to_num(s))
+                end = adjust_start_end("end", end, *am_pm_to_num(e))
+            else:
+                print(t)
+        print(time, start, end)
+    print("Start:", start, "End:", end)
+    time_filters = add_time_query(time_filters, "after", start)
+    time_filters = add_time_query(time_filters, "before", end)
+    if (end[0] < start[0]) or (end[0] == start[0] and end[1] < start[1]):
+        time_filters = [
+            f' ({"||".join(time_filters)}) '] if time_filters else []
+    else:
+        time_filters = [
+            f' ({"&&".join(time_filters)}) '] if time_filters else []
+    date_filters = [f' ({"||".join(date_filters)}) '] if date_filters else []
 
-    obj_dict['present'] = obj_present
-    obj_dict['past'] = obj_past
-    obj_dict['future'] = obj_future
+    split_keywords = {"descriptions": {"exact": [], "expanded": []},
+                      "coco": {"exact": [], "expanded": []},
+                      "microsoft": {"exact": [], "expanded": []}}
+    objects = objects.difference({""})
+    new_objects = set()
+    for keyword in objects:
+        if keyword not in all_keywords:
+            corrected = speller(keyword)
+            if corrected in all_keywords:
+                print(keyword, '--->', corrected)
+                keyword = corrected
+        new_objects.add(keyword)
+        for kw in microsoft:
+            if kw == keyword:
+                split_keywords["microsoft"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["microsoft"]["expanded"].append(kw)
+        for kw in coco:
+            if kw == keyword:
+                split_keywords["coco"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["coco"]["expanded"].append(kw)
+        for kw in all_keywords:
+            if kw == keyword:
+                split_keywords["descriptions"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["descriptions"]["expanded"].append(kw)
 
-    loc_dict['present'] = loc_present
-    loc_dict['past'] = loc_past
-    loc_dict['future'] = loc_future
-
-    return query_dict, obj_dict, loc_dict
+    return list(new_objects), split_keywords, list(region), list(locations.difference({""})), list(weekdays), time_filters, date_filters
 
 
 def extract_info_from_sentence(sent):
@@ -257,6 +300,9 @@ def extract_info_from_sentence_full_tag(sent):
     return info
 
 
+speller = Speller(lang='en')
+
+
 def process_query(sent):
     must_not = re.findall(r"-\S+", sent)
     must_not_terms = []
@@ -302,7 +348,11 @@ def process_query(sent):
         elif tag in ['NN', 'SPACE', "VBG", "NNS"]:
             if word in ["office", "meeting"]:
                 loc.append("work")
+            corrected = speller(word)
+            if corrected in all_keywords:
+                keywords.append(corrected)
             info.append(word)
+
     print(f"Location: {loc}, weekday: {weekday}, month: {month}, timeofday: {timeofday}, activity: {activity}, region: {region}, must-not: {must_not_terms}")
     print(f"Keywords:", keywords, "Rest:", info)
 
@@ -328,3 +378,18 @@ def process_query(sent):
                 split_keywords["descriptions"]["expanded"].append(kw)
 
     return loc, split_keywords, info, weekday, month, timeofday, list(set(activity)), list(set(region)), must_not_terms
+
+
+def process_query2(sent):
+    tags = init_tagger.tag(sent)
+    tags = e_tag.tag(tags)
+    return extract_info_from_tag(tags)
+
+
+if __name__ == "__main__":
+    tags = init_tagger.tag(
+        "a flowre in the dedk")
+    print(tags)
+    tags = e_tag.tag(tags)
+    print(tags)
+    print(extract_info_from_tag(tags))

@@ -11,6 +11,13 @@ group_info = json.load(open(f"{COMMON_PATH}/group_info.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
 
 
+def spell_correct(sent):
+    corrected = speller(sent)
+    if corrected != sent:
+        print(f"Spell correction: {sent} ---> {corrected}")
+    return corrected
+
+
 def distance(lt1, ln1, lt2, ln2):
     return (geopy.distance.distance([lt1, ln1], [lt2, ln2]).km)
 
@@ -55,7 +62,7 @@ def post_request(json_query, index="lsc2019_combined_text_bow"):
                      for d in response_json["hits"]["hits"]]
     else:
         print('Wrong')
-        # print(json_query)
+        print(json_query)
         print(response.status_code)
         id_images = []
     return id_images
