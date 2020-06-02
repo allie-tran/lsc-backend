@@ -48,7 +48,7 @@ class TimeTagger:
                          "CRE_RDATE", "CRE_RDATE2"]:
                 self.all_regexes.append(("DATE", r))  # DATE (day in a month)
             elif key in ["CRE_TIMERNG1", "CRE_TIMERNG2", "CRE_TIMERNG3", "CRE_TIMERNG4",
-                         "CRE_DATERNG1", "CRE_DATERNG2", "CRE_DATERNG3", "CRE_NLP_PREFIX"]:
+                         "CRE_DATERNG1", "CRE_DATERNG2", "CRE_DATERNG3"]:
                 self.all_regexes.append(("TIMERANGE", r))  # TIMERANGE
             elif key in ["CRE_UNITS", "CRE_QUNITS"]:
                 self.all_regexes.append(("PERIOD", r))  # PERIOD
@@ -71,6 +71,8 @@ class TimeTagger:
         #     ("TIMEOFDAY", r"\b(|afternoon|noon|morning|evening|night|twilight)\b"))
         self.all_regexes.append(
             ("TIMEPREP", r"\b(before|after|while|late|early)\b"))
+        self.all_regexes.append(
+            ("DATE", r"\b(2015|2016|2018)\b"))
         self.tags = [t for t, r in self.all_regexes]
 
     def merge_interval(self, intervals):
@@ -106,7 +108,6 @@ class TimeTagger:
         # --- FIXED ---
         original_tokens = tokenizer.tokenize(sent)
         original_tags = pos_tag(original_tokens)
-        # print(original_tags)
         # --- END FIXED ---
 
         tokens = []
@@ -141,6 +142,8 @@ num2month = dict([(n, m) for (m, n) in month2num.items()])
 
 
 def get_day_month(date_string):
+    if (date_string) in ["2015", "2016", "2018"]:
+        return int(date_string), None, None
     today = cal.parse("today")[0]
     date = cal.parse(date_string)[0]
     date_string = date_string.lower()

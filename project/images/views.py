@@ -9,7 +9,8 @@ from django.views.decorators.csrf import csrf_exempt
 from images.query import es, es_date, get_gps, get_timeline, get_timeline_group
 
 saved = defaultdict(lambda : [])
-
+session = 0
+submit_time = defaultdict(lambda : [])
 def jsonize(response):
     # JSONize
     response = JsonResponse(response)
@@ -33,7 +34,9 @@ def save(request):
 @csrf_exempt
 def restart(request):
     global saved
-    saved=defaultdict(lambda: [])
+    global session
+    session += 1
+    saved = defaultdict(lambda: [])
     return jsonize({"success": True})
 
 @csrf_exempt
@@ -47,7 +50,12 @@ def remove(request):
 @csrf_exempt
 def export(request):
     global saved
-    json.dump(saved, open(f'results_{time.time()}.json', 'w'))
+    global session
+    global submit_time
+    query_id = request.GET.get('query_id')
+    time = request.GET.get('time')
+    submit_time[query_id] = time
+    json.dump({"time" : submit_time, "saved": saved}, open(f'results/{session}.json', 'w'))
     return jsonize({"success": True})
 
 @csrf_exempt

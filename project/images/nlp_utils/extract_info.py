@@ -352,10 +352,9 @@ def process_query2(sent):
     return extract_info_from_tag(tags)
 
 
-if __name__ == "__main__":
-    tags = init_tagger.tag(
-        "a flowre in the dedk")
-    print(tags)
-    tags = e_tag.tag(tags)
-    print(tags)
-    print(extract_info_from_tag(tags))
+# tags = init_tagger.tag(
+#     "Find the moments in 2015 and 2018 when u1 was using public transports in my home country (Ireland)")
+# print(tags)
+# tags = e_tag.tag(tags)
+# print(tags)
+# print(extract_info_from_tag(tags))
