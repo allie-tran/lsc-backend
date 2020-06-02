@@ -54,8 +54,8 @@ def get_most_similar(model, word, vocabulary):
         vocabulary = [w for w in vocabulary if w in model.wv.vocab]
         if vocabulary:
             return sorted(zip(vocabulary, model.wv.distances(word, vocabulary)), key=lambda x: x[1])
-    else:
-        print(f"{word} not in word2vec model")
+    # else:
+    #     print(f"{word} not in word2vec model")
     return []
 
 
@@ -125,9 +125,9 @@ def inspect(syns, max_depth):
 
 # @cache(file_name='similar.cache')
 def get_similar(word):
-    kws = [kw.keyword for kw in KEYWORDS]
-    if word in kws:
-        return [word]
+    # kws = [kw.keyword for kw in KEYWORDS]
+    # if word in kws:
+    #     return [word]
     similars = defaultdict(lambda: 10)
 
     for kw in KEYWORDS:
@@ -207,29 +207,29 @@ def get_all_similar(words, keywords, must_not_terms):
                     keywords["microsoft"]["expanded"].append(w)
                 keywords["descriptions"]["expanded"].append(w)
             musts.update(possible_words)
-        else:
-            similars = get_similar(word)
-            if similars:
-                if word in similars:
-                    musts.add(word)
-                for w in similars:
-                    expansion[w].append(0.8)
-        print('-' * 80)
-        print(word)
+        similars = get_similar(word)
+        if similars:
+            # print(word, "---->", similars)
+            if word in similars:
+                musts.add(word)
+            for w in similars:
+                expansion[w].append(0.95)
+        # print('-' * 80)
+        # print(word)
         for w, dist in get_most_similar(model, word, all_keywords)[:20]:
             expansion[w].append(1-dist)
             # if dist < 0.2:
             # musts.add(w)
             # elif dist < 0.5:
             # shoulds.add(w)
-            print(w.ljust(20), round(dist, 2))
+            # print(w.ljust(20), round(dist, 2))
     # print(keywords)
     for keyword in keywords["descriptions"]["expanded"]:
-        print('-' * 80)
-        print(keyword)
+        # print('-' * 80)
+        # print(keyword)
         for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
             expansion[w].append(1-dist)
-            print(w.ljust(20), round(dist, 2))
+            # print(w.ljust(20), round(dist, 2))
 
     final_expansions = []
     score = {}
@@ -245,7 +245,6 @@ def get_all_similar(words, keywords, must_not_terms):
 
     musts = musts.difference(must_not_terms)
     musts = musts.difference(["airplane", "plane"])
-    print("Must and should: ", exacts, musts, final_expansions)
     return list(exacts), list(musts), final_expansions, score
 
 
@@ -273,7 +272,7 @@ def check_category(word):
 def process_string(info, keywords, must_not_terms):
     pos = pos_tag(info)
     s = []
-    print(pos)
+    # print(pos)
     for w, t in pos:
         if w == "be":
             continue

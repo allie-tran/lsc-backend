@@ -23,25 +23,31 @@ all_words = period + preceeding + following
 all_prep = simpletime + period + preceeding + following
 pattern = re.compile(f"\s?({'|'.join(all_words)}+)\s")
 
-grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
-locations = set([img["location"].lower()
-                 for img in grouped_info_dict.values()])
-regions = set([w.strip().lower() for img in grouped_info_dict.values()
-               for w in img["region"]])
-deeplab = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-               for w in img["deeplab"]])
-coco = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-            for w in img["coco"]])
-attributes = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                  for w in img["attributes"]])
-category = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                for w in img["category"]])
-microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
-                 for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
+# grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
+# locations = set([img["location"].lower()
+#                  for img in grouped_info_dict.values()])
+# regions = set([w.strip().lower() for img in grouped_info_dict.values()
+#                for w in img["region"]])
+# deeplab = set([w.replace('_', ' ') for img in grouped_info_dict.values()
+#                for w in img["deeplab"]])
+# coco = set([w.replace('_', ' ') for img in grouped_info_dict.values()
+#             for w in img["coco"]])
+# attributes = set([w.replace('_', ' ') for img in grouped_info_dict.values()
+#                   for w in img["attributes"]])
+# category = set([w.replace('_', ' ') for img in grouped_info_dict.values()
+#                 for w in img["category"]])
+# microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
+#                  for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
 
-all_keywords = regions | deeplab | coco | attributes | category | microsoft
-old_keywords = regions | deeplab | coco | attributes | category
+# all_keywords = regions | deeplab | coco | attributes | category | microsoft
+# old_keywords = regions | deeplab | coco | attributes | category
 # json.dump(list(keywords), open(f'{COMMON_PATH}/all_keywords.json', 'w'))
+locations = json.load(open(f'{COMMON_PATH}/locations.json'))
+regions = json.load(open(f'{COMMON_PATH}/regions.json'))
+microsoft = json.load(open(f'{COMMON_PATH}/microsoft.json'))
+coco = json.load(open(f'{COMMON_PATH}/coco.json'))
+
+all_keywords = json.load(open(f'{COMMON_PATH}/all_keywords.json'))
 all_address = '|'.join([re.escape(a) for a in locations])
 activities = set(["walking", "airplane", "transport"])
 phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))

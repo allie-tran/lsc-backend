@@ -76,6 +76,8 @@ class Tagger:
                     t1, t2 = None, None
                 if t2 in ['NN', 'NNS']:
                     new_tags[-1] = (t1, 'VBG')
+            if tag == 'JJ' and tag in all_keywords:
+                tag = 'NN'
             new_tags.append((word, tag))
         return new_tags + keywords
 
@@ -169,7 +171,7 @@ class ElementTagger:
 
         for n in self.cp.parse(tags):
             self.update(elements, n)
-            print(n)
+            # print(n)
 
         # # Convert to string and Filter same result
         # for key, value in elements.items():
@@ -288,7 +290,7 @@ class ElementTagger2:
 
         for n in self.cp.parse(tags):
             self.update(elements, n)
-            print(n)
+            # print(n)
 
         # Convert to string and Filter same result
         for key, value in elements.items():

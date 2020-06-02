@@ -147,7 +147,7 @@ def get_day_month(date_string):
     y, m, d = date.tm_year, date.tm_mon, date.tm_mday
     if str(y) not in date_string:
         y = None
-    if m == today.tm_mon and (num2month(m) not in date_string or str(m) not in date_string):
+    if m == today.tm_mon and (num2month[m] not in date_string or str(m) not in date_string):
         m = None
     if str(d) not in date_string:
         d = None
@@ -168,7 +168,6 @@ def am_pm_to_num(hour):
         hour = int(hour.replace('pm', '')) + 12
         if hour == 24:
             hour = 12
-    print(hour, minute)
     return hour, minute
 
 
@@ -186,17 +185,3 @@ def adjust_start_end(mode, original, hour, minute):
         return hour, minute
     else:
         return original
-
-
-def time_es_query(prep, hour, minute):
-    if prep in ["before", "earlier than", "sooner than"]:
-        if hour != 24 or minute != 0:
-            return f"(doc['time'].value.getHour() < {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() <= {minute}))"
-        else:
-            return None
-    if prep in ["after", "later than"]:
-        if hour != 0 or minute != 0:
-            return f"(doc['time'].value.getHour() > {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() >= {minute}))"
-        else:
-            return None
-    return f"abs(doc['time'].value.getHour() - {hour}) < 1"

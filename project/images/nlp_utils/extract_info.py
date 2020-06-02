@@ -10,25 +10,57 @@ init_tagger = Tagger(locations)
 e_tag = ElementTagger()
 
 
-def add_time_query(time_filters, prep, time):
-    query = time_es_query(prep, time[0], time[1])
-    if query:
-        time_filters.add(query)
-    return time_filters
+def process_time(time_info):
+    weekdays = set()
+    dates = set()
+    start = (0, 0)
+    end = (24, 0)
+    for time in time_info:
+        if time.info == "WEEKDAY":
+            weekdays.add(" ".join(time.name))
+        elif time.info == "TIMERANGE":
+            s, e = " ".join(time.name).split("-")
+            start = adjust_start_end("start", start, *am_pm_to_num(s))
+            end = adjust_start_end("end", end, *am_pm_to_num(e))
+        elif time.info == "TIME":
+            if set(time.prep).intersection(["before", "earlier than", "sooner than"]):
+                end = adjust_start_end(
+                    "end", end, *am_pm_to_num(" ".join(time.name)))
+            elif set(time.prep).intersection(["after", "later than"]):
+                start = adjust_start_end(
+                    "start", start, *am_pm_to_num(" ".join(time.name)))
+            else:
+                h, m = am_pm_to_num(" ".join(time.name))
+                start = adjust_start_end("start", start, h - 1, m)
+                end = adjust_start_end("end", end, h + 1, m)
+        elif time.info == "DATE":
+            dates.add(get_day_month(" ".join(time.name)))
+        elif time.info == "TIMEOFDAY":
+            t = time.name[0]
+            if "early" in time.prep:
+                if "early; " + time.name[0] in timeofday:
+                    t = "early; " + time.name[0]
+            elif "late" in time.prep:
+                if "late; " + time.name[0] in timeofday:
+                    t = "late; " + time.name[0]
+            if t in timeofday:
+                s, e = timeofday[t].split("-")
+                start = adjust_start_end("start", start, *am_pm_to_num(s))
+                end = adjust_start_end("end", end, *am_pm_to_num(e))
+            else:
+                print(t, f"is not a registered time of day ({timeofday})")
+    return list(weekdays), start, end, list(dates)
 
 
 def extract_info_from_tag(tag_info):
     objects = set()
+    verbs = set()
     locations = set()
-    weekdays = set()
-    time_filters = set()
-    date_filters = set()
     region = set()
-    times = set()
     # loc, split_keywords, info, weekday, month, timeofday,
     for action in tag_info['action']:
         if action.name:
-            objects.add(" ".join(action.name))
+            verbs.add(" ".join(action.name))
         if action.in_obj:
             objects.add(" ".join(action.in_obj))
         if action.in_loc:
@@ -43,67 +75,6 @@ def extract_info_from_tag(tag_info):
             if info == "REGION":
                 region.add(name)
             locations.add(name)
-
-    start = (0, 0)
-    end = (24, 0)
-    for time in tag_info['time']:
-        if time.info == "WEEKDAY":
-            weekdays.add(" ".join(time.name))
-        elif time.info == "TIMERANGE":
-            s, e = " ".join(time.name).split("-")
-            start = adjust_start_end("start", start, *am_pm_to_num(s))
-            end = adjust_start_end("end", end, *am_pm_to_num(e))
-            # time_filters = add_time_query(time_filters, "after", start)
-            # time_filters = add_time_query(time_filters, "before", end)
-        elif time.info == "TIME":
-            if set(time.prep).intersection(["before", "earlier than", "sooner than"]):
-                end = adjust_start_end(
-                    "end", end, *am_pm_to_num(" ".join(time.name)))
-            elif set(time.prep).intersection(["after", "later than"]):
-                start = adjust_start_end(
-                    "start", start, *am_pm_to_num(" ".join(time.name)))
-            else:
-                h, m = am_pm_to_num(" ".join(time.name))
-                start = adjust_start_end("start", start, h - 1, m)
-                end = adjust_start_end("end", end, h + 1, m)
-        elif time.info == "DATE":
-            y, m, d = get_day_month(" ".join(time.name))
-            this_filter = []
-            if y:
-                this_filter.append(
-                    f" (doc['time'].value.getYear() == {y}) ")
-            if m:
-                this_filter.append(
-                    f" (doc['time'].value.getMonthValue() == {m}) ")
-            if d:
-                this_filter.append(
-                    f" (doc['time'].value.getDayOfMonth() == {d}) ")
-            date_filters.add(f' ({"&&".join(this_filter)}) ')
-        elif time.info == "TIMEOFDAY":
-            t = time.name[0]
-            if "early" in time.prep:
-                if "early; " + time.name[0] in timeofday:
-                    t = "early; " + time.name[0]
-            elif "late" in time.prep:
-                if "late; " + time.name[0] in timeofday:
-                    t = "late; " + time.name[0]
-            if t in timeofday:
-                s, e = timeofday[t].split("-")
-                start = adjust_start_end("start", start, *am_pm_to_num(s))
-                end = adjust_start_end("end", end, *am_pm_to_num(e))
-            else:
-                print(t)
-        print(time, start, end)
-    print("Start:", start, "End:", end)
-    time_filters = add_time_query(time_filters, "after", start)
-    time_filters = add_time_query(time_filters, "before", end)
-    if (end[0] < start[0]) or (end[0] == start[0] and end[1] < start[1]):
-        time_filters = [
-            f' ({"||".join(time_filters)}) '] if time_filters else []
-    else:
-        time_filters = [
-            f' ({"&&".join(time_filters)}) '] if time_filters else []
-    date_filters = [f' ({"||".join(date_filters)}) '] if date_filters else []
 
     split_keywords = {"descriptions": {"exact": [], "expanded": []},
                       "coco": {"exact": [], "expanded": []},
@@ -132,8 +103,8 @@ def extract_info_from_tag(tag_info):
                 split_keywords["descriptions"]["exact"].append(kw)
             if intersect(kw, keyword):
                 split_keywords["descriptions"]["expanded"].append(kw)
-
-    return list(new_objects), split_keywords, list(region), list(locations.difference({""})), list(weekdays), time_filters, date_filters
+    weekdays, start_time, end_time, dates = process_time(tag_info["time"])
+    return list(new_objects), split_keywords, list(region), list(locations.difference({""})), list(weekdays), start_time, end_time, list(dates)
 
 
 def extract_info_from_sentence(sent):
@@ -236,7 +207,6 @@ def extract_info_from_sentence_full_tag(sent):
     for idx, tense_sent in enumerate(["", sent]):
         if len(tense_sent) > 2:
             tags = init_tagger.tag(tense_sent)
-            print(tags)
             info_full = e_tag.tag(tags)
             obj = []
             loc = []
@@ -319,7 +289,6 @@ def process_query(sent):
     month = []
     region = []
     keywords = []
-    print(tags)
     for word, tag in tags:
         if word == "airport":
             activity.append("airplane")
@@ -352,9 +321,6 @@ def process_query(sent):
             if corrected in all_keywords:
                 keywords.append(corrected)
             info.append(word)
-
-    print(f"Location: {loc}, weekday: {weekday}, month: {month}, timeofday: {timeofday}, activity: {activity}, region: {region}, must-not: {must_not_terms}")
-    print(f"Keywords:", keywords, "Rest:", info)
 
     split_keywords = {"descriptions": {"exact": [], "expanded": []},
                       "coco": {"exact": [], "expanded": []},

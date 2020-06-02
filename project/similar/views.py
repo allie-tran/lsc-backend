@@ -12,6 +12,7 @@ import requests
 COMMON_PATH = os.getenv('COMMON_PATH')
 images = json.load(open(
     '/home/tlduyen/LSC2020/common_full/full_similar_images.json'))
+grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
 
 
 def post_request(json_query, index="lsc2019_combined_text_bow"):
@@ -65,6 +66,20 @@ def index(request):
     image = request.GET.get('image_id')
     if image not in images:
         image = random.choice(images)
-    similar_images = get_neighbors(image)
+    similar_images = [image for image in get_neighbors(image) if image in grouped_info_dict]
     response = {"image": image, "images": similar_images}
+    return jsonize(response)
+
+
+@csrf_exempt
+def group(request):
+    image = request.GET.get('image_id')
+    if image not in images:
+        image = random.choice(images)
+    similar_images = get_neighbors(image)[:100]
+    scenes = defaultdict(lambda: [])
+    for image in similar_images:
+        if image in grouped_info_dict:
+            scenes[grouped_info_dict[image]["scene"]].append(image)
+    response = {"scenes": list(scenes.values())[:25]}
     return jsonize(response)

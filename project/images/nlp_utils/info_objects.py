@@ -129,7 +129,7 @@ class Action:
         else:
             if t[1] in ["VERB_ING", "PAST_VERB", "VERB", "ACTIVITY"]:
                 self.name.append(t[0])
-            elif t[1] in ["NN", "NNS"]:  # prior object than location
+            elif t[1] in ["NN", "NNS", "KEYWORD"]:  # prior object than location
                 self.obj.append(t)
                 if (len(self.name) - len(self.in_obj)) == 1:
                     self.in_obj.append(t[0])

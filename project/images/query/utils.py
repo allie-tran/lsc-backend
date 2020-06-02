@@ -7,8 +7,7 @@ import geopy.distance
 import requests
 
 COMMON_PATH = os.getenv("COMMON_PATH")
-group_info = json.load(open(f"{COMMON_PATH}/group_info.json"))
-grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
+grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 
 
 def spell_correct(sent):
@@ -136,8 +135,9 @@ def group_results(results, factor="group", sort_by_time=False):
         sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
 
     final_results = []
-
+    scores = []
     for score, images, begin_time, end_time in sorted_groups:
+        scores.append(score)
         final_results.append({
             "current": [image["image_path"] for image in images],
             "before": images[0]["before"],
@@ -145,8 +145,7 @@ def group_results(results, factor="group", sort_by_time=False):
             "begin_time": begin_time,
             "end_time": end_time})
     print(f"Grouped in to {len(final_results)} groups.")
-    return final_results
-
+    return final_results, scores
 
 def get_time_of_group(images):
     times = [datetime.strptime(
@@ -236,3 +235,54 @@ def add_gps_path(pairs):
         pair["gps_path"] = pair["gps"][0] + pair["gps"][1] + pair["gps"][2]
         new_pairs.append(pair)
     return new_pairs
+
+
+def time_es_query(prep, hour, minute):
+    if prep in ["before", "earlier than", "sooner than"]:
+        if hour != 24 or minute != 0:
+            return f"(doc['time'].value.getHour() < {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() <= {minute}))"
+        else:
+            return None
+    if prep in ["after", "later than"]:
+        if hour != 0 or minute != 0:
+            return f"(doc['time'].value.getHour() > {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() >= {minute}))"
+        else:
+            return None
+    return f"abs(doc['time'].value.getHour() - {hour}) < 1"
+
+
+def add_time_query(time_filters, prep, time):
+    query = time_es_query(prep, time[0], time[1])
+    if query:
+        time_filters.add(query)
+    return time_filters
+
+
+def time_to_filters(start_time, end_time, dates):
+    # Time
+    time_filters = add_time_query(set(), "after", start_time)
+    time_filters = add_time_query(time_filters, "before", end_time)
+    if (end_time[0] < start_time[0]) or (end_time[0] == start_time[0] and end_time[1] < start_time[1]):
+        time_filters = [
+            f' ({"||".join(time_filters)}) '] if time_filters else []
+    else:
+        time_filters = [
+            f' ({"&&".join(time_filters)}) '] if time_filters else []
+
+    # Date
+    date_filters = set()
+    for y, m, d in dates:
+        this_filter = []
+        if y:
+            this_filter.append(
+                f" (doc['time'].value.getYear() == {y}) ")
+        if m:
+            this_filter.append(
+                f" (doc['time'].value.getMonthValue() == {m}) ")
+        if d:
+            this_filter.append(
+                f" (doc['time'].value.getDayOfMonth() == {d}) ")
+        date_filters.add(f' ({"&&".join(this_filter)}) ')
+    date_filters = [
+        f' ({"||".join(date_filters)}) '] if date_filters else []
+    return time_filters, date_filters
