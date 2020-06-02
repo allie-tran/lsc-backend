@@ -104,48 +104,63 @@ def group_results(results, factor="group", sort_by_time=False):
         group = result[0][factor]
         grouped_results[group].append(result)
 
-    # Group again for hours < 2h, same location
-    regrouped_results = {}
-    count = 0
-    for group in grouped_results:
-        new_group = grouped_results[group]
-        regroup, begin_time, end_time = find_place_in_available_group(
-            regrouped_results, new_group)
-        if regroup and factor == "group":
-            regrouped_results[regroup]["raw_results"].extend(new_group)
-            regrouped_results[regroup]["begin_time"] = begin_time
-            regrouped_results[regroup]["end_time"] = end_time
-        else:
-            count += 1
-            regrouped_results[f"group_{count}"] = {"raw_results": grouped_results[group],
-                                                   "begin_time": begin_time,
-                                                   "end_time": end_time}
+    # IMAGECLEF
+    if factor == "scene":
+        final_results = []
+        scores = []
+        for images_with_scores in grouped_results.values():
+            score = images_with_scores[0][1]
+            scores.append(score)
+            images = [res[0] for res in images_with_scores]
+            final_results.append({
+                "current": [image["image_path"] for image in images],
+                "before": images[0]["before"],
+                "after": images[0]["after"]})
+        print(f"Grouped in to {len(final_results)} groups.")
+        return final_results, scores
+    else:
+        # Group again for hours < 2h, same location
+        regrouped_results = {}
+        count = 0
+        for group in grouped_results:
+            new_group = grouped_results[group]
+            regroup, begin_time, end_time = find_place_in_available_group(
+                regrouped_results, new_group)
+            if regroup and factor == "group":
+                regrouped_results[regroup]["raw_results"].extend(new_group)
+                regrouped_results[regroup]["begin_time"] = begin_time
+                regrouped_results[regroup]["end_time"] = end_time
+            else:
+                count += 1
+                regrouped_results[f"group_{count}"] = {"raw_results": grouped_results[group],
+                                                    "begin_time": begin_time,
+                                                    "end_time": end_time}
 
-    sorted_groups = []
-    for group in regrouped_results:
-        sorted_with_scores = sorted(
-            regrouped_results[group]["raw_results"], key=lambda x: (-x[1] if x[1] else 0, x[0]["time"]), reverse=False)
-        score = sorted_with_scores[0][1]
-        sorted_groups.append((score,
-                              [res[0] for res in sorted_with_scores],
-                              regrouped_results[group]["begin_time"],
-                              regrouped_results[group]["end_time"]))
+        sorted_groups = []
+        for group in regrouped_results:
+            sorted_with_scores = sorted(
+                regrouped_results[group]["raw_results"], key=lambda x: (-x[1] if x[1] else 0, x[0]["time"]), reverse=False)
+            score = sorted_with_scores[0][1]
+            sorted_groups.append((score,
+                                [res[0] for res in sorted_with_scores],
+                                regrouped_results[group]["begin_time"],
+                                regrouped_results[group]["end_time"]))
 
-    sorted_groups = sorted(
-        sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
+        sorted_groups = sorted(
+            sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
 
-    final_results = []
-    scores = []
-    for score, images, begin_time, end_time in sorted_groups:
-        scores.append(score)
-        final_results.append({
-            "current": [image["image_path"] for image in images],
-            "before": images[0]["before"],
-            "after": images[0]["after"],
-            "begin_time": begin_time,
-            "end_time": end_time})
-    print(f"Grouped in to {len(final_results)} groups.")
-    return final_results, scores
+        final_results = []
+        scores = []
+        for score, images, begin_time, end_time in sorted_groups:
+            scores.append(score)
+            final_results.append({
+                "current": [image["image_path"] for image in images],
+                "before": images[0]["before"],
+                "after": images[0]["after"],
+                "begin_time": begin_time,
+                "end_time": end_time})
+        print(f"Grouped in to {len(final_results)} groups.")
+        return final_results, scores
 
 def get_time_of_group(images):
     times = [datetime.strptime(

@@ -9,8 +9,11 @@ from django.views.decorators.csrf import csrf_exempt
 from images.query import es, es_date, get_gps, get_timeline, get_timeline_group
 
 saved = defaultdict(lambda : [])
-session = 0
+session = None
 submit_time = defaultdict(lambda : [])
+messages = defaultdict(lambda : {})
+last_message = {}
+
 def jsonize(response):
     # JSONize
     response = JsonResponse(response)
@@ -20,31 +23,41 @@ def jsonize(response):
     response["Access-Control-Allow-Headers"] = "X-Requested-With, Content-Type"
     return response
 
-
-@csrf_exempt
-def save(request):
-    global saved
-    image = request.GET.get('image_id')
-    query_id = request.GET.get('query_id')
-    if image not in saved[query_id]:
-        saved[query_id].append(image)
-    return jsonize({"success": True})
-
-
 @csrf_exempt
 def restart(request):
     global saved
     global session
-    session += 1
-    saved = defaultdict(lambda: [])
+    global submit_time
+    global messages
+    global last_message
+    saved = defaultdict(lambda : [])
+    session = time.time()
+    submit_time = defaultdict(lambda : [])
+    messages = defaultdict(lambda : {})
+    last_message = {}
+    return jsonize({"success": True})
+
+@csrf_exempt
+def save(request):
+    global saved
+    global messages
+    global last_message
+    query_id = request.GET.get('query_id')
+    image = request.GET.get('image_id')
+    if image not in saved[query_id]:
+        saved[query_id].append(image)
+    messages[query_id] = last_message
     return jsonize({"success": True})
 
 @csrf_exempt
 def remove(request):
     global saved
+    global messages
+    global last_message
     query_id = request.GET.get('query_id')
     image = request.GET.get('image_id')
     saved[query_id] = [img for img in saved[query_id] if img != image]
+    messages[query_id] = last_message
     return jsonize({"success": True})
 
 @csrf_exempt
@@ -52,10 +65,13 @@ def export(request):
     global saved
     global session
     global submit_time
+    global messages
+    global last_message
     query_id = request.GET.get('query_id')
     time = request.GET.get('time')
     submit_time[query_id] = time
     json.dump({"time" : submit_time, "saved": saved}, open(f'results/{session}.json', 'w'))
+    messages[query_id] = last_message
     return jsonize({"success": True})
 
 @csrf_exempt
@@ -68,12 +84,6 @@ def images(request):
     return jsonize(response)
 
 @csrf_exempt
-def get_saved(request):
-    global saved
-    query_id = request.GET.get('query_id')
-    return jsonize({"saved": saved[query_id]})
-
-@csrf_exempt
 def gps(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
@@ -82,15 +92,31 @@ def gps(request):
     response = {'gps': gps}
     return jsonize(response)
 
-
+# IMAGE CLEF
 @csrf_exempt
 def date(request):
+    global messages
+    global last_message
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     # Calculations
     queryset, info = es_date(message['query'], message["gps_bounds"])
+    message["query"]["info"] = info
+    last_message = message.copy()
     response = {'results': queryset[:100], 'info': info}
     return jsonize(response)
+
+@csrf_exempt
+def get_saved(request):
+    global saved
+    global messages
+    query_id = request.GET.get('query_id')
+    message = messages[query_id]
+    if message:
+        queryset, _ = es_date(message['query'], message["gps_bounds"])
+        return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query']})
+    else:
+        return jsonize({"saved": saved[query_id], 'results': [], 'query': {}})
 
 @csrf_exempt
 def timeline_group(request):
