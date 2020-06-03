@@ -11,7 +11,7 @@ from nltk.tag import pos_tag
 from ..nlp_utils.extract_info import init_tagger
 from nltk.tokenize import word_tokenize
 from ..nlp_utils.common import *
-
+from numpy import log
 specials = {"cloudy": "cloud"}
 
 COMMON_PATH = os.getenv("COMMON_PATH")
@@ -22,10 +22,9 @@ map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
 simples = json.load(open(f"{COMMON_PATH}/simples.json"))
 synsets = json.load(open(f"{LSC_PATH}/word2vec/wn.txt"))
-
-
+freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
+freq = {term: log(191404/freq[term]) for term in freq}
 specials = {"cloudy": "cloud"}
-
 
 @cache
 def morphy(word, sense):
@@ -213,11 +212,11 @@ def get_all_similar(words, keywords, must_not_terms):
             if word in similars:
                 musts.add(word)
             for w in similars:
-                expansion[w].append(0.95)
+                expansion[w.replace('_', ' ')].append(0.95)
         # print('-' * 80)
         # print(word)
         for w, dist in get_most_similar(model, word, all_keywords)[:20]:
-            expansion[w].append(1-dist)
+            expansion[w.replace('_', ' ')].append(1-dist)
             # if dist < 0.2:
             # musts.add(w)
             # elif dist < 0.5:
@@ -228,7 +227,7 @@ def get_all_similar(words, keywords, must_not_terms):
         # print('-' * 80)
         # print(keyword)
         for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
-            expansion[w].append(1-dist)
+            expansion[w.replace('_', ' ')].append(1-dist)
             # print(w.ljust(20), round(dist, 2))
 
     final_expansions = []

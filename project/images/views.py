@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
-
+from datetime import datetime
 from images.query import es, es_date, get_gps, get_timeline, get_timeline_group
 
 saved = defaultdict(lambda : [])
@@ -31,7 +31,7 @@ def restart(request):
     global messages
     global last_message
     saved = defaultdict(lambda : [])
-    session = time.time()
+    session = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
     submit_time = defaultdict(lambda : [])
     messages = defaultdict(lambda : {})
     last_message = {}

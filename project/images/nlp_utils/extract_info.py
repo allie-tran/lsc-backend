@@ -82,11 +82,11 @@ def extract_info_from_tag(tag_info):
     objects = objects.difference({""})
     new_objects = set()
     for keyword in objects:
-        if keyword not in all_keywords:
-            corrected = speller(keyword)
-            if corrected in all_keywords:
-                print(keyword, '--->', corrected)
-                keyword = corrected
+        # if keyword not in all_keywords:
+        #     corrected = speller(keyword)
+        #     if corrected in all_keywords:
+        #         print(keyword, '--->', corrected)
+        #         keyword = corrected
         new_objects.add(keyword)
         for kw in microsoft:
             if kw == keyword:

@@ -1,7 +1,7 @@
 from .query_types import *
 from .utils import *
 from ..nlp_utils.extract_info import process_query, process_query2
-from ..nlp_utils.synonym import process_string
+from ..nlp_utils.synonym import process_string, freq
 from datetime import timedelta, datetime
 
 
@@ -26,10 +26,11 @@ def query_all(includes, index, group_factor):
 def es_date(query, gps_bounds):
     results, scores, query_info = es(query, gps_bounds)
     date_dict = defaultdict(lambda: defaultdict( lambda: []))
-    for pair, s in zip(results[:500], scores[:500]):
+    for pair, s in zip(results, scores):
         date = pair["current"][0].split('/')[0]
         group = grouped_info_dict[pair["current"][0]]["group"]
         date_dict[date][group].append(pair)
+    print(f"Grouped into {len(date_dict)} days")
     padded_dates = []
     for date in date_dict:
         padded = []
@@ -39,6 +40,7 @@ def es_date(query, gps_bounds):
         padded_dates.append(padded)
         if len(padded_dates) > 50:
             break
+    print("Finished")
     return padded_dates, query_info
 
 
@@ -102,7 +104,7 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
                                                           "source": "1"}}}})
 
     if location:
-        must_queries.append({"match": {"location": {"query": ' '.join(location)}}})
+        should_queries.append({"match": {"location": {"query": ' '.join(location)}}})
 
     # FILTERS
     if weekdays:
@@ -151,35 +153,26 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
     # TEST
     functions = []
     if use_exact_scores:
-        for word in expansion_score:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                word]}}, "weight": expansion_score[word]})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                word]}}, "weight": expansion_score[word] * 0.5})
         scores = expansion_score
     else:
         scores = defaultdict(lambda: 0)
         for word in expansion:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                word]}}, "weight": expansion_score[word] if word in expansion_score else 1})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                word]}}, "weight": expansion_score[word] * 0.5 if word in expansion_score else 0.5})
             scores[word] += expansion_score[word] if word in expansion_score else 1
         for word in must_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                word]}}, "weight": 2 * expansion_score[word] if word in expansion_score else 3})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                word]}}, "weight": 1 * expansion_score[word] if word in expansion_score else 1.5})
             scores[word] += 2 * \
+                expansion_score[word] if word in expansion_score else 2
+        for word in exact_terms:
+            scores[word] += 3 * \
                 expansion_score[word] if word in expansion_score else 3
 
-        for word in exact_terms:
-            functions.append({"filter": {"terms": {"descriptions_and_mc": [
-                word]}}, "weight": 3 * expansion_score[word] if word in expansion_score else 5})
-            functions.append({"filter": {"terms": {"scene_concepts": [
-                word]}}, "weight": 1.5 * expansion_score[word] if word in expansion_score else 2.5})
-            scores[word] += 3 * \
-                expansion_score[word] if word in expansion_score else 5
+    scores = dict(sorted(scores.items(), key=lambda x: -x[1]))
+
+    for word in scores:
+        functions.append({"filter": {"terms": {"descriptions_and_mc": [
+            word]}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
+        functions.append({"filter": {"terms": {"scene_concepts": [
+            word]}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
+
     main_query = {"function_score": {
         "query": main_query,
         "boost": 5,
@@ -190,7 +183,7 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
     # END TEST
     # =============
     json_query = {
-        "size": 2000,
+        "size": 3000,
         "_source": {
             "includes": includes
         },
@@ -292,7 +285,6 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, sc
                                     "after": conditional_event["current"],
                                     "begin_time": main_event["begin_time"],
                                     "end_time": main_event["end_time"]})
-                total_scores.append(s1 + 0.5 * s2)
             elif condition == "before" and timedelta() < main_event["begin_time"] - conditional_event["begin_time"] < timedelta(hours=float(time_limit) + 2):
                 pair_events.append({"current": main_event["current"],
                                     "before": conditional_event["current"],

@@ -49,7 +49,7 @@ coco = json.load(open(f'{COMMON_PATH}/coco.json'))
 
 all_keywords = json.load(open(f'{COMMON_PATH}/all_keywords.json'))
 all_address = '|'.join([re.escape(a) for a in locations])
-activities = set(["walking", "airplane", "transport"])
+activities = set(["walking", "airplane", "transport", "running"])
 phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))
 
 
