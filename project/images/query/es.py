@@ -20,7 +20,18 @@ def query_all(includes, index, group_factor):
             }}
         ]
     }
-    return group_results(post_request(json.dumps(request), index), group_factor)
+    query_info = {"exact_terms": [],
+                  "must_terms": [],
+                  "must_not_terms": [],
+                  "expansion": [],
+                  "expansion_score": {},
+                  "weekdays": [],
+                  "start_time": (0, 0),
+                  "end_time": (24, 0),
+                  "dates": [],
+                  "region": [],
+                  "location": []}
+    return group_results(post_request(json.dumps(request), index), group_factor), query_info
 
 
 def es_date(query, gps_bounds):
@@ -229,6 +240,14 @@ def individual_es_from_info(query_info, gps_bounds=None, size=1000, extra_filter
 
 
 def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, group_factor="group"):
+    includes = ["id",
+                "image_path",
+                "time",
+                "gps",
+                "scene",
+                "group",
+                "before",
+                "after"]
     if not query:
         return query_all(includes, "lsc2020", group_factor)
     info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(

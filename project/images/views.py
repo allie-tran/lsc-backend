@@ -8,11 +8,12 @@ from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
 from images.query import es, es_date, get_gps, get_timeline, get_timeline_group
 
-saved = defaultdict(lambda : [])
+saved = defaultdict(lambda: [])
 session = None
-submit_time = defaultdict(lambda : [])
-messages = defaultdict(lambda : {})
+submit_time = defaultdict(lambda: [])
+messages = defaultdict(lambda: {})
 last_message = {}
+
 
 def jsonize(response):
     # JSONize
@@ -23,6 +24,7 @@ def jsonize(response):
     response["Access-Control-Allow-Headers"] = "X-Requested-With, Content-Type"
     return response
 
+
 @csrf_exempt
 def restart(request):
     global saved
@@ -30,12 +32,13 @@ def restart(request):
     global submit_time
     global messages
     global last_message
-    saved = defaultdict(lambda : [])
+    saved = defaultdict(lambda: [])
     session = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
-    submit_time = defaultdict(lambda : [])
-    messages = defaultdict(lambda : {})
+    submit_time = defaultdict(lambda: [])
+    messages = defaultdict(lambda: {})
     last_message = {}
     return jsonize({"success": True})
+
 
 @csrf_exempt
 def save(request):
@@ -49,6 +52,7 @@ def save(request):
     messages[query_id] = last_message
     return jsonize({"success": True})
 
+
 @csrf_exempt
 def remove(request):
     global saved
@@ -60,6 +64,7 @@ def remove(request):
     messages[query_id] = last_message
     return jsonize({"success": True})
 
+
 @csrf_exempt
 def export(request):
     global saved
@@ -70,9 +75,11 @@ def export(request):
     query_id = request.GET.get('query_id')
     time = request.GET.get('time')
     submit_time[query_id] = time
-    json.dump({"time" : submit_time, "saved": saved}, open(f'results/{session}.json', 'w'))
+    json.dump({"time": submit_time, "saved": saved},
+              open(f'results/{session}.json', 'w'))
     messages[query_id] = last_message
     return jsonize({"success": True})
+
 
 @csrf_exempt
 def images(request):
@@ -82,6 +89,7 @@ def images(request):
     queryset, scores, info = es(message['query'], message["gps_bounds"])
     response = {'results': queryset[:100], 'info': info}
     return jsonize(response)
+
 
 @csrf_exempt
 def gps(request):
@@ -106,6 +114,7 @@ def date(request):
     response = {'results': queryset[:100], 'info': info}
     return jsonize(response)
 
+
 @csrf_exempt
 def get_saved(request):
     global saved
@@ -114,9 +123,10 @@ def get_saved(request):
     message = messages[query_id]
     if message:
         queryset, _ = es_date(message['query'], message["gps_bounds"])
-        return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query']})
+        return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query'], 'gps_bounds': message["gps_bounds"]})
     else:
-        return jsonize({"saved": saved[query_id], 'results': [], 'query': {}})
+        return jsonize({"saved": saved[query_id], 'results': [], 'query': {}, 'gps_bounds': None})
+
 
 @csrf_exempt
 def timeline_group(request):
