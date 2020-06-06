@@ -1,4 +1,4 @@
-Django==2.2.7
+Django==2.2.13
 pymongo==3.9.0
 numpy==1.17.3
 elasticsearch==7.0.4
