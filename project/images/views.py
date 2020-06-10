@@ -163,6 +163,8 @@ def gpssearch(request):
 @csrf_exempt
 def aaron(request):
     query = request.GET.get('query')
+    size = request.GET.get('size')
+    size = size if size else 2000
     group_factor = request.GET.get('group_factor')
     event_id_start = request.GET.get('event_id_start')
     event_id_end = request.GET.get('event_id_end')
@@ -188,7 +190,7 @@ def aaron(request):
         # Calculations
         # queryset = individual_es(query, size=2000, group_factor=group_factor)
         (queryset, *_), _  = individual_es(
-                query, group_factor=group_factor, size=10, starting_from=0)
+                query, group_factor=group_factor, size=size, starting_from=0)
         result = [group["current"] for group in queryset]
         response = {'results': result}
         return jsonize(response)
