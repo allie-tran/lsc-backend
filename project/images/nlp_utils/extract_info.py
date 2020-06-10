@@ -348,6 +348,7 @@ def process_query(sent):
 
 def process_query2(sent):
     tags = init_tagger.tag(sent)
+    print(tags)
     tags = e_tag.tag(tags)
     return extract_info_from_tag(tags)
 

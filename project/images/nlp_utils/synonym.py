@@ -11,7 +11,7 @@ from nltk.tag import pos_tag
 from ..nlp_utils.extract_info import init_tagger
 from nltk.tokenize import word_tokenize
 from ..nlp_utils.common import *
-from numpy import log
+from numpy import log, sqrt
 specials = {"cloudy": "cloud"}
 
 COMMON_PATH = os.getenv("COMMON_PATH")
@@ -25,6 +25,7 @@ synsets = json.load(open(f"{LSC_PATH}/word2vec/wn.txt"))
 freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
 freq = {term: log(191404/freq[term]) for term in freq}
 specials = {"cloudy": "cloud"}
+conceptnet = json.load(open(f"{LSC_PATH}/word2vec/conceptnet/Synonym.json"))
 
 @cache
 def morphy(word, sense):
@@ -87,7 +88,7 @@ def update_lemmas(lemma_dicts, synsets_list, depth):
     return lemma_dicts
 
 
-# @cache(file_name='hypernyms.cache')
+@cache
 def get_hypernyms(word):
     syns = wn.synsets(word, pos='n')
     results = {}
@@ -102,7 +103,7 @@ def get_hypernyms(word):
     return results
 
 
-# @cache(file_name='keyword.cache')
+@cache
 def inspect(syns, max_depth):
     result = {"lemmas": {}, "hypernyms": {},
               "hyponyms": {}, "holonyms": {}, "meronyms": {}}
@@ -122,7 +123,7 @@ def inspect(syns, max_depth):
     return result
 
 
-# @cache(file_name='similar.cache')
+@cache
 def get_similar(word):
     # kws = [kw.keyword for kw in KEYWORDS]
     # if word in kws:
@@ -133,7 +134,7 @@ def get_similar(word):
         is_sim, new_depth = kw.is_similar(word)
         if is_sim:
             similars[kw.keyword] = min(new_depth, similars[kw.keyword])
-    return list(similars.keys())
+    return similars
 
 
 class Keyword:
@@ -208,11 +209,10 @@ def get_all_similar(words, keywords, must_not_terms):
             musts.update(possible_words)
         similars = get_similar(word)
         if similars:
-            # print(word, "---->", similars)
             if word in similars:
                 musts.add(word)
             for w in similars:
-                expansion[w.replace('_', ' ')].append(0.95)
+                expansion[w.replace('_', ' ')].append(0.95 / sqrt(similars[w] if similars[w] > 0 else 1))
         # print('-' * 80)
         # print(word)
         for w, dist in get_most_similar(model, word, all_keywords)[:20]:
@@ -242,6 +242,12 @@ def get_all_similar(words, keywords, must_not_terms):
                 final_expansions.append(w)
             score[w] = max_dist
 
+    for w in exacts:
+        if w in conceptnet:
+            for sym in conceptnet[w]:
+                musts.add(sym)
+                score[sym] = 1.5
+
     musts = musts.difference(must_not_terms)
     musts = musts.difference(["airplane", "plane"])
     return list(exacts), list(musts), final_expansions, score
@@ -252,7 +258,7 @@ categories = ["animal", "object", "location", "plant", "person", "food", "room",
               'color']
 
 
-@cache(file_name="category.cache")
+@cache
 def check_category(word):
     syns = wn.synsets(word, 'n')
     results = {}
@@ -295,5 +301,4 @@ def process_string(info, keywords, must_not_terms):
 
 
 if __name__ == "__main__":
-    process_string(
-        "clock flowers visible a blue monster and a lamp a rabbit doll house", [])
+    print(get_similar("woman"))

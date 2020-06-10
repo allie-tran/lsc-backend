@@ -1,6 +1,6 @@
 import json
 import os
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
@@ -98,7 +98,8 @@ def get_before_after(images):
 
 
 def group_results(results, factor="group", sort_by_time=False):
-    print(f"Ungrouped: ", len(results))
+    size = len(results)
+    print(f"Ungrouped: ", size)
     grouped_results = defaultdict(lambda: [])
     for result in results:
         group = result[0][factor]
@@ -108,16 +109,19 @@ def group_results(results, factor="group", sort_by_time=False):
     if factor == "scene":
         final_results = []
         scores = []
+        concepts = Counter()
         for images_with_scores in grouped_results.values():
             score = images_with_scores[0][1]
             scores.append(score)
             images = [res[0] for res in images_with_scores]
+            concepts.update(images[0]["scene_concepts"])
             final_results.append({
                 "current": [image["image_path"] for image in images],
                 "before": images[0]["before"],
                 "after": images[0]["after"]})
         print(f"Grouped in to {len(final_results)} groups.")
-        return final_results, scores
+        print("Score:", min(scores) if scores else None, '-', max(scores) if scores else None)
+        return final_results, size, scores, dict(concepts.most_common(50))
     else:
         # Group again for hours < 2h, same location
         regrouped_results = {}
@@ -160,7 +164,7 @@ def group_results(results, factor="group", sort_by_time=False):
                 "begin_time": begin_time,
                 "end_time": end_time})
         print(f"Grouped in to {len(final_results)} groups.")
-        return final_results, scores
+        return final_results, size, scores, {}
 
 def get_time_of_group(images):
     times = [datetime.strptime(

@@ -19,7 +19,7 @@ class Tagger:
         self.specials = {
             "ACTIVITY": activities.union(["driving", "flight"]),
             "REGION": regions,
-            # "KEYWORD": all_keywords,
+            "KEYWORD": [word for word in all_keywords if ' ' in word],
             "LOCATION": locations,
             "QUANTITY": ["at least", "more than", "less than", "at most",
                          "not more than", "a number of"],

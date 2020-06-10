@@ -115,9 +115,11 @@ def intersect(word, keyword):
     try:
         if word in keyword.split(' '):
             cofreq = overlap[word][keyword]
+            return True
             return cofreq / freq[word] > 0.8
         elif keyword in word.split(' '):
             cofreq = overlap[keyword][word]
+            return True
             return cofreq / freq[keyword] > 0.8
     except KeyError:
         pass

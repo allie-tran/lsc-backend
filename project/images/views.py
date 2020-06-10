@@ -6,7 +6,7 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
-from images.query import es, es_date, get_gps, get_timeline, get_timeline_group
+from images.query import es, es_date, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images
 
 saved = defaultdict(lambda: [])
 session = None
@@ -108,10 +108,11 @@ def date(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     # Calculations
-    queryset, info = es_date(message['query'], message["gps_bounds"])
+    print(message["starting_from"])
+    queryset, size, info  = es_date(message['query'], message["gps_bounds"], message["starting_from"])
     message["query"]["info"] = info
     last_message = message.copy()
-    response = {'results': queryset[:100], 'info': info}
+    response = {'results': queryset, 'info': info, 'size': size}
     return jsonize(response)
 
 
@@ -158,3 +159,36 @@ def gpssearch(request):
     response = {'results': queryset,
                 'error': None}
     return jsonize(response)
+
+@csrf_exempt
+def aaron(request):
+    query = request.GET.get('query')
+    group_factor = request.GET.get('group_factor')
+    event_id_start = request.GET.get('event_id_start')
+    event_id_end = request.GET.get('event_id_end')
+    event_id = request.GET.get('event_id')
+    print(f"query: {query}")
+    print(f"group_factor: {group_factor}")
+    print(f"event_id_start: {event_id_start}")
+    print(f"event_id_end: {event_id_end}")
+    print(f"event_id: {event_id}")
+    if event_id_start or event_id_end:
+        if event_id_end is None:
+            event_id_end = event_id_start
+        elif event_id_start is None:
+            event_id_start = event_id_end
+        result = get_multiple_scenes_from_images(event_id_start, event_id_end, group_factor=group_factor)
+        response = {'results': result}
+        return jsonize(response)
+    elif event_id:
+        result = get_multiple_scenes_from_images(event_id, event_id, group_factor=group_factor)
+        response = {'results': result}
+        return jsonize(response)
+    else:
+        # Calculations
+        # queryset = individual_es(query, size=2000, group_factor=group_factor)
+        (queryset, *_), _  = individual_es(
+                query, group_factor=group_factor, size=10, starting_from=0)
+        result = [group["current"] for group in queryset]
+        response = {'results': result}
+        return jsonize(response)

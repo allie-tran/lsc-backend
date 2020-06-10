@@ -34,8 +34,8 @@ def query_all(includes, index, group_factor):
     return group_results(post_request(json.dumps(request), index), group_factor), query_info
 
 
-def es_date(query, gps_bounds):
-    results, scores, query_info = es(query, gps_bounds)
+def es_date(query, gps_bounds, size, starting_from):
+    results, size, scores, query_info = es(query, gps_bounds, starting_from)
     date_dict = defaultdict(lambda: defaultdict( lambda: []))
     for pair, s in zip(results, scores):
         date = pair["current"][0].split('/')[0]
@@ -49,13 +49,13 @@ def es_date(query, gps_bounds):
             padded.extend(date_dict[date][group])
             padded.append(None)
         padded_dates.append(padded)
-        if len(padded_dates) > 50:
-            break
+        # if len(padded_dates) > 50:
+        #     break
     print("Finished")
-    return padded_dates, query_info
+    return padded_dates, size, query_info
 
 
-def es(query, gps_bounds):
+def es(query, gps_bounds, size, starting_from):
     # print(query, gps_bounds)
     query_info = {}
     if query["before"] and query["after"]:
@@ -69,19 +69,19 @@ def es(query, gps_bounds):
             query["current"], query["after"], "after", query["afterwhen"], gps_bounds)
     else:
         if "info" in query:
-            (last_results, scores), query_info = individual_es_from_info(
-                query["info"], gps_bounds, group_factor="scene")
+            (last_results, size, scores, stats), query_info = individual_es_from_info(
+                query["info"], gps_bounds, group_factor="scene", size=size, starting_from=starting_from)
         else:
-            (last_results, scores), query_info = individual_es(
-                query["current"], gps_bounds, group_factor="scene")
-    return add_gps_path(last_results), scores, query_info
+            (last_results, size, scores, stats), query_info = individual_es(
+                query["current"], gps_bounds, group_factor="scene", size=size, starting_from=starting_from)
+        query_info["stats"] = stats
+    return add_gps_path(last_results), size, scores, query_info
 
 
 def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_score,
                  weekdays, start_time, end_time, dates,
-                 region, location, gps_bounds=None,
-                 size=1000, extra_filter_scripts=None, group_factor="group",
-                 use_exact_scores=False):
+                 region, location, gps_bounds=None, extra_filter_scripts=None, group_factor="group",
+                 use_exact_scores=False, size=1000, starting_from=0):
     includes = ["id",
                 "image_path",
                 "time",
@@ -89,7 +89,7 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
                 "scene",
                 "group",
                 "before",
-                "after"]
+                "after", "scene_concepts"]
 
     time_filters, date_filters = time_to_filters(start_time, end_time, dates)
     if use_exact_scores:
@@ -134,13 +134,6 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
     if gps_bounds:
         filter_queries.append(get_gps_filter(gps_bounds))
 
-    # MUST NOT
-    if must_not_terms:
-        must_not_queries.append({
-            "terms": {
-                "descriptions": must_not_terms}
-        })
-
     # CONSTRUCT JSON
     main_query = {}
     test = True
@@ -156,9 +149,6 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
     if filter_queries:
         main_query["filter"] = filter_queries[0] if len(
             filter_queries) == 1 else filter_queries
-    if must_not_queries:
-        main_query["must_not"] = must_not_queries[0] if len(
-            must_not_queries) == 1 else must_not_queries
     main_query = {"bool": main_query}
 
     # TEST
@@ -170,36 +160,46 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
         for word in expansion:
             scores[word] += expansion_score[word] if word in expansion_score else 1
         for word in must_terms:
-            scores[word] += 2 * \
-                expansion_score[word] if word in expansion_score else 2
+            scores[word] += 1.5 * \
+                expansion_score[word] if word in expansion_score else 1
         for word in exact_terms:
-            scores[word] += 3 * \
-                expansion_score[word] if word in expansion_score else 3
+            scores[word] += 2
 
     scores = dict(sorted(scores.items(), key=lambda x: -x[1]))
 
     for word in scores:
-        functions.append({"filter": {"terms": {"descriptions_and_mc": [
-            word]}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
-        functions.append({"filter": {"terms": {"scene_concepts": [
-            word]}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
+        functions.append({"filter": {"term": {"descriptions_and_mc":
+            word}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
+        functions.append({"filter": {"term": {"scene_concepts":
+            word}}, "weight": scores[word] * (freq[word] if word in freq else 1)})
+
+    # MUST NOT
+    if must_not_terms:
+        print("Must not:", must_not_terms)
+        for word in must_not_terms:
+            functions.append({"filter": {"term": {"descriptions_and_mc_not":
+                word}}, "weight": 150 / len(must_not_terms)})
+            functions.append({"filter": {"term": {"scene_concepts_not":
+                word}}, "weight": 150 / len(must_not_terms)})
 
     main_query = {"function_score": {
         "query": main_query,
         "boost": 5,
         "functions": functions,
         "score_mode": "sum",
-        "boost_mode": "sum"
+        "boost_mode": "sum",
     }}
     # END TEST
     # =============
     json_query = {
-        "size": 3000,
+        "size": size,
+        "from": starting_from,
         "_source": {
             "includes": includes
         },
         "query": main_query
     }
+    print(starting_from)
 
     # query info
     query_info = {"exact_terms": list(exact_terms),
@@ -217,7 +217,7 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
     return group_results(post_request(json.dumps(json_query), "lsc2020"), group_factor), query_info
 
 
-def individual_es_from_info(query_info, gps_bounds=None, size=1000, extra_filter_scripts=None, group_factor="group"):
+def individual_es_from_info(query_info, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=2000, starting_from=2000):
     exact_terms = query_info["exact_terms"]
     must_terms = query_info["must_terms"]
     must_not_terms = query_info["must_not_terms"]
@@ -229,17 +229,16 @@ def individual_es_from_info(query_info, gps_bounds=None, size=1000, extra_filter
     dates = query_info["dates"]
     region = query_info["region"]
     location = query_info["location"]
-
     if isinstance(expansion_score, tuple):
         expansion_score = expansion_score[0]
     return construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_score,
                         weekdays, start_time, end_time, dates,
                         region,
-                        location, gps_bounds, size, extra_filter_scripts, group_factor,
-                        use_exact_scores=True)
+                        location, gps_bounds, extra_filter_scripts, group_factor,
+                        use_exact_scores=True, size=size, starting_from=starting_from)
 
 
-def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, group_factor="group"):
+def individual_es(query, gps_bounds=None, size=2000, extra_filter_scripts=None, group_factor="group", starting_from=0):
     includes = ["id",
                 "image_path",
                 "time",
@@ -264,11 +263,11 @@ def individual_es(query, gps_bounds=None, size=1000, extra_filter_scripts=None, 
     return construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_score,
                         weekdays, start_time, end_time, dates,
                         region,
-                        location, gps_bounds, size, extra_filter_scripts, group_factor)
+                        location, gps_bounds, size, extra_filter_scripts, group_factor, starting_from=starting_from)
 
 
 def forward_search(query, conditional_query, condition, time_limit, gps_bounds=None):
-    (main_events, scores), _ = individual_es(
+    (main_events, scores, _) =  individual_es(
         query, gps_bounds, size=1000, group_factor="scene")
     extra_filter_scripts = []
 
@@ -287,7 +286,7 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds=N
             script = f" 0 < ChronoUnit.HOURS.between({time}, doc['time'].value) &&  ChronoUnit.HOURS.between({time}, doc['time'].value) < {float(time_limit)+ 2} "
         extra_filter_scripts.append(f"({script})")
     extra_filter_scripts = [f''"||".join(extra_filter_scripts)]
-    (conditional_events, scores_cond), _ = individual_es(conditional_query, size = 10000,
+    (conditional_events, scores_cond, _), _ = individual_es(conditional_query, size = 10000,
                                           extra_filter_scripts=None)
 
     return main_events, conditional_events, extra_filter_scripts, scores, scores_cond
@@ -351,7 +350,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds):
         beforewhen = afterwhen.strip('h')
     before_pairs, extra_filter_scripts, total_scores = es_two_events(
         query, before, "before", beforewhen, gps_bounds, return_extra_filter=True)
-    (after_events, scores), _ = individual_es(after,
+    (after_events, scores, _) =  individual_es(after,
                                     size=5000, extra_filter_scripts=extra_filter_scripts)
     # print(len(before_pairs), len(after_events))
 
@@ -370,7 +369,9 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds):
 
 
 if __name__ == "__main__":
-    query = "graveyard in norway oslo"
-    loc, keywords, description, weekday, months, timeofday, activity, region, must_not_terms = process_query(
+    query = "woman in red top"
+    info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(
         query)
-    must_terms, should_terms = process_string(description, must_not_terms)
+    exact_terms, must_terms, expansion, expansion_score = process_string(
+        info, keywords, [])
+    print(exact_terms, must_terms, expansion, expansion_score)
