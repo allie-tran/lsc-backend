@@ -263,7 +263,7 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
     return construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_score,
                         weekdays, start_time, end_time, dates,
                         region,
-                        location, gps_bounds, extra_filter_scripts, group_factor, size, starting_from=starting_from)
+                        location, gps_bounds, extra_filter_scripts, group_factor, size=size, starting_from=starting_from)
 
 
 def forward_search(query, conditional_query, condition, time_limit, gps_bounds=None):
