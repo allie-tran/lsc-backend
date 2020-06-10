@@ -238,7 +238,7 @@ def individual_es_from_info(query_info, gps_bounds=None, extra_filter_scripts=No
                         use_exact_scores=True, size=size, starting_from=starting_from)
 
 
-def individual_es(query, gps_bounds=None, size=2000, extra_filter_scripts=None, group_factor="group", starting_from=0):
+def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=2000, starting_from=0):
     includes = ["id",
                 "image_path",
                 "time",
@@ -263,7 +263,7 @@ def individual_es(query, gps_bounds=None, size=2000, extra_filter_scripts=None, 
     return construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_score,
                         weekdays, start_time, end_time, dates,
                         region,
-                        location, gps_bounds, size, extra_filter_scripts, group_factor, starting_from=starting_from)
+                        location, gps_bounds, extra_filter_scripts, group_factor, size, starting_from=starting_from)
 
 
 def forward_search(query, conditional_query, condition, time_limit, gps_bounds=None):
