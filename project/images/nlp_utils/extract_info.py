@@ -352,6 +352,72 @@ def process_query2(sent):
     tags = e_tag.tag(tags)
     return extract_info_from_tag(tags)
 
+def process_query3(sent):
+    tags = init_tagger.tag(sent)
+    timeofday = []
+    weekdays = []
+    locations = []
+    info = []
+    activity = []
+    month = []
+    region = []
+    keywords = []
+    for word, tag in tags:
+        if word == "airport":
+            activity.append("airplane")
+        if tag == 'TIMEOFDAY':
+            timeofday.append(word)
+        elif tag == "WEEKDAY":
+            weekdays.append(word)
+        elif word in ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october",
+                      "november", "december"]:
+            month.append(word)
+        elif tag == "ACTIVITY":
+            if word == "driving":
+                activity.append("transport")
+                info.append("car")
+            elif word == "flight":
+                activity.append("airplane")
+            else:
+                activity.append(word)
+            keywords.append(word)
+        elif tag == "REGION":
+            region.append(word)
+        elif tag == "KEYWORDS":
+            keywords.append(word)
+        elif tag in ['NN', 'SPACE', "VBG", "NNS"]:
+            if word in ["office", "meeting"]:
+                locations.append("work")
+            corrected = speller(word)
+            if corrected in all_keywords:
+                keywords.append(corrected)
+            info.append(word)
+
+
+    split_keywords = {"descriptions": {"exact": [], "expanded": []},
+                      "coco": {"exact": [], "expanded": []},
+                      "microsoft": {"exact": [], "expanded": []}}
+    objects = set(keywords).union(info).difference({""})
+    new_objects = set()
+    for keyword in objects:
+        new_objects.add(keyword)
+        for kw in microsoft:
+            if kw == keyword:
+                split_keywords["microsoft"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["microsoft"]["expanded"].append(kw)
+        for kw in coco:
+            if kw == keyword:
+                split_keywords["coco"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["coco"]["expanded"].append(kw)
+        for kw in all_keywords:
+            if kw == keyword:
+                split_keywords["descriptions"]["exact"].append(kw)
+            if intersect(kw, keyword):
+                split_keywords["descriptions"]["expanded"].append(kw)
+    return list(new_objects), split_keywords, list(region), [], list(weekdays), (0, 0), (24, 0), []
+
 
 # tags = init_tagger.tag(
 #     "Find the moments in 2015 and 2018 when u1 was using public transports in my home country (Ireland)")

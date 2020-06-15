@@ -1,6 +1,6 @@
 from .query_types import *
 from .utils import *
-from ..nlp_utils.extract_info import process_query, process_query2
+from ..nlp_utils.extract_info import process_query, process_query2, process_query3
 from ..nlp_utils.synonym import process_string, freq
 from datetime import timedelta, datetime
 
@@ -35,7 +35,7 @@ def query_all(includes, index, group_factor):
 
 
 def es_date(query, gps_bounds, size, starting_from):
-    results, size, scores, query_info = es(query, gps_bounds, starting_from)
+    results, size, scores, query_info = es(query, gps_bounds, size, starting_from)
     date_dict = defaultdict(lambda: defaultdict( lambda: []))
     for pair, s in zip(results, scores):
         date = pair["current"][0].split('/')[0]
@@ -55,7 +55,7 @@ def es_date(query, gps_bounds, size, starting_from):
     return padded_dates, size, query_info
 
 
-def es(query, gps_bounds, size, starting_from):
+def es(query, gps_bounds, size, starting_from, use_simple_process=False):
     # print(query, gps_bounds)
     query_info = {}
     if query["before"] and query["after"]:
@@ -73,7 +73,7 @@ def es(query, gps_bounds, size, starting_from):
                 query["info"], gps_bounds, group_factor="scene", size=size, starting_from=starting_from)
         else:
             (last_results, size, scores, stats), query_info = individual_es(
-                query["current"], gps_bounds, group_factor="scene", size=size, starting_from=starting_from)
+                query["current"], gps_bounds, group_factor="scene", size=size, starting_from=starting_from, use_simple_process=use_simple_process)
         query_info["stats"] = stats
     return add_gps_path(last_results), size, scores, query_info
 
@@ -165,7 +165,7 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
         for word in exact_terms:
             scores[word] += 2
 
-    scores = dict(sorted(scores.items(), key=lambda x: -x[1]))
+    scores = dict([(keyword, score) for (keyword, score) in sorted(scores.items(), key=lambda x: -x[1]) if score > 1])
 
     for word in scores:
         functions.append({"filter": {"term": {"descriptions_and_mc":
@@ -199,7 +199,6 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
         },
         "query": main_query
     }
-    print(starting_from)
 
     # query info
     query_info = {"exact_terms": list(exact_terms),
@@ -238,7 +237,7 @@ def individual_es_from_info(query_info, gps_bounds=None, extra_filter_scripts=No
                         use_exact_scores=True, size=size, starting_from=starting_from)
 
 
-def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=2000, starting_from=0):
+def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=2000, starting_from=0, use_simple_process=False):
     includes = ["id",
                 "image_path",
                 "time",
@@ -249,8 +248,10 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
                 "after"]
     if not query:
         return query_all(includes, "lsc2020", group_factor)
-    info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(
+    process = process_query3 if use_simple_process else process_query2
+    info, keywords, region, location, weekdays, start_time, end_time, dates = process(
         query)
+    print("Finished processing")
 
     if not (location or keywords or info or weekdays or region or must_not_terms):
         return query_all(includes, "lsc2020", group_factor)

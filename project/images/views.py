@@ -109,7 +109,7 @@ def date(request):
     message = json.loads(request.body.decode('utf-8'))
     # Calculations
     print(message["starting_from"])
-    queryset, size, info  = es_date(message['query'], message["gps_bounds"], message["starting_from"])
+    queryset, size, info  = es_date(message['query'], message["gps_bounds"], message["size"] if "size" in message else 2000, message["starting_from"])
     message["query"]["info"] = info
     last_message = message.copy()
     response = {'results': queryset, 'info': info, 'size': size}
@@ -190,7 +190,7 @@ def aaron(request):
         # Calculations
         # queryset = individual_es(query, size=2000, group_factor=group_factor)
         (queryset, *_), _  = individual_es(
-                query, group_factor=group_factor, size=size, starting_from=0)
+                query, group_factor=group_factor, size=size, starting_from=0, use_simple_process=True)
         result = [group["current"] for group in queryset]
         response = {'results': result}
         return jsonize(response)
