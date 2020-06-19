@@ -99,6 +99,8 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
         expansion.extend(exact_terms)
         expansion = list(set(expansion))
 
+    print("Expansion: ", expansion, f"({len(expansion)})")
+
     must_queries = []
     should_queries = []
     filter_queries = []
@@ -199,6 +201,8 @@ def construct_es(exact_terms, must_terms, must_not_terms, expansion, expansion_s
         },
         "query": main_query
     }
+
+    # print(json.dumps(json_query))
 
     # query info
     query_info = {"exact_terms": list(exact_terms),

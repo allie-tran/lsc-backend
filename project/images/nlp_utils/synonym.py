@@ -238,9 +238,10 @@ def get_all_similar(words, keywords, must_not_terms):
             max_dist = max(dist)
             if mean_dist > 0.5 and max_dist > 0.75:
                 musts.add(w)
+                score[w] = max_dist
             if mean_dist > 0.5 or max_dist > 0.6:
                 final_expansions.append(w)
-            score[w] = max_dist
+                score[w] = max_dist
 
     for w in exacts:
         if w in conceptnet:
@@ -248,9 +249,9 @@ def get_all_similar(words, keywords, must_not_terms):
                 musts.add(sym)
                 score[sym] = 1.5
 
-    musts = musts.difference(must_not_terms)
+    score = dict(sorted(score.items(), key=lambda x: -x[1])[:10])
     musts = musts.difference(["airplane", "plane"])
-    return list(exacts), list(musts), final_expansions, score
+    return list(exacts), list(musts), list(score.keys()), score
 
 
 categories = ["animal", "object", "location", "plant", "person", "food", "room", 'device',
