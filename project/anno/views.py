@@ -52,15 +52,6 @@ def update(request):
     doc = db.get(Desc.scene == scene)
     if doc is None:
         db.insert({'scene': scene, 'desc': desc})
-        return jsonize({"status": "SUCCESS"})
-
-    if desc == doc["desc"]:
-        return jsonize({"status": "DUPLICATED"})
-    elif desc in doc["desc"]:
-        return jsonize({"status": "SUBSTRING", "new": doc["desc"]})
-    if doc["desc"] in desc:
-        new_desc = desc
     else:
-        new_desc = "\n".join([doc["desc"], desc])
-    db.upsert({'scene': scene, 'desc': new_desc}, Desc.scene==scene)
-    return jsonize({"status": "SUCCESS", "new": new_desc})
+        db.upsert({'scene': scene, 'desc': desc}, Desc.scene==scene)
+    return jsonize({"status": "SUCCESS"})
