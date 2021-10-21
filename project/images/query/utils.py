@@ -5,9 +5,20 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
+from ..nlp_utils.common import cache
 
 COMMON_PATH = os.getenv("COMMON_PATH")
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
+
+
+@cache
+def get_info(image):
+    time = datetime.strptime(grouped_info_dict[image]["time"], "%Y/%m/%d %H:%M:%S+00")
+    return time.strftime("%A, %d %B %Y, %I:%M%p")
+
+
+def get_location(image):
+    return grouped_info_dict[image]["location"]
 
 
 def spell_correct(sent):
@@ -49,37 +60,28 @@ def get_gps(images):
         return sorted_by_time
     return []
 
+def delete_scroll_ids(scroll_ids):
+    response = requests.delete(
+            f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"}, data=json.dumps({"scroll_id": scroll_ids}))
+    assert response.status_code == 200, f"Wrong request ({response.status_code})"
 
-def post_request(json_query, index="lsc2019_combined_text_bow"):
+def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
     headers = {"Content-Type": "application/json"}
     response = requests.post(
-        f"http://localhost:9200/{index}/_search", headers=headers, data=json_query)
+        f"http://localhost:9200/{index}/_search{'?scroll=5m' if scroll else ''}", headers=headers, data=json_query)
     if response.status_code == 200:
         # stt = "Success"
         response_json = response.json()  # Convert to json as dict formatted
         id_images = [[d["_source"], d["_score"]]
                      for d in response_json["hits"]["hits"]]
+        scroll_id = response_json["_scroll_id"] if scroll else None
     else:
-        print('Wrong')
-        print(json_query)
-        print(response.status_code)
+        print(f'Response status {response.status_code}. Output in request.log')
+        with open('request.log', 'a') as f:
+            f.write(json_query + '\n')
         id_images = []
-    return id_images
-
-
-def find_place_in_available_group(regrouped_results, new_group, group_time=2):
-    begin_time, end_time = get_time_of_group([res[0] for res in new_group])
-    if regrouped_results:
-        for regroup in regrouped_results:
-            if abs(begin_time - regrouped_results[regroup]["begin_time"]) < timedelta(hours=group_time) and \
-                    abs(end_time - regrouped_results[regroup]["end_time"]) < timedelta(hours=group_time):
-                begin_time = min(
-                    begin_time, regrouped_results[regroup]["begin_time"])
-                end_time = max(
-                    end_time, regrouped_results[regroup]["end_time"])
-                return regroup, begin_time, end_time
-    return "", begin_time, end_time
-
+        scroll_id = None
+    return id_images, scroll_id
 
 def get_min_event(images, event_type="group"):
     return np.argmin([int(image[event_type].split('_')[-1])
@@ -97,75 +99,114 @@ def get_before_after(images):
     return images[min_group]["before"], images[max_group]["after"]
 
 
-def group_results(results, factor="group", sort_by_time=False):
+def find_place_in_available_group(regrouped_results, group, begin_time, end_time, group_time=2):
+    if regrouped_results:
+        for i, regroup in enumerate(regrouped_results):
+            # if regroup["group"] == group:
+                # earlier
+            if end_time < regroup["begin_time"] and regroup["end_time"] - begin_time < timedelta(hours=group_time):
+                return i, begin_time, regroup["end_time"]
+            if begin_time > regroup["end_time"] and end_time - regroup["begin_time"] < timedelta(hours=group_time):
+                return i, regroup["begin_time"], end_time
+    return -1, begin_time, end_time
+
+
+def group_scene_results(results, factor="group", group_more_by=0):
     size = len(results)
     print(f"Ungrouped: ", size)
+
+    if factor == "group":
+        grouped_results = defaultdict(lambda: [])
+        count = 0
+        for result in results:
+            group = result[0]["group"]
+            grouped_results[group].append(result)
+
+        results_with_info = []
+        scores = []
+        concepts = Counter()
+        feedback = True
+        for images_with_scores in grouped_results.values():
+            score = images_with_scores[0][1]
+            scores.append(score)
+            images = [grouped_info_dict[img] for scene in images_with_scores for img in scene[0]["current"]]
+            begin_time, end_time = get_time_of_group(images)
+            results_with_info.append({
+                "current": [img for scene in images_with_scores for img in scene[0]["current"]][:5],
+                "begin_time": begin_time,
+                "end_time": end_time,
+                "group": images[0]["group"]})
+        final_results = results_with_info
+    else:
+        scores = []
+        final_results = []
+        for scene in results:
+            # TODO! choose what to present in scenes
+            # scene[0]["current"] = random.choice(scene[0]["current"], k=min(5, len(scene[0]["current"])))
+            scene[0]["begin_time"] = datetime.strptime(
+                scene[0]["begin_time"], "%Y/%m/%d %H:%M:%S+00")
+            scene[0]["end_time"] = datetime.strptime(
+                scene[0]["end_time"], "%Y/%m/%d %H:%M:%S+00")
+            final_results.append(scene[0])
+            scores.append(scene[1])
+
+    print(f"Grouped in to {len(final_results)} groups.")
+    print("Score:", min(scores) if scores else None,
+          '-', max(scores) if scores else None)
+    results = [res[0] for res in results]
+    return results, final_results, size, scores, {}
+
+
+def group_results(results, factor="group", group_more_by=0):
+    size = len(results)
+    print(f"Ungrouped: ", size)
+
     grouped_results = defaultdict(lambda: [])
+    count = 0
     for result in results:
         group = result[0][factor]
         grouped_results[group].append(result)
 
     # IMAGECLEF
     # if factor == "scene":
-    final_results = []
+    results_with_info = []
     scores = []
     concepts = Counter()
-    feedback = False
     for images_with_scores in grouped_results.values():
         score = images_with_scores[0][1]
         scores.append(score)
         images = [res[0] for res in images_with_scores]
-        if feedback:
-            concepts.update(images[0]["scene_concepts"])
-        final_results.append({
-            "current": [image["image_path"] for image in images],
+        begin_time, end_time = get_time_of_group(images)
+        results_with_info.append({
+            "current": [image["image_path"] for image in images][:5],
             "before": images[0]["before"],
-            "after": images[0]["after"]})
+            "after": images[0]["after"],
+            "begin_time": begin_time,
+            "end_time": end_time,
+            "group": images[0]["group"],
+            "scene": images[0]["scene"]})
+
+    if results_with_info and group_more_by:
+        final_results = [results_with_info[0]]
+        final_scores = [scores[0]]
+        for result, score in zip(results_with_info[1:], scores[1:]):
+            ind, begin_time, end_time = find_place_in_available_group(final_results, result["group"],
+                                                     result["begin_time"], result["end_time"], group_more_by)
+            if ind == -1:
+                final_results.append(result)
+                final_scores.append(score)
+            else:
+                final_results[ind]["current"].extend(result["current"][:5])
+                final_results[ind]["begin_time"] = begin_time
+                final_results[ind]["end_time"] = end_time
+    else:
+        final_results = results_with_info
+        final_scores = scores
+
     print(f"Grouped in to {len(final_results)} groups.")
     print("Score:", min(scores) if scores else None, '-', max(scores) if scores else None)
-    return final_results, size, scores, dict(concepts.most_common(50))
-    # else:
-        # Group again for hours < 2h, same location
-        # regrouped_results = {}
-        # count = 0
-        # for group in grouped_results:
-        #     new_group = grouped_results[group]
-        #     regroup, begin_time, end_time = find_place_in_available_group(
-        #         regrouped_results, new_group)
-        #     if regroup and factor == "group":
-        #         regrouped_results[regroup]["raw_results"].extend(new_group)
-        #         regrouped_results[regroup]["begin_time"] = begin_time
-        #         regrouped_results[regroup]["end_time"] = end_time
-        #     else:
-        #         count += 1
-        #         regrouped_results[f"group_{count}"] = {"raw_results": grouped_results[group],
-        #                                             "begin_time": begin_time,
-        #                                             "end_time": end_time}
-        # sorted_groups = []
-        # for group in grouped_results:
-        #     sorted_with_scores = sorted(
-        #         grouped_results[group], key=lambda x: (-x[1] if x[1] else 0, x[0]["time"]), reverse=False)
-        #     score = sorted_with_scores[0][1]
-        #     sorted_groups.append((score,
-        #                         [res[0] for res in sorted_with_scores]))
-        #                         # regrouped_results[group]["begin_time"],
-        #                         # regrouped_results[group]["end_time"]))
-
-        # sorted_groups = sorted(
-        #     sorted_groups, key=lambda x: (-x[0] if x[0] else 0, x[2]), reverse=False)
-
-        # final_results = []
-        # scores = []
-        # for group in grouped_results:
-        #     scores.append(score)
-        #     final_results.append({
-        #         "current": [image["image_path"] for image in images],
-        #         "before": images[0]["before"],
-        #         "after": images[0]["after"]})
-        #         # "begin_time": begin_time,
-        #         # "end_time": end_time})
-        # print(f"Grouped in to {len(final_results)} groups.")
-        # return final_results, size, scores, {}
+    results = [res[0]["image_path"] for res in results]
+    return results, final_results, size, scores, dict(concepts.most_common(50))
 
 def get_time_of_group(images):
     times = [datetime.strptime(
@@ -210,46 +251,6 @@ def find_time_span(groups):
 def add_gps_path(pairs):
     new_pairs = []
     for pair in pairs:
-        # if pair["before"]:
-        #     start_id = min([grouped_info_dict[img]["id"]
-        #                     for img in pair["before"]])
-        # else:
-        #     start_id = min([grouped_info_dict[img]["id"]
-        #                     for img in pair["current"]])
-        # if pair["after"]:
-        #     end_id = max([grouped_info_dict[img]["id"]
-        #                   for img in pair["after"]])
-        # else:
-        #     end_id = max([grouped_info_dict[img]["id"]
-        #                   for img in pair["current"]])
-        # start_current_id = min([grouped_info_dict[img]["id"]
-        #                         for img in pair["current"]])
-        # end_current_id = max([grouped_info_dict[img]["id"]
-        #                       for img in pair["current"]])
-        # gps_query = {
-        #     "size": end_id - start_id + 1,
-        #     "_source": {
-        #         "includes": ["id", "gps", "image_path"]
-        #     },
-        #     "query": {
-        #         "range": {
-        #             "id": {
-        #                 "gte": start_id,
-        #                 "lte": end_id
-        #             }
-        #         }
-        #     },
-        #     "sort":
-        #     {"id": {"order": "asc"}}
-        # }
-        # gps_data = post_request(json.dumps(gps_query), "lsc2020")
-        # pair["gps_path"] = [img[0]["gps"]
-        #                     for img in gps_data]
-
-        # pair["gps"] = [pair["gps_path"][:start_current_id - start_id],
-        #                pair["gps_path"][start_current_id -
-        #                                 start_id:end_current_id + 1],
-                    #    pair["gps_path"][end_current_id + 1:]]
         pair["gps"] = [get_gps(pair["before"]), get_gps(
             pair["current"]), get_gps(pair["after"])]
         pair["gps_path"] = pair["gps"][0] + pair["gps"][1] + pair["gps"][2]
@@ -257,32 +258,38 @@ def add_gps_path(pairs):
     return new_pairs
 
 
-def time_es_query(prep, hour, minute):
+def time_es_query(prep, hour, minute, scene_group=False):
+    factor = 'end_time' if scene_group else 'time'
     if prep in ["before", "earlier than", "sooner than"]:
         if hour != 24 or minute != 0:
-            return f"(doc['time'].value.getHour() < {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() <= {minute}))"
+            return f"(doc['{factor}'].value.getHour() < {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() <= {minute}))"
         else:
             return None
+    factor = 'begin_time' if scene_group else 'time'
     if prep in ["after", "later than"]:
         if hour != 0 or minute != 0:
-            return f"(doc['time'].value.getHour() > {hour} || (doc['time'].value.getHour() == {hour} && doc['time'].value.getMinute() >= {minute}))"
+            return f"(doc['{factor}'].value.getHour() > {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() >= {minute}))"
         else:
             return None
+    if scene_group:
+        f"(abs(doc['begin_time'].value.getHour() - {hour}) < 1 || abs(doc['end_time'].value.getHour() - {hour}) < 1)"
     return f"abs(doc['time'].value.getHour() - {hour}) < 1"
 
 
-def add_time_query(time_filters, prep, time):
-    query = time_es_query(prep, time[0], time[1])
+def add_time_query(time_filters, prep, time, scene_group=False):
+    query = time_es_query(prep, time[0], time[1], scene_group)
     if query:
         time_filters.add(query)
     return time_filters
 
 
-def time_to_filters(start_time, end_time, dates):
+def time_to_filters(begin_time, end_time, dates, scene_group=False):
     # Time
-    time_filters = add_time_query(set(), "after", start_time)
-    time_filters = add_time_query(time_filters, "before", end_time)
-    if (end_time[0] < start_time[0]) or (end_time[0] == start_time[0] and end_time[1] < start_time[1]):
+    time_filters = add_time_query(
+        set(), "after", begin_time, scene_group=scene_group)
+    time_filters = add_time_query(
+        time_filters, "before", end_time, scene_group=scene_group)
+    if (end_time[0] < begin_time[0]) or (end_time[0] == begin_time[0] and end_time[1] < begin_time[1]):
         time_filters = [
             f' ({"||".join(time_filters)}) '] if time_filters else []
     else:
@@ -291,17 +298,18 @@ def time_to_filters(start_time, end_time, dates):
 
     # Date
     date_filters = set()
+    factor = 'begin_time' if scene_group else 'time'
     for y, m, d in dates:
         this_filter = []
         if y:
             this_filter.append(
-                f" (doc['time'].value.getYear() == {y}) ")
+                f" (doc['{factor}'].value.getYear() == {y}) ")
         if m:
             this_filter.append(
-                f" (doc['time'].value.getMonthValue() == {m}) ")
+                f" (doc['{factor}'].value.getMonthValue() == {m}) ")
         if d:
             this_filter.append(
-                f" (doc['time'].value.getDayOfMonth() == {d}) ")
+                f" (doc['{factor}'].value.getDayOfMonth() == {d}) ")
         date_filters.add(f' ({"&&".join(this_filter)}) ')
     date_filters = [
         f' ({"||".join(date_filters)}) '] if date_filters else []

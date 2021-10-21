@@ -6,14 +6,16 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
-from images.query import es, es_date, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images
-
+from images.query import es, es_date, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location
+import requests
 saved = defaultdict(lambda: [])
 session = None
 submit_time = defaultdict(lambda: [])
 messages = defaultdict(lambda: {})
 last_message = {}
-
+raw_results = defaultdict(lambda: [])
+last_raw_results = None
+last_scroll_id = None
 
 def jsonize(response):
     # JSONize
@@ -72,24 +74,64 @@ def export(request):
     global submit_time
     global messages
     global last_message
+    global last_raw_results
+    global raw_results
+
     query_id = request.GET.get('query_id')
     time = request.GET.get('time')
     submit_time[query_id] = time
-    json.dump({"time": submit_time, "saved": saved},
-              open(f'results/{session}.json', 'w'))
+    raw_results[query_id] = last_raw_results
+    # json.dump({"time": submit_time, "saved": saved},
+            #   open(f'results/{session}.json', 'w'))
+    json.dump(raw_results,
+              open(f'duy/{session}.json', 'w'))
+    # json.dum({"query_id"})
     messages[query_id] = last_message
     return jsonize({"success": True})
 
 
 @csrf_exempt
 def images(request):
+    global last_scroll_id
+    global messages
+    global last_message
+    global last_raw_results
     # Get message
     message = json.loads(request.body.decode('utf-8'))
+    print(message)
     # Calculations
-    queryset, scores, info = es(message['query'], message["gps_bounds"])
-    response = {'results': queryset[:100], 'info': info}
+    print(message["starting_from"])
+    raw, scroll_id, queryset, size, scores, info = es(
+        message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, message["starting_from"], scroll=True)
+    last_raw_results = raw.copy()
+    message["query"]["info"] = info
+    if last_scroll_id:
+        try:
+            print(last_scroll_id)
+            response = requests.delete(
+                f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"}, data=json.dumps({"scroll_id": last_scroll_id}))
+            assert response.status_code == 200, f"Wrong request ({response.status_code})"
+        except:
+            pass
+    last_scroll_id = scroll_id
+    last_message = message.copy()
+    response = {'results': queryset, 'info': info, 'size': size, 'more': False, 'scores': scores}
     return jsonize(response)
 
+@csrf_exempt
+def more(request):
+    message = json.loads(request.body.decode('utf-8'))
+    global last_scroll_id
+    if last_scroll_id:
+        raw, scroll_id, queryset, size, scores, info = es_more(
+            last_scroll_id, message["info"])
+        last_scroll_id = scroll_id
+        print(len(queryset))
+        response = {'results': queryset, 'info': info,
+                    'size': size, 'more': True, 'scores': scores}
+    else:
+        response = {'results': []}
+    return jsonize(response)
 
 @csrf_exempt
 def gps(request):
@@ -97,7 +139,8 @@ def gps(request):
     message = json.loads(request.body.decode('utf-8'))
     # Calculations
     gps = get_gps([message['image']])[0]
-    response = {'gps': gps}
+    location = get_location(message['image'])
+    response = {'gps': gps, "location": location}
     return jsonize(response)
 
 # IMAGE CLEF
@@ -105,11 +148,13 @@ def gps(request):
 def date(request):
     global messages
     global last_message
+    global last_raw_results
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     # Calculations
     print(message["starting_from"])
-    queryset, size, info  = es_date(message['query'], message["gps_bounds"], message["size"] if "size" in message else 2000, message["starting_from"])
+    raw, queryset, size, info = es_date(message['query'], message["gps_bounds"], message["size"] if "size" in message else 500, message["starting_from"])
+    last_raw_results = raw.copy()
     message["query"]["info"] = info
     last_message = message.copy()
     response = {'results': queryset, 'info': info, 'size': size}
@@ -143,8 +188,17 @@ def timeline(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     timeline, position, group = get_timeline(
-        message['images'], message["timeline_type"], message["direction"])
+        message['images'], message["direction"])
     response = {'timeline': timeline, 'position': position, 'group': group}
+    return jsonize(response)
+
+
+@csrf_exempt
+def detailed_info(request):
+    # Get message
+    message = json.loads(request.body.decode('utf-8'))
+    images = message['images']
+    response = {'info':[get_info(image) for image in images]}
     return jsonize(response)
 
 
@@ -166,6 +220,9 @@ def aaron(request):
     size = request.GET.get('size')
     size = size if size else 2000
     group_factor = request.GET.get('group_factor')
+    group_time = request.GET.get('group_time')
+    if group_time:
+        group_time = float(group_time)
     event_id_start = request.GET.get('event_id_start')
     event_id_end = request.GET.get('event_id_end')
     event_id = request.GET.get('event_id')
@@ -189,8 +246,17 @@ def aaron(request):
     else:
         # Calculations
         # queryset = individual_es(query, size=2000, group_factor=group_factor)
-        (queryset, *_), _  = individual_es(
-                query, group_factor=group_factor, size=size, starting_from=0, use_simple_process=True)
+        (_, queryset, *_), *_ = individual_es(
+            query, group_factor=group_factor, size=size, starting_from=0, use_simple_process=False, scroll=False, group_more_by=group_time)
         result = [group["current"] for group in queryset]
         response = {'results': result}
         return jsonize(response)
+
+
+@csrf_exempt
+def aaron_timeline(request):
+    event_id = request.GET.get('event_id')
+    condition = request.GET.get('condition')
+    timeline, *_ = get_timeline([event_id], condition)
+    timeline = [image for scene in timeline for image in scene]
+    return jsonize({"timeline": timeline})

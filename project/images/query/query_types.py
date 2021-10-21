@@ -106,3 +106,15 @@ def get_gps_filter(bounds):
             "bottom_right": {"lon": float(bounds[2]), "lat": float(bounds[1])}
         }
     }}
+
+def create_time_range_query(start, end):
+    return {
+            "range":
+            {
+                "timestamp":
+                {
+                    "gte": start,
+                    "lte": end,
+                }
+                }
+            }

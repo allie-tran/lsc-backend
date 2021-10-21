@@ -24,7 +24,7 @@ class Tagger:
             "QUANTITY": ["at least", "more than", "less than", "at most",
                          "not more than", "a number of"],
             "IN": ["in front of", "called"],
-            "NN": [phrase.replace("_", " ") for phrase in list(phrases.keys())],
+            # "NN": [phrase.replace("_", " ") for phrase in list(phrases.keys())],
             "SPACE": ["living room", "fastfood restaurant", "restaurant kitchen", "restaurant",
                       "dining hall", "food court", "butchers shop", "restaurant patio",
                       "coffee shop", "room", "hotel room", "kitchen", "office",
@@ -78,8 +78,10 @@ class Tagger:
                     new_tags[-1] = (t1, 'VBG')
             if tag == 'JJ' and tag in all_keywords:
                 tag = 'NN'
+            if tag == "KEYWORD":
+                keywords.append((word, 'KEYWORD'))
             new_tags.append((word, tag))
-        return new_tags + keywords
+        return new_tags, keywords
 
 
 class ElementTagger:
@@ -91,6 +93,7 @@ class ElementTagger:
                       PERIOD: {<QUANTITY>?<PERIOD>}
                       TIMEPREP: {(<RB>|<PERIOD>)?<TIMEPREP>}
                       SPACE: {<SPACE><LOCATION>}
+                      JJ: {(<JJ><CC>?)+}
                       LOCATION: {(<OBJECT><LOCATION>|<SPACE>|<NNP>)(<VBD>|<VBN>|<\,>)<DT>?(<OBJECT><LOCATION>|<SPACE>|<NNP>|<REGION>)}
                       LOCATION: {<RB>?<IN>?(<DT>|<PRP\$>)?(<LOCATION>|<SPACE>|<REGION>)+}
 

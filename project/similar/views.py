@@ -10,9 +10,13 @@ from sklearn.metrics.pairwise import cosine_distances
 import requests
 
 COMMON_PATH = os.getenv('COMMON_PATH')
+ORIGINAL_PATH = os.getenv('ORIGINAL_PATH')
+
 images = json.load(open(f"{COMMON_PATH}/full_similar_images.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
-
+with open(f"{ORIGINAL_PATH}/lsc2020-visual_concepts.csv") as f:
+    visual_available = ['/'.join(line.split(',')[2].split('/')[-2:])
+                        for line in f.readlines()][1:]
 
 def post_request(json_query, index="lsc2019_combined_text_bow"):
     headers = {"Content-Type": "application/json"}
@@ -62,17 +66,20 @@ def jsonize(response):
 
 @csrf_exempt
 def index(request):
-    image = request.GET.get('image_id')
+    message = json.loads(request.body.decode('utf-8'))
+    image = message['image_id']
+    info = message['info']
     if image not in images:
         image = random.choice(images)
-    similar_images = [image for image in get_neighbors(image) if image in grouped_info_dict]
+    similar_images = [image for image in get_neighbors(image) if image in visual_available]
     response = {"image": image, "images": similar_images}
     return jsonize(response)
 
 
 @csrf_exempt
 def group(request):
-    image = request.GET.get('image_id')
+    message = json.loads(request.body.decode('utf-8'))
+    image = message['image_id']
     if image not in images:
         image = random.choice(images)
     similar_images = get_neighbors(image)[:500]

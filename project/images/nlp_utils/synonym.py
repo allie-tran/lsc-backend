@@ -8,24 +8,22 @@ from gensim.models import Word2Vec
 from nltk import bigrams
 from nltk.corpus import wordnet as wn
 from nltk.tag import pos_tag
-from ..nlp_utils.extract_info import init_tagger
 from nltk.tokenize import word_tokenize
 from ..nlp_utils.common import *
 from numpy import log, sqrt
 specials = {"cloudy": "cloud"}
 
 COMMON_PATH = os.getenv("COMMON_PATH")
-LSC_PATH = os.getenv("LSC_PATH")
 
 model = Word2Vec.load(f"{COMMON_PATH}/word2vec.model")
 map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
 simples = json.load(open(f"{COMMON_PATH}/simples.json"))
-synsets = json.load(open(f"{LSC_PATH}/word2vec/wn.txt"))
+synsets = json.load(open(f"{COMMON_PATH}/wn.txt"))
 freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
-freq = {term: log(191404/freq[term]) for term in freq}
+freq = {term: log(191404/(1 + freq[term])) for term in freq}
 specials = {"cloudy": "cloud"}
-conceptnet = json.load(open(f"{LSC_PATH}/word2vec/conceptnet/Synonym.json"))
+conceptnet = json.load(open(f"{COMMON_PATH}/conceptnet_synonym.json"))
 
 @cache
 def morphy(word, sense):
@@ -92,7 +90,7 @@ def update_lemmas(lemma_dicts, synsets_list, depth):
 def get_hypernyms(word):
     syns = wn.synsets(word, pos='n')
     results = {}
-    for syn in syns:
+    for syn in syns[:1]:
         for depth in range(10):
             if depth == 0:
                 for lemma in syn.lemmas():
@@ -115,11 +113,11 @@ def inspect(syns, max_depth):
             result["hypernyms"] = update_lemmas(
                 result["hypernyms"], syn.closure(hyper, depth=depth), depth)
             result["hyponyms"] = update_lemmas(
-                result["hyponyms"], syn.closure(hypo, depth=depth), depth)
-            result["holonyms"] = update_lemmas(
-                result["holonyms"], syn.closure(holo, depth=depth), depth)
-            result["meronyms"] = update_lemmas(
-                result["meronyms"], syn.closure(mero, depth=depth), depth)
+                result["hyponyms"], syn.closure(hypo, depth=depth), depth * 2)
+            # result["holonyms"] = update_lemmas(
+            #     result["holonyms"], syn.closure(holo, depth=depth), depth)
+            # result["meronyms"] = update_lemmas(
+            #     result["meronyms"], syn.closure(mero, depth=depth), depth)
     return result
 
 
@@ -154,7 +152,12 @@ class Keyword:
                 syns = synsets[self.keyword.replace("_", " ")].split(', ')[
                     0].split()
             else:
-                syns = [syn.name() for syn in wn.synsets(self.keyword)]
+                ss = wn.synsets(self.keyword)
+                if ss:
+                    syns = [ss[0].name()]
+                else:
+                    syns = []
+                # syns = [syn.name() for syn in wn.synsets(self.keyword)]
             if syns and syns != ["None"]:
                 self.words = inspect(syns, depth)
 
@@ -168,9 +171,9 @@ class Keyword:
             if word in self.words["lemmas"]:
                 return True, 0
 
-        for nyms in self.words:
-            if word in self.words[nyms]:
-                return True, self.words[nyms][word]
+        # for nyms in self.words:
+        #     if word in self.words[nyms]:
+        #         return True, self.words[nyms][word]
 
         hypernyms = get_hypernyms(word)
         if self.keyword in hypernyms:
@@ -263,7 +266,7 @@ categories = ["animal", "object", "location", "plant", "person", "food", "room",
 def check_category(word):
     syns = wn.synsets(word, 'n')
     results = {}
-    for syn in syns:
+    for syn in syns[:1]:
         for depth in range(10):
             if depth == 0:
                 for lemma in syn.lemmas():

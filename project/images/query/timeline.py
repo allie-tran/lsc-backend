@@ -32,7 +32,7 @@ def get_prev_scenes(date, group_range, min_scene):
                         return scenes, -1
     return scenes, -1
 
-def get_timeline(images, timeline_type="after", direction="next"):
+def get_timeline(images, direction="full"):
     images = [grouped_info_dict[image]for image in images]
     scene_id = int(images[0]["scene"].split('_')[-1])
     group_id = int(images[0]["group"].split('_')[-1])
@@ -40,26 +40,14 @@ def get_timeline(images, timeline_type="after", direction="next"):
     date = images[0]["scene"].split("/")[0]
     marked = -1
 
-    if timeline_type == "after":
-        group_id = int(images[0]["group"].split('_')[-1])
-        if f"{date}_{group_id + 1}" in group_info[date]:
-            group_id += 1
-            next_scene_id = int(
-                list(group_info[date][f"{date}_{group_id}"].keys())[0].split('_')[-1])
-        else: # At the end
-            next_scene_id = int(
-                list(group_info[date][f"{date}_{group_id}"].keys())[-1].split('_')[-1])
-        scene_id = next_scene_id
+    if direction == "full":
+        scene_range = range(scene_id-10, scene_id + 10)
+    elif direction == "next":
+        scene_range = range(scene_id, scene_id + 10)
+    elif direction == "previous":
+        scene_range = range(scene_id - 10, scene_id)
 
-    elif timeline_type == "before":
-        group_id = int(images[0]["group"].split('_')[-1])
-        if f"{date}_{group_id - 1}" in group_info[date]:
-            group_id -= 1
-        prev_scene_id = int(list(
-            group_info[date][f"{date}_{group_id}"].keys())[0].split('_')[-1])
-        scene_id = prev_scene_id
-
-    for index in range(scene_id-10, scene_id + 10):
+    for index in scene_range:
             scene = f"{date}/scene_{index}"
             if scene in scene_info[date]:
                 if f"{date}/scene_{scene_id}" == scene:

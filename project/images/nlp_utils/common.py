@@ -5,6 +5,7 @@ import nltk
 from nltk.corpus import stopwords
 import os
 import shelve
+import joblib
 
 stop_words = stopwords.words('english')
 stop_words += [',', '.']
@@ -43,6 +44,8 @@ pattern = re.compile(f"\s?({'|'.join(all_words)}+)\s")
 # old_keywords = regions | deeplab | coco | attributes | category
 # json.dump(list(keywords), open(f'{COMMON_PATH}/all_keywords.json', 'w'))
 locations = json.load(open(f'{COMMON_PATH}/locations.json'))
+visualisations = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
+countries = ["England", "United Kingdom", "China", "Ireland", "Czech Republic", "Germany", "Belarus", "Belgium", "Netherlands", "Norway", "Poland", "Russia", "Sweden", "Turkey"]
 regions = json.load(open(f'{COMMON_PATH}/regions.json'))
 microsoft = json.load(open(f'{COMMON_PATH}/microsoft.json'))
 coco = json.load(open(f'{COMMON_PATH}/coco.json'))
@@ -51,7 +54,23 @@ all_keywords = json.load(open(f'{COMMON_PATH}/all_keywords.json'))
 all_address = '|'.join([re.escape(a) for a in locations])
 activities = set(["walking", "airplane", "transport", "running"])
 phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))
+_, aIDF = joblib.load(f"{COMMON_PATH}/aTFIDF.joblib")
+aIDF_indices = {keyword: i for (i, keyword) in enumerate(aIDF.keys())}
 
+map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
+deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
+simples = json.load(open(f"{COMMON_PATH}/simples.json"))
+def to_deeplab(word):
+    for kw in map2deeplab:
+        if word in map2deeplab[kw][1]:
+            yield deeplab2simple[kw]
+
+def to_vector(scores):
+    vector = [0 for _ in range(len(aIDF_indices))]
+    for keyword, score in scores.items():
+        for word in to_deeplab(keyword):
+            vector[aIDF_indices[word]] += score
+    return vector
 
 def find_regex(regex, text, escape=False):
     regex = re.compile(regex, re.IGNORECASE + re.VERBOSE)
@@ -67,15 +86,19 @@ def find_regex(regex, text, escape=False):
 
 
 def flatten_tree(t):
+    if isinstance(t, str):
+        return t
     return " ".join([l[0] for l in t.leaves()])
 
 
-def flatten_tree_tags(t, pos):
+def flatten_tree_tags(t, pos_str, pos_tree):
     if isinstance(t, nltk.tree.Tree):
-        if t.label() in pos:
+        if t.label() in pos_str:
             return [flatten_tree(t), t.label()]
+        elif t.label() in pos_tree:
+            return [t, "tree"]
         else:
-            return [flatten_tree_tags(l, pos) for l in t]
+            return [flatten_tree_tags(l, pos_str, pos_tree) for l in t]
     else:
         return t
 
@@ -115,12 +138,12 @@ def intersect(word, keyword):
     try:
         if word in keyword.split(' '):
             cofreq = overlap[word][keyword]
-            return True
-            return cofreq / freq[word] > 0.8
+            # return True
+            return cofreq / freq[word] > 0.9
         elif keyword in word.split(' '):
             cofreq = overlap[keyword][word]
-            return True
+            # return True
             return cofreq / freq[keyword] > 0.8
-    except KeyError:
+    except (KeyError, AttributeError) as e:
         pass
     return False
