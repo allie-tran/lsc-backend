@@ -76,11 +76,14 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
                      for d in response_json["hits"]["hits"]]
         scroll_id = response_json["_scroll_id"] if scroll else None
     else:
-        print(f'Response status {response.status_code}. Output in request.log')
-        with open('request.log', 'a') as f:
-            f.write(json_query + '\n')
+        print(f'Response status {response.status_code}')
         id_images = []
         scroll_id = None
+    
+    if not id_images:
+        print(f'Empty results. Output in request.log')
+        with open('request.log', 'a') as f:
+            f.write(json_query + '\n')
     return id_images, scroll_id
 
 def get_min_event(images, event_type="group"):
@@ -153,8 +156,7 @@ def group_scene_results(results, factor="group", group_more_by=0):
     print(f"Grouped in to {len(final_results)} groups.")
     print("Score:", min(scores) if scores else None,
           '-', max(scores) if scores else None)
-    results = [res[0] for res in results]
-    return results, final_results, size, scores, {}
+    return final_results, scores
 
 
 def group_results(results, factor="group", group_more_by=0):
@@ -171,7 +173,6 @@ def group_results(results, factor="group", group_more_by=0):
     # if factor == "scene":
     results_with_info = []
     scores = []
-    concepts = Counter()
     for images_with_scores in grouped_results.values():
         score = images_with_scores[0][1]
         scores.append(score)
@@ -205,8 +206,7 @@ def group_results(results, factor="group", group_more_by=0):
 
     print(f"Grouped in to {len(final_results)} groups.")
     print("Score:", min(scores) if scores else None, '-', max(scores) if scores else None)
-    results = [res[0]["image_path"] for res in results]
-    return results, final_results, size, scores, dict(concepts.most_common(50))
+    return final_results, scores
 
 def get_time_of_group(images):
     times = [datetime.strptime(
@@ -258,29 +258,6 @@ def add_gps_path(pairs):
     return new_pairs
 
 
-def time_es_query(prep, hour, minute, scene_group=False):
-    factor = 'end_time' if scene_group else 'time'
-    if prep in ["before", "earlier than", "sooner than"]:
-        if hour != 24 or minute != 0:
-            return f"(doc['{factor}'].value.getHour() < {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() <= {minute}))"
-        else:
-            return None
-    factor = 'begin_time' if scene_group else 'time'
-    if prep in ["after", "later than"]:
-        if hour != 0 or minute != 0:
-            return f"(doc['{factor}'].value.getHour() > {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() >= {minute}))"
-        else:
-            return None
-    if scene_group:
-        f"(abs(doc['begin_time'].value.getHour() - {hour}) < 1 || abs(doc['end_time'].value.getHour() - {hour}) < 1)"
-    return f"abs(doc['time'].value.getHour() - {hour}) < 1"
-
-
-def add_time_query(time_filters, prep, time, scene_group=False):
-    query = time_es_query(prep, time[0], time[1], scene_group)
-    if query:
-        time_filters.add(query)
-    return time_filters
 
 
 def time_to_filters(begin_time, end_time, dates, scene_group=False):

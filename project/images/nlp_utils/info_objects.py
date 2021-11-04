@@ -44,7 +44,7 @@ class Object:
         self.name = []
         self.position = []
         self.quantity = []
-        self.color = []
+        self.attributes = []
         tree_tags = flatten_tree_tags(tree_tags, ["NN", "KEYWORD", "NNS", "JJ"],[])
         self.extract(tree_tags)
         self.tree = tree_tags
@@ -63,17 +63,17 @@ class Object:
                         self.quantity.append("many")
                     else:
                         self.quantity.append("one")
-                if len(self.color) < len(self.name):
-                    self.color.append("nocolor")
+                if len(self.attributes) < len(self.name):
+                    self.attributes.append("")
             elif t[1] in ["QUANTITY", "CD"]:
                 self.quantity.append(t[0])
             elif t[1] in ["POSITION"]:
                 self.position.append(t[0])
-            elif t[1] in ["JJ"]:
-                self.color.append(t[0])
+            elif t[1] in ["JJ", "ATTRIBUTE"]:
+                self.attributes.append(t[0])
 
     def __repr__(self):
-        return f"({self.position}) {'; '.join([f'{c}, {q}, {n}' for c, q, n in zip(self.color, self.quantity, self.name)])}"
+        return f"({self.position}) {'; '.join([f'{a}, {q}, {n}' for a, q, n in zip(self.attributes, self.quantity, self.name)])}"
 
 
 ##### TIME TAG #####

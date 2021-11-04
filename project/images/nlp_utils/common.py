@@ -6,6 +6,7 @@ from nltk.corpus import stopwords
 import os
 import shelve
 import joblib
+import numpy as np
 
 stop_words = stopwords.words('english')
 stop_words += [',', '.']
@@ -40,9 +41,8 @@ pattern = re.compile(f"\s?({'|'.join(all_words)}+)\s")
 # microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
 #                  for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
 
-# all_keywords = regions | deeplab | coco | attributes | category | microsoft
-# old_keywords = regions | deeplab | coco | attributes | category
-# json.dump(list(keywords), open(f'{COMMON_PATH}/all_keywords.json', 'w'))
+gps_locations = json.load(open(f'{COMMON_PATH}/place_gps.json'))
+
 locations = json.load(open(f'{COMMON_PATH}/locations.json'))
 visualisations = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
 countries = ["England", "United Kingdom", "China", "Ireland", "Czech Republic", "Germany", "Belarus", "Belgium", "Netherlands", "Norway", "Poland", "Russia", "Sweden", "Turkey"]
@@ -51,11 +51,115 @@ microsoft = json.load(open(f'{COMMON_PATH}/microsoft.json'))
 coco = json.load(open(f'{COMMON_PATH}/coco.json'))
 
 all_keywords = json.load(open(f'{COMMON_PATH}/all_keywords.json'))
+all_keywords_without_attributes = json.load(
+    open(f'{COMMON_PATH}/all_keywords_without_attributes.json'))
+# attribute_keywords = json.load(open(f'{COMMON_PATH}/attribute_keywords.json'))
+attribute_keywords = ['beige',
+                           'black',
+                           'blonde',
+                           'blue',
+                           'blurry',
+                           'brick',
+                           'bright',
+                           'brown',
+                           'ceramic',
+                           'checkered',
+                           'circular',
+                           'clear',
+                           'closed',
+                           'cloudy',
+                           'colorful',
+                           'cooked',
+                           'curly',
+                           'curved',
+                           'dark',
+                           'decorated',
+                           'decorative',
+                           'digital',
+                           'dirty',
+                           'dry',
+                           'electrical',
+                           'empty',
+                           'flat',
+                           'flat screen',
+                           'floral',
+                           'fluffy',
+                           'framed',
+                           'full',
+                           'glass',
+                           'glazed',
+                           'gold',
+                           'golden',
+                           'granite',
+                           'gray',
+                           'green',
+                           'hairy',
+                           'khaki',
+                           'large',
+                           'leafless',
+                           'leather',
+                           'little',
+                           'long',
+                           'marble',
+                           'maroon',
+                           'metal',
+                           'old',
+                           'open',
+                           'orange',
+                           'paper',
+                           'parked',
+                           'patterned',
+                           'paved',
+                           'piled',
+                           'pink',
+                           'plaid',
+                           'plastic',
+                           'potted',
+                           'purple',
+                           'red',
+                           'reflecting',
+                           'ripe',
+                           'rocky',
+                           'rolled',
+                           'round',
+                           'rusty',
+                           'sandy',
+                           'sharp',
+                           'shining',
+                           'shiny',
+                           'shirtless',
+                           'short',
+                           'silver',
+                           'sleeping',
+                           'sliced',
+                           'small',
+                           'smiling',
+                           'snowy',
+                           'square',
+                           'stacked',
+                           'stainless steel',
+                           'stone',
+                           'straw',
+                           'striped',
+                           'stuffed',
+                           'tall',
+                           'thick',
+                           'thin',
+                           'tiled',
+                           'walking',
+                           'watching',
+                           'wet',
+                           'white',
+                           'wicker',
+                           'wooden',
+                           'yellow',
+                           'young']
 all_address = '|'.join([re.escape(a) for a in locations])
 activities = set(["walking", "airplane", "transport", "running"])
-phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))
+# phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))
 _, aIDF = joblib.load(f"{COMMON_PATH}/aTFIDF.joblib")
 aIDF_indices = {keyword: i for (i, keyword) in enumerate(aIDF.keys())}
+ocr_keywords = [word for word in json.load(open(f"{COMMON_PATH}/ocr_keywords.json")) if len(word) > 1]
 
 map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
@@ -127,8 +231,8 @@ def cache(_func=None, *, file_name=None, separator='_'):
         return decorator(_func)
 
 
-freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
-overlap = json.load(open(f"{COMMON_PATH}/stats/overlap_all.json"))
+freq = json.load(open(f"{COMMON_PATH}/stats/all.json"))
+overlap = json.load(open(f"{COMMON_PATH}/stats/overlap.json"))
 
 
 @cache

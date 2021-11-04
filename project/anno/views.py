@@ -16,14 +16,13 @@ import random
 COMMON_PATH = os.getenv('COMMON_PATH')
 MNT = os.getenv('MNT')
 
-group_info = json.load(open(f"{COMMON_PATH}/group_info.json"))
-scene_info = json.load(open(f"{COMMON_PATH}/scene_info.json"))
+group_segments = json.load(open(f"{COMMON_PATH}/group_segments.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 
 db = TinyDB('/home/tlduyen/LQA/mnt/anno.json')
 Desc = Query()
-dates = list(group_info.keys())
-length = {date: len(group_info[date]) for date in dates}
+dates = list(group_segments.keys())
+length = {date: len(group_segments[date]) for date in dates}
 
 client = MongoClient()
 db2 = client.pymongo_test.posts
@@ -62,8 +61,9 @@ def jsonize(response):
 @csrf_exempt
 def index(request):
     date = request.GET.get('date')
-    groups = [[image for scene in group for image in scene_info[date][scene]] for group in group_info[date].values()]
-    names = list(group_info[date].keys())
+    groups = [[image for scene in group for image in scene]
+              for group in group_segments[date].values()]
+    names = list(group_segments[date].keys())
     descs = [db.get(Desc.scene==name) for name in names]
     descs = [desc["desc"] if desc else None for desc in descs]
     times = [[datetime.strptime(grouped_info_dict[image]["time"], "%Y/%m/%d %H:%M:%S+00").strftime("%H:%M") for image in group] for group in groups]
@@ -144,7 +144,7 @@ def update_qa(request):
     qas = []
     binary, yes, multiple, no = 0, 0, 0, 0
     questions = Counter()
-    names = list(group_info[scene.split('_')[0]].keys())
+    names = list(group_segments[scene.split('_')[0]].keys())
     for name in names:
         scene_qas = sorted(db2.find({"scene": name}), key=lambda qa: qa["i"])
 
@@ -211,17 +211,7 @@ def get_qa_list(request):
         images.append(relevant_images)
         # images.append(frames[qa["vid_name"]][start:end+1])
         qas.append(('scene', i, qa))
-        # date = random.choice(FINISHED_DATE + UNCHECKED)
-        # group = random.choice(list(group_info[date].keys()))
-        # try:
-        #     qa = random.choice(list(db2.find({"scene": group})))
-        #     if f'{group}_{qa["i"]}' not in ids and qa["qa"]["q"] and "[DEL]" not in qa["qa"]["q"]:
-        #         ids.append(f'{group}_{qa["i"]}')
-        #         qas.append((group, qa["i"], qa["qa"]))
-        #         images.append([image for scene in group_info[date][group] for image in scene_info[date][scene]])
-        # except IndexError as e:
-        #     continue
-    
+
     chosen_qas = random.choices(all_test_multiple_qas, k=20)
     for i, qa in enumerate(chosen_qas):
         start, end = qa["ts"].split('-')

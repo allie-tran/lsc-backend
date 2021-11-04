@@ -18,10 +18,9 @@ MNT = os.getenv('MNT')
 db = TinyDB('/home/tlduyen/LQA/mnt/anno.json')
 Desc = Query()
 
-group_info = json.load(open(f"{COMMON_PATH}/group_info.json"))
-scene_info = json.load(open(f"{COMMON_PATH}/scene_info.json"))
+group_segments = json.load(open(f"{COMMON_PATH}/group_segments.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
-dates = list(group_info.keys())
+dates = list(group_segments.keys())
 
 
 if os.path.isfile('all_qa.json'):
@@ -60,9 +59,9 @@ def index(request):
     date = request.GET.get('date')
 
     date = request.GET.get('date')
-    groups = [[image for scene in group for image in scene_info[date][scene]]
-              for group in group_info[date].values()]
-    names = list(group_info[date].keys())
+    groups = [[image for scene in group for image in scene]
+              for group in group_segments[date].values()]
+    names = list(group_segments[date].keys())
 
     descs = [db.get(Desc.scene == name) for name in names]
     descs = [desc["desc"] if desc else None for desc in descs]
@@ -71,10 +70,10 @@ def index(request):
 
     for scene in names:
 
-        scene_keys = sorted(group_info[date][scene].keys())
-        start_scene = [image for image in group_info[date]
+        scene_keys = sorted(group_segments[date][scene].keys())
+        start_scene = [image for image in group_segments[date]
                          [scene][scene_keys[0]] if image.split('/')[0] == date]
-        end_scene = [image for image in group_info[date][scene]
+        end_scene = [image for image in group_segments[date][scene]
                         [scene_keys[-1]] if image.split('/')[0] == date]
         try:
             position_start = start_scene[0]

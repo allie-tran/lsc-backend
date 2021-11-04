@@ -20,8 +20,8 @@ map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))
 simples = json.load(open(f"{COMMON_PATH}/simples.json"))
 synsets = json.load(open(f"{COMMON_PATH}/wn.txt"))
-freq = json.load(open(f"{COMMON_PATH}/stats/all_tags.json"))
-freq = {term: log(191404/(1 + freq[term])) for term in freq}
+freq = json.load(open(f"{COMMON_PATH}/stats/all.json"))
+freq = {term: log(191404/freq[term]) for term in freq}
 specials = {"cloudy": "cloud"}
 conceptnet = json.load(open(f"{COMMON_PATH}/conceptnet_synonym.json"))
 

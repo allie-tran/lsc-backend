@@ -6,7 +6,7 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
-from images.query import es, es_date, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location
+from images.query import es, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location, get_neighbors
 import requests
 saved = defaultdict(lambda: [])
 session = None
@@ -14,7 +14,6 @@ submit_time = defaultdict(lambda: [])
 messages = defaultdict(lambda: {})
 last_message = {}
 raw_results = defaultdict(lambda: [])
-last_raw_results = None
 last_scroll_id = None
 
 def jsonize(response):
@@ -74,13 +73,11 @@ def export(request):
     global submit_time
     global messages
     global last_message
-    global last_raw_results
     global raw_results
 
     query_id = request.GET.get('query_id')
     time = request.GET.get('time')
     submit_time[query_id] = time
-    raw_results[query_id] = last_raw_results
     # json.dump({"time": submit_time, "saved": saved},
             #   open(f'results/{session}.json', 'w'))
     json.dump(raw_results,
@@ -95,15 +92,13 @@ def images(request):
     global last_scroll_id
     global messages
     global last_message
-    global last_raw_results
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     print(message)
     # Calculations
     print(message["starting_from"])
-    raw, scroll_id, queryset, size, scores, info = es(
-        message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, message["starting_from"], scroll=True)
-    last_raw_results = raw.copy()
+    scroll_id, queryset, scores, info = es(
+        message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, share_info=message['share_info'])
     message["query"]["info"] = info
     if last_scroll_id:
         try:
@@ -115,20 +110,17 @@ def images(request):
             pass
     last_scroll_id = scroll_id
     last_message = message.copy()
-    response = {'results': queryset, 'info': info, 'size': size, 'more': False, 'scores': scores}
+    response = {'results': queryset, 'info': info, 'more': False, 'scores': scores}
     return jsonize(response)
 
 @csrf_exempt
 def more(request):
-    message = json.loads(request.body.decode('utf-8'))
     global last_scroll_id
+    message = json.loads(request.body.decode('utf-8'))
     if last_scroll_id:
-        raw, scroll_id, queryset, size, scores, info = es_more(
-            last_scroll_id, message["info"])
+        scroll_id, queryset, scores = es_more(last_scroll_id)
         last_scroll_id = scroll_id
-        print(len(queryset))
-        response = {'results': queryset, 'info': info,
-                    'size': size, 'more': True, 'scores': scores}
+        response = {'results': queryset, 'more': True, 'scores': scores}
     else:
         response = {'results': []}
     return jsonize(response)
@@ -141,23 +133,6 @@ def gps(request):
     gps = get_gps([message['image']])[0]
     location = get_location(message['image'])
     response = {'gps': gps, "location": location}
-    return jsonize(response)
-
-# IMAGE CLEF
-@csrf_exempt
-def date(request):
-    global messages
-    global last_message
-    global last_raw_results
-    # Get message
-    message = json.loads(request.body.decode('utf-8'))
-    # Calculations
-    print(message["starting_from"])
-    raw, queryset, size, info = es_date(message['query'], message["gps_bounds"], message["size"] if "size" in message else 500, message["starting_from"])
-    last_raw_results = raw.copy()
-    message["query"]["info"] = info
-    last_message = message.copy()
-    response = {'results': queryset, 'info': info, 'size': size}
     return jsonize(response)
 
 
@@ -260,3 +235,14 @@ def aaron_timeline(request):
     timeline, *_ = get_timeline([event_id], condition)
     timeline = [image for scene in timeline for image in scene]
     return jsonize({"timeline": timeline})
+
+
+@csrf_exempt
+def similar(request):
+    message = json.loads(request.body.decode('utf-8'))
+    image = message['image_id']
+    info = message['info']
+    gps_bounds = message['gps_bounds']
+    similar_images = get_neighbors(image, info, gps_bounds)[:500]
+    response = {"scenes": similar_images}
+    return jsonize(response)

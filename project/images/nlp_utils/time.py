@@ -70,7 +70,7 @@ class TimeTagger:
         # self.all_regexes.append(
         #     ("TIMEOFDAY", r"\b(|afternoon|noon|morning|evening|night|twilight)\b"))
         self.all_regexes.append(
-            ("TIMEPREP", r"\b(before|after|while|late|early)\b"))
+            ("TIMEPREP", r"\b(before|after|while|late|early|later[ ]than|earlier[ ]than|sooner[ ]than)\b"))
         self.all_regexes.append(
             ("DATE", r"\b(2015|2016|2018)\b"))
         self.tags = [t for t, r in self.all_regexes]
