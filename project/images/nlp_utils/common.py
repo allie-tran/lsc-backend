@@ -160,6 +160,8 @@ activities = set(["walking", "airplane", "transport", "running"])
 _, aIDF = joblib.load(f"{COMMON_PATH}/aTFIDF.joblib")
 aIDF_indices = {keyword: i for (i, keyword) in enumerate(aIDF.keys())}
 ocr_keywords = [word for word in json.load(open(f"{COMMON_PATH}/ocr_keywords.json")) if len(word) > 1]
+_, attributeIDF = joblib.load(f"{COMMON_PATH}/attribute_tfidf.joblib")
+_, ocrIDF = joblib.load(f"{COMMON_PATH}/ocr_tfidf.joblib")
 
 map2deeplab = json.load(open(f"{COMMON_PATH}/map2deeplab.json"))
 deeplab2simple = json.load(open(f"{COMMON_PATH}/deeplab2simple.json"))

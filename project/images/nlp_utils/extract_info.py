@@ -24,7 +24,6 @@ def morphy(word):
         result = wn.morphy(word)
     return result
 
-
 def process_for_ocr(text):
     final_text = defaultdict(int)
     for word in text:
@@ -37,200 +36,53 @@ def process_for_ocr(text):
     print(final_text)
     return final_text
 
-
-class Query_old:
-    def __init__(self, text):
-        self.ocr = " ".join(re.findall(r'\"(.+?)\"', text)).split()
-        tags, keywords = init_tagger.tag(text.strip(". \n"))
-        self.init_tags = tags
-        print(self.init_tags)
-        self.text = [tag[0] for tag in tags]
-        self.keywords = [keyword[0] for keyword in keywords]
-        print(self.text, self.keywords)
-        self.tags = e_tag.tag(tags)
-
-        self.regions = set()
-        self.exacts = set()
-        self.expandeds = set()
-        self.verbs = set()
-        self.objects = {}
-        self.locations = set()
-
-        for loc in self.tags['location']:
-            for name, info in zip(loc.name, loc.info):
-                if info == "REGION":
-                    self.regions.add(name)
-                else:
-                    self.locations.add(name)
-
-        for word, tag in self.init_tags:
-            if tag == "REGION":
-                self.regions.add(word)
-
-        for obj in self.tags["object"]:
-            for attributes, name in zip(obj.attributes, obj.name):
-                origin_word = morphy(name)
-                if not origin_word:
-                    origin_word = name
-                if origin_word in attribute_keywords:
-                    continue
-                self.objects[origin_word] = attributes
-                for kw in all_keywords:
-                    if kw == origin_word:
-                        self.exacts.add(kw)
-                    elif intersect(kw, origin_word):
-                        self.expandeds.add(kw)
-        self.exacts.update(self.keywords)
-        self.weekdays, self.start_time, self.end_time, self.dates = process_time(
-            self.tags["time"])
-
-    def expand(self, must_not_terms=[]):
-        self.expansions = defaultdict(lambda: defaultdict(lambda: []))
-        musts = self.exacts | self.expandeds
-
-        for word in self.exacts:
-            if word in attribute_keywords:
-                continue
-            possible_words = []
-            if word in all_keywords:
-                possible_words = [word]
-            else:
-                for w in to_deeplab(word):
-                    possible_words.append(w)
-
-            for w in possible_words:
-                if w in all_keywords:
-                    self.expandeds.add(w)
-
-            musts.update(possible_words)
-            similars = get_similar(word)
-            for w in similars:
-                self.expansions[word][w.replace('_', ' ')].append(
-                    0.99 / similars[w] if similars[w] > 0 else 1)
-
-            for w, dist in get_most_similar(model, word, all_keywords)[:20]:
-                self.expansions[word][w.replace('_', ' ')].append(1-dist)
-
-        for keyword in set(self.expandeds):
-            if keyword in attribute_keywords:
-                continue
-            for w, dist in get_most_similar(model, keyword, all_keywords)[:20]:
-                self.expansions[word][w.replace('_', ' ')].append((1-dist)/2)
-
-        score = defaultdict(lambda: defaultdict(lambda: []))
-
-        for word in self.expansions:
-            if word in attribute_keywords:
-                continue
-            for w, dist in self.expansions[word].items():
-                if w not in must_not_terms:
-                    max_dist = max(dist)
-                    musts.add(w)
-                    if max_dist > 0.8:
-                        score[word][w] = max_dist
-
-        for w in self.exacts:
-            if w in attribute_keywords:
-                continue
-            if w in conceptnet:
-                for sym in conceptnet[w]:
-                    musts.add(sym)
-                    score[w][sym] = 0.99
-
-        for action in self.tags['action']:
-            for word in action.name:
-                if word in attribute_keywords:
-                    continue
-                for w, dist in self.expansions[word].items():
-                    if w not in must_not_terms:
-                        max_dist = max(dist)
-                        musts.add(w)
-                        if max_dist > 0.8:
-                            score[word][w] = max_dist
-
-        for w in score:
-            score[w] = dict(sorted(score[w].items(), key=lambda x: -x[1]))
-            if w in self.objects:
-                new = {}
-                for expanded in score[w]:
-                    attributed_expanded = f"{self.objects[w]} {expanded}"
-                    if attributed_expanded in all_keywords:
-                        new[attributed_expanded] = score[w][expanded]
-                score[w].update(new)
-                score[w] = dict(
-                    sorted(score[w].items(), key=lambda x: -x[1]))
-        # TEMPORARY
-        temp_scores = {}
-        for w in score:
-            temp_scores.update(score[w])
-
-        musts = musts.difference(["airplane", "plane"])
-        extras = set()
-        for word in self.exacts:
-            if word in self.objects:
-                attributed_word = f"{self.objects[word]} {word}"
-                if attributed_word in all_keywords:
-                    extras.add(attributed_word)
-        self.exacts |= extras
-        musts |= extras
-        visualise = {}
-        for word, tag in self.init_tags:
-            if word in visualise or word in stop_words:
-                continue
-            role = ""
-            origin_word = word
-            if word not in all_keywords:
-                origin_word = morphy(word)
-                if not origin_word:
-                    origin_word = word
-            if origin_word in score:
-                role = ",".join(score[origin_word].keys())
-            elif tag in ["TIME", "DATE", "LOCATION", "REGION", "WEEKDAY", "TIMEPREP", "TIMEOFDAY", "ATTRIBUTE"]:
-                role = tag
-            elif tag in ["SPACE"]:
-                role = "LOCATION"
-            elif origin_word in self.exacts:
-                role = 'exact'
-            if role:
-                visualise[word] = role
-            if origin_word in score:
-                role = ",".join(score[origin_word].keys())
-            elif tag in ["TIME", "DATE", "LOCATION", "REGION", "WEEKDAY", "TIMEPREP", "TIMEOFDAY", "ATTRIBUTE"]:
-                role = tag
-            elif tag in ["SPACE"]:
-                role = "LOCATION"
-            elif origin_word in self.exacts:
-                role = 'KEYWORD'
-            if role:
-                visualise[word] = role
-        visualise = list(visualise.items())
-        return self.exacts, list(musts), list(temp_scores.keys()), temp_scores, visualise
-
-
-@cache
 def get_vector(word):
-    if word.replace(' ', "_") in model:
-        return model[word.replace(' ', "_")]
-    words = [model[word] for word in word.split() if word in model]
-    if words:
-        return np.mean(words, axis=0)
-    else:
-        return np.zeros(32)
+    if word:
+        if model.wv.__contains__(word.replace(' ', "_")):
+            return model[word.replace(' ', "_")]
+        words = [model[word]
+                for word in word.split() if model.wv.__contains__(word)]
+        if words:
+            return np.mean(words, axis=0)
+        else:
+            wn_word = wn.morphy(word)
+            if model.wv.__contains__(wn_word):
+                return model[wn_word]
+    return None
+
+
+def get_deeplab_vector(word):
+    if word:
+        words = [model[word]
+                 for word in word.split(';') if model.wv.__contains__(word)]
+        if words:
+            return np.mean(words, axis=0)
+        else:
+            wn_word = wn.morphy(word)
+            if model.wv.__contains__(wn_word):
+                return model[wn_word]
+    return None
+
 
 
 KEYWORD_VECTORS = {keyword: get_vector(keyword)
                    for keyword in all_keywords_without_attributes}
-
+KEYWORD_VECTORS = {keyword: vector for (keyword, vector) in KEYWORD_VECTORS.items() if vector is not None}
+DEEPLAB_VECTORS = {keyword: get_deeplab_vector(keyword)
+                   for keyword in map2deeplab}
+DEEPLAB_VECTORS = {keyword: vector for (
+    keyword, vector) in DEEPLAB_VECTORS.items() if vector is not None}
 
 class Word:
     def __init__(self, word, attribute=""):
         self.word = word
         self.attribute = attribute
+        self.modifier = 25 if self.attribute else 50
 
     def expand(self):
         synonyms = [self.word]
         synsets = wn.synsets(self.word.replace(" ", "_"))
-        all_similarities = []
+        all_similarities = defaultdict(float)
         if synsets:
             syn = synsets[0]
             synonyms.extend([lemma.name().replace("_", " ")
@@ -239,19 +91,38 @@ class Word:
                     [name.name() for s in syn.closure(hyper, depth=1) for name in s.lemmas()]:
                 name = name.replace("_", " ")
                 if name in all_keywords:
-                    all_similarities.append((name, 1))
-        for word in synonyms:
-            similarities = [(keyword, 1-cosine(get_vector(word), KEYWORD_VECTORS[keyword])) for keyword in KEYWORD_VECTORS]
-            similarities = sorted([s for s in similarities if s[1] > 0.7],  key=lambda s: -s[1])[:10]
-            all_similarities.extend(similarities)
+                    all_similarities[name] = 1.0 * self.modifier
+        deeplab_scores = defaultdict(float)
+        for i, word in enumerate(synonyms):
+            vector = get_vector(word)
+            if vector is not None:
+                similarities = [(keyword, 1-cosine(get_vector(word),
+                                               KEYWORD_VECTORS[keyword])) for keyword in KEYWORD_VECTORS]
+                similarities = sorted([s for s in similarities if s[1] > 0.7],  key=lambda s: -s[1])[:10]
+                for sym, score in similarities:
+                    all_similarities[sym] = max(
+                        all_similarities[sym], score * (1-i*0.1) * self.modifier)
+                similarities = [(keyword, 1-cosine(get_vector(word),
+                                                   DEEPLAB_VECTORS[keyword])) for keyword in DEEPLAB_VECTORS]
+                similarities = sorted(
+                    [s for s in similarities if s[1] > 0.7],  key=lambda s: -s[1])[:10]
+                for sym, score in similarities:
+                    sym = deeplab2simple[sym]
+                    deeplab_scores[sym] = max(
+                        deeplab_scores[sym], score * (1-i*0.1))
 
-        attributed_similarities = []
+            if word in all_keywords:
+                all_similarities[word] = 2.0 * (1-i*0.1) * self.modifier
+
+        deeplab_scores = defaultdict(float)
+        attributed_similarities = {}
         if self.attribute:
-            for word, dist in similarities:
+            all_similarities[self.attribute] = 1.0
+            for word, score in all_similarities.items():
                 if f"{self.attribute} {word}" in all_keywords:
-                    attributed_similarities.append(
-                        (f"{self.attribute} {word}", dist * 2))
-        return dict(sorted(similarities + attributed_similarities, key=lambda x: -x[1]))
+                    attributed_similarities[f"{self.attribute} {word}"] = score * 2
+
+        return dict(sorted(list(all_similarities.items()) + list(attributed_similarities.items()), key=lambda x: -x[1])), deeplab_scores
 
     def __repr__(self):
         return " ".join(([self.attribute] if self.attribute else []) + [self.word])
@@ -292,7 +163,7 @@ def add_time_query(time_filters, prep, time, scene_group=False):
 
 
 class Query:
-    def __init__(self, text):
+    def __init__(self, text, shared_filters=None):
         # query_ocr = query_info["query_ocr"]
         # query_text = query_info["query_text"]
         # exact_terms = query_info["exact_terms"]
@@ -307,50 +178,60 @@ class Query:
         # region = query_info["region"]
         # location = query_info["location"]
         # query_visualisation = query_info["query_visualisation"]
-        text = text.strip(". \n")
-        self.text = text
+        self.negative = ""
+        if "NOT" in text:
+            text, self.negative = text.split("NOT")
+            self.negative = self.negative.strip(". \n").lower()
+            self.negative = [word for word in self.negative.split() if word in all_keywords]
+        text = text.strip(". \n").lower()
         self.time_filters = None
         self.date_filters = None
         self.ocr_queries = []
         self.query_visualisation = {}
         self.country_to_visualise = []
-        self.extract_info(text)
+        self.extract_info(text, shared_filters)
 
-    def extract_info(self, text):
+    def extract_info(self, text, shared_filters=None):
         def search_words(wordset):
             return search(wordset, text)
-
-        self.ocr = process_for_ocr(
-            " ".join(re.findall(r'\"(.+?)\"', text)).split())
         self.original_text = text
+
+
+        quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
+        text = text.replace(f'"{quoted_text}"', "")
+
+        self.ocr = process_for_ocr(quoted_text.split())
         keywords = search_words(all_keywords_without_attributes)
         self.regions = search_words(regions)
+
         for reg in self.regions:
             self.query_visualisation[reg] = "REGION"
             for country in countries:
                 if reg == country.lower():
                     self.country_to_visualise.append(country)
 
-        self.locations = search_words(locations)
+        self.locations = search_words(locations + ["hotel", "restaurant", "store", "centre", "airport", "station", "cafe"])
         for loc in self.locations:
             self.query_visualisation[loc] = "LOCATION"
-        processed = set()
-        processed.update(self.regions + self.locations)
 
-        self.weekdays = set()
-        self.dates = set()
+        processed = set([w for word in self.regions +
+                         self.locations for w in word.split()])
+
+        self.weekdays = []
+        self.dates = None
         self.start = (0, 0)
         self.end = (24, 0)
 
         tags = time_tagger.tag(text)
+        print(tags)
         for i, (word, tag) in enumerate(tags):
             if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
                 processed.update(word.split())
                 self.query_visualisation[word] = tag
             if tag == "WEEKDAY":
-                self.weekdays.add(word)
+                self.weekdays.append(word)
             elif tag == "TIMERANGE":
-                s, e = " ".join(word).split("-")
+                s, e = word.split("-")
                 self.start = adjust_start_end(
                     "start", self.start, *am_pm_to_num(s))
                 self.end = adjust_start_end("end", self.end, *am_pm_to_num(e))
@@ -370,7 +251,7 @@ class Query:
                         "start", self.start, h - 1, m)
                     self.end = adjust_start_end("end", self.end, h + 1, m)
             elif tag == "DATE":
-                self.dates.add(get_day_month(word))
+                self.dates = get_day_month(word)
             elif tag == "TIMEOFDAY":
                 timeprep = ""
                 if i > 1 and tags[i-1][1] == 'TIMEPREP':
@@ -391,50 +272,67 @@ class Query:
                     print(
                         word, f"is not a registered time of day ({timeofday})")
 
+        if shared_filters:
+            if not self.weekdays:
+                self.weekdays.extend(shared_filters.weekdays)
+            if self.dates is None:
+                self.dates = shared_filters.dates
+        print("Date:", self.dates)
         self.place_to_visualise = []
-        phrases = []
-        self.unigrams = [
+        self.phrases = []
+        unigrams = [
             word for word in text.split() if word not in stop_words]
-        for phrase in bigram_phraser[self.unigrams]:
+        for phrase in bigram_phraser[unigrams]:
             to_take = False
             for word in phrase.split('_'):
                 if word not in processed:
                     to_take = True
                     break
             if to_take:
-                phrases.append(phrase.replace('_', ' '))
+                self.phrases.append(phrase.replace('_', ' '))
             for place in visualisations:
                 if word in place.lower().split():
                     self.place_to_visualise.append(place)
 
         attributed_phrases = []
         taken = set()
-        for i, phrase in enumerate(phrases[::-1]):
-            n = len(phrases) - i - 1
+        for i, phrase in enumerate(self.phrases[::-1]):
+            n = len(self.phrases) - i - 1
             if n in taken:
                 continue
             attribute = ""
-            if n > 0 and phrases[n-1] in attribute_keywords:
-                attribute = phrases[n-1]
+            if n > 0 and self.phrases[n-1] in attribute_keywords:
+                attribute = self.phrases[n-1]
                 taken.add(n-1)
             attributed_phrases.append(Word(phrase, attribute))
         self.attributed_phrases = attributed_phrases[::-1]
 
+
     def expand(self):
+        self.seperate_scores = {}
         self.scores = defaultdict(float)
+        self.atfidf = defaultdict(float)
         self.keywords = []
+        self.useless = []
         for word in self.attributed_phrases:
-            expanded = word.expand()
+            expanded, deeplab = word.expand()
+            self.seperate_scores[word.__repr__()] = expanded
             for keyword in expanded:
                 self.scores[keyword] = max(
                     self.scores[keyword], expanded[keyword])
-            to_visualise = [w for w in expanded][:15]
+            for keyword in deeplab:
+                self.atfidf[keyword] = max(
+                    self.atfidf[keyword], deeplab[keyword])
+            to_visualise = [w for w in expanded if w in all_keywords]
             if word.__repr__() in all_keywords:
                 self.keywords.append(word.__repr__())
                 self.query_visualisation[word.__repr__()] = "KEYWORD\n" + "\n".join(to_visualise)
             else:
                 if expanded:
-                    self.query_visualisation[word.__repr__()] = "\n".join(to_visualise)
+                    self.query_visualisation[word.__repr__(
+                    )] = "NON-KEYWORD\n" + "\n".join(to_visualise)
+                else:
+                    self.useless.append(word.__repr__())
 
         for word in self.keywords:
             self.scores[word] += 20
@@ -458,33 +356,25 @@ class Query:
                 time_filters = [
                     f' ({"&&".join(time_filters)}) '] if time_filters else []
             # Date
-            date_filters = set()
-            for y, m, d in self.dates:
-                this_filter = []
+            date_filters = []
+            if self.dates:
+                y, m, d = self.dates
                 if y:
-                    this_filter.append(
-                        f" (doc['DUMMY_FACTOR'].value.getYear() == {y}) ")
+                    date_filters.append({"term": {"year": str(y)}})
                 if m:
-                    this_filter.append(
-                        f" (doc['DUMMY_FACTOR'].value.getMonthValue() == {m}) ")
+                    date_filters.append({"term": {"month": str(m).rjust(2, "0")}})
                 if d:
-                    this_filter.append(
-                        f" (doc['DUMMY_FACTOR'].value.getDayOfMonth() == {d}) ")
-                date_filters.add(f' ({"&&".join(this_filter)}) ')
-            date_filters = [
-                f' ({"||".join(date_filters)}) '] if date_filters else []
+                    date_filters.append({"term": {"date": str(d).rjust(2, "0")}})
             self.time_filters, self.date_filters = time_filters, date_filters
 
         factor = 'begin_time' if scene_group else 'time'
 
-        return [time_filter.replace('DUMMY_FACTOR', factor) for time_filter in self.time_filters], \
-               [date_filter.replace('DUMMY_FACTOR', factor)
-                for date_filter in self.date_filters]
+        return [time_filter.replace('DUMMY_FACTOR', factor) for time_filter in self.time_filters], self.date_filters
 
     def make_ocr_query(self):
         if not self.ocr_queries:
             for ocr_keyword in ocr_keywords:
                 if ocr_keyword in self.ocr:
                     self.ocr_queries.append(
-                        {"rank_feature": {"field": f"ocr_score.{ocr_keyword}", "boost": 500 * self.ocr[ocr_keyword], "linear": {}}})
+                        {"rank_feature": {"field": f"ocr_score.{ocr_keyword}", "boost": 500 * self.ocr[ocr_keyword] / (ocrIDF[ocr_keyword] if ocr_keyword in ocrIDF else 1), "linear": {}}})
         return self.ocr_queries

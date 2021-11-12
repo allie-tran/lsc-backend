@@ -178,6 +178,8 @@ def am_pm_to_num(hour):
         hour = int(hour.replace('pm', '')) + 12
         if hour == 24:
             hour = 12
+    else:
+        hour = int(hour)
     return hour, minute
 
 

@@ -3,7 +3,7 @@ from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
 from ..nlp_utils.synonym import process_string, freq
-from ..nlp_utils.common import to_vector, visualisations, countries, stop_words, ocr_keywords, gps_locations
+from ..nlp_utils.common import to_vector, visualisations, countries, stop_words, ocr_keywords, gps_locations, aIDF, attributeIDF
 from datetime import timedelta, datetime
 import time as timecounter
 from collections import defaultdict
@@ -20,9 +20,9 @@ INCLUDE_IMAGE = ["image_path", "current", "time",
 cached_queries = None
 cached_filters = []
 
-def query_all(query_text, includes, index, group_factor):
-    if query_text:
-        query = {"match": {"address": query_text}}
+def query_all(query, includes, index, group_factor):
+    if query.original_text:
+        query = {"match": {"address": query.original_text}}
     else:
         query = {"match_all": {}}
     request = {
@@ -62,7 +62,10 @@ def es_more(scroll_id):
     scroll_id = response_json["_scroll_id"]
     images = [image for scene in results for image in scene[0]["current"]]
     must_queries, should_queries, functions = cached_queries
-    filter_queries = [{"terms": {"image_path": images}}]
+    filter_queries = {"bool": {"filter": [{"terms": {"image_path": images}}],
+                               "should": [],
+                               "must": {"match_all": {}},
+                               "must_not": []}}
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries, filter_queries, functions, min(len(images), 2500), includes=INCLUDE_IMAGE)
     results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
@@ -121,7 +124,7 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, size
         main_query["must"] = {"match_all": {}}
     if should_queries:
         main_query["should"] = query_list(should_queries)
-    if filter_queries:
+    if filter_queries["bool"]["filter"] or filter_queries["bool"]["should"] or filter_queries["bool"]["must_not"]:
         main_query["filter"] = filter_queries
     main_query = {"bool": main_query}
 
@@ -144,6 +147,7 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, size
     return json_query
 
 def get_neighbors(image, query_info, gps_bounds):
+    global cached_filters
     img_index = full_similar_images.index(image)
     if img_index >= 0:
         filter_queries = cached_filters
@@ -160,7 +164,7 @@ def get_neighbors(image, query_info, gps_bounds):
         if results:
             images = [full_similar_images[r]
                       for r in results[0][0][0]["similars"]][:2500]
-            filter_queries.append(
+            filter_queries["bool"]["filter"].append(
                 {"terms": {"image_path": images}})
             json_query = get_json_query([], [], filter_queries, [], len(images), includes=["image_path", "scene", "weekday"])
             results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
@@ -185,7 +189,7 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query_text, INCLUDE_IMAGE, "lsc2020", group_factor)
+        return query_all(query, INCLUDE_IMAGE, "lsc2020", group_factor)
     query.expand()
     return construct_scene_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size)
 
@@ -193,67 +197,93 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
     time_filters, date_filters = query.time_to_filters(True)
     must_queries = []
     # !TODO
-    # should_queries = [{"match": {"address": {"query": " ".join(query.unigrams)}}},
-                    #   {"match": {"location": {"query": " ".join(query.unigrams)}}}]
-    should_queries = []
+    should_queries = [{"match": {"address": {"query": " ".join(query.useless)}}},
+                      {"match": {"location": {"query": " ".join(query.useless)}}}]
+    # should_queries = []
     if query.ocr:
-        should_queries.extend(query.make_ocr_query())
-    filter_queries = []
+        should_queries.append({
+            "dis_max": {
+                "queries": query.make_ocr_query(),
+                "tie_breaker": 0.0
+            }})
+
+    filter_queries = {"bool": {"filter": [],
+                               "should": [],
+                               "must": {"match_all": {}},
+                               "must_not": []}}
+    if query.negative:
+        filter_queries["bool"]["must_not"] = {"terms": {"scene_concepts": query.negative}}
     functions = []
 
     # MUST
-    if query.keywords:
-        must_queries.append({"terms": {"scene_concepts": list(query.scores.keys())}})
+    # if query.keywords:
+    #     should_queries.append({"terms": {"scene_concepts": list(query.scores.keys())}})
 
     if query.locations:
         for loc in query.locations:
+            should_queries.append({"match": {"location": " ".join(query.locations)}})
+            loc_set = set(loc.split())
             for place in gps_locations:
-                if set(loc.split()).issubset(set(place.lower().split())):
+                set_place = set(place.lower().replace(',', '').split())
+                if loc_set.issubset(set_place):
                     should_queries.append({
                         "distance_feature": {
                             "field": "gps",
-                            "pivot": "50m",
-                            "origin": gps_locations[place]
+                            "pivot": "5m",
+                            "origin": gps_locations[place],
+                            "boost": 50.0 * len(set_place) / len(loc_set)
                         }
                     })
 
     # FILTERS
     if query.regions:
-        filter_queries.append({"terms_set": {"region": {"terms": query.regions,
+        filter_queries["bool"]["filter"].append({"terms_set": {"region": {"terms": query.regions,
                                                         "minimum_should_match_script": {
                                                             "source": "1"}}}})
     if query.weekdays:
-        filter_queries.append({"terms": {"weekday": query.weekdays}})
+        filter_queries["bool"]["filter"].append({"terms": {"weekday": query.weekdays}})
 
-    if date_filters + time_filters:
-        script = "&&".join(date_filters + time_filters)
-        filter_queries.append({"script": {
+    if time_filters:
+        script = "&&".join(time_filters)
+        filter_queries["bool"]["filter"].append({"script": {
             "script": {
                 "source": script
             }}})
 
+    if date_filters:
+        filter_queries["bool"]["filter"].extend(date_filters)
+
     if gps_bounds:
-        filter_queries.append(get_gps_filter(gps_bounds))
+        filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
+
 
     if extra_filter_scripts:
-        if filter_queries:
-            filter_queries = {"bool": {
-                "filter": query_list(filter_queries),
-                "should": extra_filter_scripts,
-                "must": {"match_all": {}}
-            }}
-        else:
-            filter_queries = {"bool":
-            {"must": {"match_all": {}},
-             "should": extra_filter_scripts}}
+        # must_queries.append({
+        #     "dis_max": {
+        #         "queries": extra_filter_scripts,
+        #         "tie_breaker": 0.0
+        #     }
+        # })
+        filter_queries["bool"]["should"].extend(extra_filter_scripts)
     else:
-        if filter_queries:
-            filter_queries = query_list(filter_queries)
+        global cached_filters
+        cached_filters = filter_queries
+
+    for expanded in query.seperate_scores.values():
+        if expanded:
+            should_queries.append({
+                                    "dis_max": {
+                                        "queries": [{"term": {"scene_concepts": {"value": word, "boost": score}}} for word, score in expanded.items()],
+                                        "tie_breaker": 0.0
+                                    }})
+
+    # for word in query.scores:
+    #     # print(word, query.scores[word], freq[word],
+    #     #       query.scores[word] * freq[word])
+    #     functions.append({"filter": {"term": {"scene_concepts":
+    #                                             word}}, "weight": query.scores[word] * (freq[word] if word in freq else 1) / 20})
 
 
-    for word in query.scores:
-        functions.append({"filter": {"term": {"scene_concepts":
-                                                word}}, "weight": query.scores[word] * (freq[word] if word in freq else 1) / 20})
 
     json_query = get_json_query(
         must_queries, should_queries, filter_queries, functions, size, INCLUDE_SCENE)
@@ -266,22 +296,54 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
     if group_factor != 'scene':
         return query, grouped_results, scroll_id
 
-    if not extra_filter_scripts:
-        global cached_filters
-        cached_filters = filter_queries
+
     images = [image for scene in results for image in scene[0]["current"]]
     functions = []
-    # should_queries = [{"match": {"address": {"query": " ".join(query.unigrams)}}},
-    #                   {"match": {"location": {"query": " ".join(query.unigrams)}}}]
-    should_queries = []
+    should_queries = [{"match": {"address": {"query": " ".join(query.useless)}}},
+                      {"match": {"location": {"query": " ".join(query.useless)}}}]
+    # should_queries = []
     should_queries.extend(query.make_ocr_query())
+    if query.locations:
+        should_queries.append({"match": {"location": " ".join(query.locations)}})
+        for loc in query.locations:
+            loc_set = set(loc.split())
+            for place in gps_locations:
+                set_place = set(place.lower().replace(',', '').split())
+                if loc_set.issubset(set_place):
+                    should_queries.append({
+                        "distance_feature": {
+                            "field": "gps",
+                            "pivot": "5m",
+                            "origin": gps_locations[place],
+                            "boost": 50.0 * len(set_place) / len(loc_set)
+                        }
+                    })
+
     # ATFIDF
+    print(query.atfidf)
     should_queries.extend([{"rank_feature":
-                            {"field": f"atfidf.{obj}", "boost": query.scores[obj]}} for obj in query.scores])
-    filter_queries = [{"terms": {"image_path": images}}]
-    for word in query.scores:
-        functions.append({"filter": {"term": {"descriptions":
-                                                word}}, "weight": query.scores[word] * (freq[word] if word in freq else 1) / 20})
+                            {"field": f"atfidf.{obj}", "boost": query.atfidf[obj] / (aIDF[obj] if obj in aIDF else 1) / 100}} for obj in query.atfidf])
+
+    filter_queries = {"bool":{"must": {"match_all": {}}, "filter": [{"terms": {"image_path": images}}]}}
+    if query.negative:
+        filter_queries["bool"]["must_not"] = {
+            "terms": {"scene_concepts": query.negative}}
+    for expanded in query.seperate_scores.values():
+        if expanded:
+            should_queries.append({
+                "dis_max": {
+                    "queries": [{"rank_feature": {"field": f"attribute_tfidf.{word}", "boost": score / (attributeIDF[word] if word in attributeIDF else 1) / 100}} for word, score in expanded.items()],
+                    "tie_breaker": 1.0
+                }})
+            should_queries.append({
+                "dis_max": {
+                    "queries": [{"term": {"descriptions": {"value": word, "boost": score}}} for word, score in expanded.items()],
+                    "tie_breaker": 0.0
+                }})
+
+    # for word in query.scores:
+    #     functions.append({"filter": {"term": {"descriptions":
+    #                                             word}}, "weight": query.scores[word] * (freq[word] if word in freq else 1) / 20})
 
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries,
@@ -303,8 +365,8 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds, 
     extra_filter_scripts = []
     time_limit = float(time_limit)
     time_limit = timedelta(hours=time_limit)
-
-    for time_group in main_events:
+    max_score = scores[0] if scores else 1
+    for time_group, score in zip(main_events, scores):
         if condition == "before":
             start_time = time_group["begin_time"] - time_limit
             end_time = time_group["begin_time"]
@@ -313,7 +375,8 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds, 
             end_time = time_group["end_time"] + time_limit
         # extra_filter_scripts.append(
             # f"({start_time.timestamp()} < doc['timestamp'].value &&  doc['timestamp'].value < {end_time.timestamp()})")
-        extra_filter_scripts.append(create_time_range_query(start_time.timestamp(), end_time.timestamp()))
+        extra_filter_scripts.append(create_time_range_query(
+            start_time.timestamp(), end_time.timestamp(), score/max_score))
 
     # extra_filter_scripts = {"script":
         # {"script": {"source": "||".join(extra_filter_scripts)}}
@@ -350,15 +413,14 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, sc
             elif condition == "before" and timedelta() < main_event["begin_time"] - conditional_event["end_time"] < time_limit:
                 to_take = True
             if to_take:
+                pair_event = main_event.copy()
+                pair_event[condition] = conditional_event["current"]
                 group = conditional_event['group']
                 if group in cond_scenes:
                     s1 = max(s1, cond_scenes[group][1])
                     s2 = max(s2, cond_scenes[group][2])
-                cond_scenes[group] = [{"current": main_event["current"],
-                                       "before": main_event["before"],
-                                       "after": conditional_event["current"],
-                                       "begin_time": main_event["begin_time"],
-                                       "end_time": main_event["end_time"]}, s1, s2]
+
+                cond_scenes[group] = [pair_event, s1, s2]
         already_done[scene] = cond_scenes
     return already_done, max_score1, max_score2
 
@@ -372,7 +434,7 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
         time_limit = time_limit.strip("h")
 
     query = Query(query)
-    conditional_query = Query(conditional_query)
+    conditional_query = Query(conditional_query, shared_filters=query)
 
     # Forward search
     print("Forward Search")

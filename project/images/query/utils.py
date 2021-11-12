@@ -79,11 +79,11 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
         print(f'Response status {response.status_code}')
         id_images = []
         scroll_id = None
-    
-    if not id_images:
-        print(f'Empty results. Output in request.log')
-        with open('request.log', 'a') as f:
-            f.write(json_query + '\n')
+
+    # if not id_images:
+        # print(f'Empty results. Output in request.log')
+    with open('request.log', 'a') as f:
+        f.write(json_query + '\n')
     return id_images, scroll_id
 
 def get_min_event(images, event_type="group"):

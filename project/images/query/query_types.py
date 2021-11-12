@@ -107,7 +107,7 @@ def get_gps_filter(bounds):
         }
     }}
 
-def create_time_range_query(start, end):
+def create_time_range_query(start, end, boost=1.0):
     return {
             "range":
             {
@@ -115,6 +115,7 @@ def create_time_range_query(start, end):
                 {
                     "gte": start,
                     "lte": end,
+                    "boost": boost
                 }
                 }
             }
