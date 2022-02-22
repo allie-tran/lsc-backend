@@ -168,7 +168,7 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, size
 
 
 def get_neighbors(image, lsc, query_info, gps_bounds):
-    
+
     img_index = full_similar_images.index(image)
     if img_index >= 0:
         request = {
@@ -200,7 +200,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                                             }
                                         }
                 }
-                   
+
             json_query = get_json_query([], [], filter_queries, [], len(
                 images), includes=["image_path", "scene", "weekday"])
             results, _ = post_request(json.dumps(
@@ -238,9 +238,9 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
     must_queries = []
     # !TODO
     should_queries = []
-    should_queries.append(
-        {"match": {"captions": {"query": query.original_text}}})
     if query.useless:
+        should_queries.append(
+            {"match": {"captions": {"query": " ".join(query.useless)}}})
         should_queries.extend([{"match": {"address": {"query": " ".join(query.useless)}}},
                         {"match": {"location": {"query": " ".join(query.useless)}}}])
     if query.ocr:
@@ -304,7 +304,6 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
 
     json_query = get_json_query(
         must_queries, should_queries, filter_queries, functions, size, INCLUDE_SCENE)
-
     results, scroll_id = post_request(json.dumps(
         json_query), "lsc2020_scene", scroll=scroll)
     print("Num scenes:", len(results))
@@ -312,9 +311,9 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
     scenes = [scene[0]["scene"] for scene in results]
     functions = []
     should_queries = []
-    should_queries.append(
-        {"match": {"captions": {"query": query.original_text}}})
     if query.useless:
+        should_queries.append(
+            {"match": {"captions": {"query": " ".join(query.useless)}}})
         should_queries.extend([{"match": {"address": {"query": " ".join(query.useless)}}},
                                {"match": {"location": {"query": " ".join(query.useless)}}}])
     if query.ocr:
