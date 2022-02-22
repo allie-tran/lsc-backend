@@ -19,7 +19,7 @@ COMMON_PATH = os.getenv('COMMON_PATH')
 ORIGINAL_LSC = os.getenv('ORIGINAL_LSC')
 
 MNT = os.getenv('MNT')
-load_all()
+# load_all()
 
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 time_info = json.load(open(f"{COMMON_PATH}/time_info.json"))

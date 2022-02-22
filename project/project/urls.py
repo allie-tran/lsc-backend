@@ -20,6 +20,6 @@ from django.urls import path, include
 urlpatterns = [
     path('', include('images.urls')),
     path('similar/', include('similar.urls')),
-    path('anno/', include('anno.urls')),
-    path('anno_json/', include('anno_json.urls'))
+    # path('anno/', include('anno.urls')),
+    # path('anno_json/', include('anno_json.urls'))
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

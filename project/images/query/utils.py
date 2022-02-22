@@ -77,6 +77,7 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
         scroll_id = response_json["_scroll_id"] if scroll else None
     else:
         print(f'Response status {response.status_code}')
+        print(response.text)
         id_images = []
         scroll_id = None
 
@@ -105,6 +106,7 @@ def post_mrequest(json_query, index="lsc2019_combined_text_bow"):
                 id_images.append([])
     else:
         print(f'Response status {response.status_code}')
+        p
         id_images = []
 
     # with open('request.log', 'w') as f:
