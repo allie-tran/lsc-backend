@@ -54,8 +54,8 @@ class TimeTagger:
                 self.all_regexes.append(("PERIOD", r))  # PERIOD
             elif key in ["CRE_UNITS_ONLY"]:
                 self.all_regexes.append(("TIMEUNIT", r))  # TIMEUNIT
-            elif key in ["CRE_WEEKDAY"]:
-                self.all_regexes.append(("WEEKDAY", r))  # WEEKDAY
+        for word in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
+            self.all_regexes.append(("WEEKDAY", word))  # WEEKDAY
         # Added by myself
         timeofday_regex = set()
         for t in timeofday:

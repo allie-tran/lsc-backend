@@ -10,11 +10,11 @@ from sklearn.metrics.pairwise import cosine_distances
 import requests
 
 COMMON_PATH = os.getenv('COMMON_PATH')
-ORIGINAL_PATH = os.getenv('ORIGINAL_PATH')
+ORIGINAL_LSC = os.getenv('ORIGINAL_LSC')
 
 images = json.load(open(f"{COMMON_PATH}/full_similar_images.json"))
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
-with open(f"{ORIGINAL_PATH}/lsc2020-visual_concepts.csv") as f:
+with open(f"{ORIGINAL_LSC}/lsc2020-visual_concepts.csv") as f:
     visual_available = ['/'.join(line.split(',')[2].split('/')[-2:])
                         for line in f.readlines()][1:]
 
@@ -35,7 +35,7 @@ def post_request(json_query, index="lsc2019_combined_text_bow"):
     return id_images
 
 
-def get_neighbors(image):
+def get_neighbors(image, info):
     img_index = images.index(image)
     if img_index >= 0:
         request = {
@@ -80,9 +80,10 @@ def index(request):
 def group(request):
     message = json.loads(request.body.decode('utf-8'))
     image = message['image_id']
+    info = message['info']
     if image not in images:
         image = random.choice(images)
-    similar_images = get_neighbors(image)[:500]
+    similar_images = get_neighbors(image, info)[:500]
     scenes = defaultdict(lambda: [])
     for image in similar_images:
         if image in grouped_info_dict:

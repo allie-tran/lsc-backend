@@ -25,15 +25,14 @@ def morphy(word):
     return result
 
 def process_for_ocr(text):
-    final_text = defaultdict(int)
+    final_text = defaultdict(lambda : defaultdict(float))
     for word in text:
-        final_text[word] += 1
+        final_text[word][word] = 1
         for i in range(0, len(word)-1):
             if len(word[:i+1]) > 1:
-                final_text[word[:i+1]] += (i+1) / len(word)
+                final_text[word][word[:i+1]] += (i+1) / len(word)
             if len(word[i+1:]) > 1:
-                final_text[word[i+1:]] += 1 - (i+1)/len(word)
-    print(final_text)
+                final_text[word][word[i+1:]] += 1 - (i+1)/len(word)
     return final_text
 
 def get_vector(word):
@@ -77,7 +76,7 @@ class Word:
     def __init__(self, word, attribute=""):
         self.word = word
         self.attribute = attribute
-        self.modifier = 25 if self.attribute else 50
+        self.modifier = 50
 
     def expand(self):
         synonyms = [self.word]
@@ -136,48 +135,31 @@ def search(wordset, text):
                 results.append(keyword)
     return results
 
+def search_location(text):
+    results = []
+    gps_results = []
+    for location in locations:
+        for i, extra in enumerate(locations[location]):
+            # Full match
+            if i == 0 and re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
+                return [extra], [(location, 1.0)], True
+            if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
+                if extra not in results:
+                    results.append(extra)
+                gps_results.append((location, len(extra.split())/len(location.split())))
+                break
+    return results, gps_results, False
 
-def time_es_query(prep, hour, minute, scene_group=False):
-    factor = 'end_time' if scene_group else 'time'
-    if prep in ["before", "earlier than", "sooner than"]:
-        if hour != 24 or minute != 0:
-            return f"(doc['{factor}'].value.getHour() < {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() <= {minute}))"
-        else:
-            return None
-    factor = 'begin_time' if scene_group else 'time'
-    if prep in ["after", "later than"]:
-        if hour != 0 or minute != 0:
-            return f"(doc['{factor}'].value.getHour() > {hour} || (doc['{factor}'].value.getHour() == {hour} && doc['{factor}'].value.getMinute() >= {minute}))"
-        else:
-            return None
-    if scene_group:
-        f"(abs(doc['begin_time'].value.getHour() - {hour}) < 1 || abs(doc['end_time'].value.getHour() - {hour}) < 1)"
-    return f"abs(doc['time'].value.getHour() - {hour}) < 1"
-
-
-def add_time_query(time_filters, prep, time, scene_group=False):
-    query = time_es_query(prep, time[0], time[1], scene_group)
-    if query:
-        time_filters.add(query)
-    return time_filters
+gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location in gps_locations}
+gps_not_lower = {}
+for loc in locations:
+    for origin_doc in gps_locations:
+        if loc == origin_doc.lower():
+            gps_not_lower[loc] = origin_doc
 
 
 class Query:
     def __init__(self, text, shared_filters=None):
-        # query_ocr = query_info["query_ocr"]
-        # query_text = query_info["query_text"]
-        # exact_terms = query_info["exact_terms"]
-        # must_terms = query_info["must_terms"]
-        # must_not_terms = query_info["must_not_terms"]
-        # expansion = query_info["expansion"]
-        # expansion_score = query_info["expansion_score"],
-        # weekdays = query_info["weekdays"]
-        # start_time = query_info["start_time"]
-        # end_time = query_info["end_time"]
-        # dates = query_info["dates"]
-        # region = query_info["region"]
-        # location = query_info["location"]
-        # query_visualisation = query_info["query_visualisation"]
         self.negative = ""
         if "NOT" in text:
             text, self.negative = text.split("NOT")
@@ -186,19 +168,29 @@ class Query:
         text = text.strip(". \n").lower()
         self.time_filters = None
         self.date_filters = None
+        self.driving = False
+        self.on_airplane = False
         self.ocr_queries = []
+        self.location_queries = []
         self.query_visualisation = {}
+        self.location_filters = []
         self.country_to_visualise = []
         self.extract_info(text, shared_filters)
+        self.expand()
 
     def extract_info(self, text, shared_filters=None):
         def search_words(wordset):
             return search(wordset, text)
         self.original_text = text
 
-
         quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
         text = text.replace(f'"{quoted_text}"', "")
+        if "driving" in text:
+            self.driving = True
+            text = text.replace("driving", "")
+        if "on airplane" in text:
+            self.on_airplane = True
+            # text = text.replace("on airplane", "")
 
         self.ocr = process_for_ocr(quoted_text.split())
         keywords = search_words(all_keywords_without_attributes)
@@ -210,12 +202,21 @@ class Query:
                 if reg == country.lower():
                     self.country_to_visualise.append(country)
 
-        self.locations = search_words(locations + ["hotel", "restaurant", "store", "centre", "airport", "station", "cafe"])
-        for loc in self.locations:
-            self.query_visualisation[loc] = "LOCATION"
-
+        self.locations, self.gps_results, full_match = search_location(text)
         processed = set([w for word in self.regions +
                          self.locations for w in word.split()])
+        self.place_to_visualise = [gps_not_lower[location] for location, score in self.gps_results]
+
+        if not full_match:
+            self.locations.extend(search_words(
+                [w for w in ["hotel", "restaurant", "store", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
+            for loc in self.locations[len(self.gps_results):]:
+                for place in gps_locations:
+                    if loc in place.lower().split():
+                        self.place_to_visualise.append(place)
+
+        for loc in self.locations:
+            self.query_visualisation[loc] = "LOCATION"
 
         self.weekdays = []
         self.dates = None
@@ -277,11 +278,10 @@ class Query:
                 self.weekdays.extend(shared_filters.weekdays)
             if self.dates is None:
                 self.dates = shared_filters.dates
-        print("Date:", self.dates)
-        self.place_to_visualise = []
+
         self.phrases = []
         unigrams = [
-            word for word in text.split() if word not in stop_words]
+            word for word, tag in tags if word == ',' or word not in stop_words]
         for phrase in bigram_phraser[unigrams]:
             to_take = False
             for word in phrase.split('_'):
@@ -290,13 +290,12 @@ class Query:
                     break
             if to_take:
                 self.phrases.append(phrase.replace('_', ' '))
-            for place in visualisations:
-                if word in place.lower().split():
-                    self.place_to_visualise.append(place)
 
         attributed_phrases = []
         taken = set()
         for i, phrase in enumerate(self.phrases[::-1]):
+            if phrase == ",":
+                continue
             n = len(self.phrases) - i - 1
             if n in taken:
                 continue
@@ -342,39 +341,106 @@ class Query:
                 "country_to_visualise": self.country_to_visualise,
                 "place_to_visualise": self.place_to_visualise}
 
-    def time_to_filters(self, scene_group=False):
-        if not self.time_filters or not self.date_filters:
+    def time_to_filters(self):
+        if not self.time_filters:
             # Time
-            time_filters = add_time_query(
-                set(), "after", self.start, scene_group=scene_group)
-            time_filters = add_time_query(
-                time_filters, "before", self.end, scene_group=scene_group)
-            if (self.end[0] < self.start[0]) or (self.end[0] == self.start[0] and self.end[1] < self.start[1]):
-                time_filters = [
-                    f' ({"||".join(time_filters)}) '] if time_filters else []
-            else:
-                time_filters = [
-                    f' ({"&&".join(time_filters)}) '] if time_filters else []
+            self.time_filters = {
+                                    "range":
+                                    {
+                                        "hour":
+                                        {
+                                            "gte": self.start[0],
+                                            "lte": self.end[0]
+                                        }
+                                    }
+                                }
+
             # Date
-            date_filters = []
+            self.date_filters = []
             if self.dates:
                 y, m, d = self.dates
                 if y:
-                    date_filters.append({"term": {"year": str(y)}})
+                    self.date_filters.append({"term": {"year": str(y)}})
                 if m:
-                    date_filters.append({"term": {"month": str(m).rjust(2, "0")}})
+                    self.date_filters.append(
+                        {"term": {"month": str(m).rjust(2, "0")}})
                 if d:
-                    date_filters.append({"term": {"date": str(d).rjust(2, "0")}})
-            self.time_filters, self.date_filters = time_filters, date_filters
+                    self.date_filters.append(
+                        {"term": {"date": str(d).rjust(2, "0")}})
 
-        factor = 'begin_time' if scene_group else 'time'
-
-        return [time_filter.replace('DUMMY_FACTOR', factor) for time_filter in self.time_filters], self.date_filters
+        return self.time_filters, self.date_filters
 
     def make_ocr_query(self):
         if not self.ocr_queries:
-            for ocr_keyword in ocr_keywords:
-                if ocr_keyword in self.ocr:
-                    self.ocr_queries.append(
-                        {"rank_feature": {"field": f"ocr_score.{ocr_keyword}", "boost": 500 * self.ocr[ocr_keyword] / (ocrIDF[ocr_keyword] if ocr_keyword in ocrIDF else 1), "linear": {}}})
+            self.ocr_queries = []
+            for ocr_word in self.ocr:
+                dis_max = []
+                for ocr_word, score in self.ocr[ocr_word].items():
+                    dis_max.append(
+                        {"rank_feature": {"field": f"ocr_score.{ocr_word}", "boost": 200 * score, "linear": {}}})
+                self.ocr_queries.append({"dis_max": {
+                    "queries": dis_max,
+                    "tie_breaker": 0.0}})
         return self.ocr_queries
+        #TODO: multiple word in OCR
+
+    def make_location_query(self):
+        if not self.location_queries:
+            # Matched GPS
+            for loc, score in self.gps_results:
+                place = gps_not_lower[loc]
+                print(place)
+                dist = "0.5km"
+                pivot = "5m"
+                if "airport" in loc:
+                    dist = "2km"
+                    pivot = "200m"
+                elif "dcu" in loc:
+                    dist = "1km"
+                    pivot = "100m"
+                self.location_queries.append({
+                        "distance_feature": {
+                            "field": "gps",
+                            "pivot": pivot,
+                            "origin": gps_locations[place][::-1],
+                            "boost": score * 50
+                        }
+                    })
+
+                self.location_filters.append({
+                    "geo_distance": {
+                        "distance": dist,
+                        "gps": gps_locations[place][::-1]
+                    }
+                })
+
+            # General:
+            if len(self.gps_results) < len(self.locations):
+                for loc in self.locations[len(self.gps_results):]:
+                    loc_set = set(loc.split())
+                    for place in gps_locations:
+                        set_place = gps_location_sets[place]
+                        if loc_set.issubset(set_place):
+                            pivot = "5m"
+                            if "airport" in set_place:
+                                pivot = "200m"
+                                self.location_filters.append({
+                                    "geo_distance": {
+                                        "distance": "2km",
+                                        "gps": gps_locations[place][::-1]
+                                    }
+                                })
+                            elif "dcu" in set_place:
+                                pivot = "100m"
+                            self.location_queries.append({
+                                "distance_feature": {
+                                    "field": "gps",
+                                    "pivot": pivot,
+                                    "origin": gps_locations[place][::-1],
+                                    "boost": len(loc_set) / len(set_place) * 50
+                                }
+                            })
+        if self.location_queries:
+            return {"dis_max": {"queries": self.location_queries, "tie_breaker": 0.0}}
+        else:
+            return None

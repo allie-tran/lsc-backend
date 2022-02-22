@@ -41,10 +41,8 @@ pattern = re.compile(f"\s?({'|'.join(all_words)}+)\s")
 # microsoft = set([w.replace('_', ' ') for img in grouped_info_dict.values()
 #                  for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
 
-gps_locations = json.load(open(f'{COMMON_PATH}/place_gps.json'))
-
 locations = json.load(open(f'{COMMON_PATH}/locations.json'))
-visualisations = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
+gps_locations = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
 countries = ["England", "United Kingdom", "China", "Ireland", "Czech Republic", "Germany", "Belarus", "Belgium", "Netherlands", "Norway", "Poland", "Russia", "Sweden", "Turkey"]
 regions = json.load(open(f'{COMMON_PATH}/regions.json'))
 microsoft = json.load(open(f'{COMMON_PATH}/microsoft.json'))

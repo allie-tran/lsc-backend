@@ -94,15 +94,16 @@ def images(request):
     global last_message
     # Get message
     message = json.loads(request.body.decode('utf-8'))
+    print("=" * 80)
+    # with open("query_log.txt", "a") as f:
+        # f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
     print(message)
     # Calculations
-    print(message["starting_from"])
     scroll_id, queryset, scores, info = es(
         message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, share_info=message['share_info'])
     message["query"]["info"] = info
     if last_scroll_id:
         try:
-            print(last_scroll_id)
             response = requests.delete(
                 f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"}, data=json.dumps({"scroll_id": last_scroll_id}))
             assert response.status_code == 200, f"Wrong request ({response.status_code})"
@@ -110,7 +111,8 @@ def images(request):
             pass
     last_scroll_id = scroll_id
     last_message = message.copy()
-    response = {'results': queryset, 'info': info, 'more': False, 'scores': scores}
+    print(info["place_to_visualise"])
+    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores}
     return jsonize(response)
 
 @csrf_exempt
@@ -120,9 +122,9 @@ def more(request):
     if last_scroll_id:
         scroll_id, queryset, scores = es_more(last_scroll_id)
         last_scroll_id = scroll_id
-        response = {'results': queryset, 'more': True, 'scores': scores}
+        response = {'results': queryset, 'size': len(queryset), 'more': True, 'scores': scores}
     else:
-        response = {'results': []}
+        response = {'results': [], 'size': 0, 'more': True, 'scores': []}
     return jsonize(response)
 
 @csrf_exempt
@@ -241,8 +243,9 @@ def aaron_timeline(request):
 def similar(request):
     message = json.loads(request.body.decode('utf-8'))
     image = message['image_id']
+    lsc = message['lsc']
     info = message['info']
     gps_bounds = message['gps_bounds']
-    similar_images = get_neighbors(image, info, gps_bounds)[:500]
+    similar_images = get_neighbors(image, lsc, info, gps_bounds)[:500]
     response = {"scenes": similar_images}
     return jsonize(response)
