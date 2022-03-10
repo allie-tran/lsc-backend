@@ -106,7 +106,6 @@ def post_mrequest(json_query, index="lsc2019_combined_text_bow"):
                 id_images.append([])
     else:
         print(f'Response status {response.status_code}')
-        p
         id_images = []
 
     # with open('request.log', 'w') as f:

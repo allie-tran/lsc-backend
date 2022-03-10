@@ -6,7 +6,7 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
-from images.query import es, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location, get_neighbors
+from images.query import es, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location, get_neighbors, get_all_scenes
 import requests
 saved = defaultdict(lambda: [])
 session = None
@@ -160,13 +160,22 @@ def timeline_group(request):
     return jsonize(response)
 
 
+# @csrf_exempt
+# def timeline(request):
+    # Get message
+    # message = json.loads(request.body.decode('utf-8'))
+    # timeline, position, group = get_timeline(
+    #     message['images'], message["direction"])
+    # response = {'timeline': timeline, 'position': position, 'group': group}
+    # return jsonize(response)
+
+# LSC22
 @csrf_exempt
 def timeline(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
-    timeline, position, group = get_timeline(
-        message['images'], message["direction"])
-    response = {'timeline': timeline, 'position': position, 'group': group}
+    timeline, line, space, scene_id = get_all_scenes(message['images'])
+    response = {'timeline': timeline, 'line': line, 'space': space, 'scene_id': scene_id}
     return jsonize(response)
 
 

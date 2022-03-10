@@ -19,7 +19,7 @@ COMMON_PATH = os.getenv('COMMON_PATH')
 ORIGINAL_LSC = os.getenv('ORIGINAL_LSC')
 
 MNT = os.getenv('MNT')
-# load_all()
+load_all()
 
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 time_info = json.load(open(f"{COMMON_PATH}/time_info.json"))
@@ -108,8 +108,7 @@ def update(request):
         caption_db.update_one({'scene': scene}, {"$set": {'desc': desc}}, upsert=False)
     if desc:
         date = scene.split("_")[0]
-        images = scene_segments[date][scene]
-        questions = generate_question(desc, images)
+        questions = generate_question(desc)
         no_questions = get_no_question_from_distractor(questions)
         qas = qa_db.find_one({"scene": scene})
         if qas is None:
@@ -276,8 +275,7 @@ def get_question(request):
         else:
             desc = desc["desc"]
             date = scene.split("_")[0]
-            images = scene_segments[date][scene]
-            questions = generate_question(desc, images)
+            questions = generate_question(desc)
             no_questions = get_no_question_from_distractor(questions)
             qa_db.insert_one(
                 {'scene': scene, 'questions': questions, 'no_questions': no_questions})

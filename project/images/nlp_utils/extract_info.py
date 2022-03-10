@@ -40,10 +40,10 @@ def search_location(text):
         for i, extra in enumerate(locations[location]):
             # Full match
             if i == 0 and re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                return [extra], [(location, 1.0)], True
+                return [location], [(location, 1.0)], True
             if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
                 if extra not in results:
-                    results.append(extra)
+                    results.append(location)
                 gps_results.append((location, len(extra.split())/len(location.split())))
                 break
     return results, gps_results, False
@@ -67,7 +67,7 @@ class Query:
         self.date_filters = None
         self.ocr_queries = []
         self.location_queries = []
-        self.query_visualisation = {}
+        self.query_visualisation = defaultdict(list)
         self.location_filters = []
         self.country_to_visualise = []
         self.extract_info(text, shared_filters)
@@ -84,7 +84,7 @@ class Query:
         self.regions = search_words(regions)
 
         for reg in self.regions:
-            self.query_visualisation[reg] = "REGION"
+            self.query_visualisation["REGION"].append(reg)
             for country in countries:
                 if reg == country.lower():
                     self.country_to_visualise.append(country)
@@ -96,14 +96,18 @@ class Query:
 
         if not full_match:
             self.locations.extend(search_words(
-                [w for w in ["hotel", "restaurant", "store", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
+                [w for w in ["hotel", "restaurant", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
+
             for loc in self.locations[len(self.gps_results):]:
                 for place in gps_locations:
                     if loc in place.lower().split():
                         self.place_to_visualise.append(place)
-
-        for loc in self.locations:
-            self.query_visualisation[loc] = "LOCATION"
+        if full_match:
+            for loc in self.locations:
+                self.query_visualisation["LOCATION"].append(loc)
+        else:
+            for loc in self.locations:
+                self.query_visualisation["POSSIBLE LOCATION"].append(loc)
 
         self.weekdays = []
         self.dates = None
@@ -115,7 +119,7 @@ class Query:
         for i, (word, tag) in enumerate(tags):
             if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
                 processed.update(word.split())
-                self.query_visualisation[word] = tag
+                self.query_visualisation[tag].append(word)
             if tag == "WEEKDAY":
                 self.weekdays.append(word)
             elif tag == "TIMERANGE":
@@ -164,12 +168,22 @@ class Query:
                 self.weekdays.extend(shared_filters.weekdays)
             if self.dates is None:
                 self.dates = shared_filters.dates
-        self.clip_text = " ".join(
-            [word for word in text.split() if word not in processed])
-        self.query_visualisation[self.clip_text] = "CLIP"
+        unprocessed = [(word, tag) for (word, tag) in tags if word not in processed]
+
+        last_non_prep = 0
+        for i in range(1, len(unprocessed)):
+            if unprocessed[-i][1] != "IN":
+                last_non_prep = i
+                break
+        if last_non_prep > 1:
+            self.clip_text = " ".join([word for word, tag in unprocessed[:-(last_non_prep - 1)]])
+        else:
+            self.clip_text = " ".join(
+                [word for word, tag in unprocessed])
+        # self.query_visualisation[self.clip_text] = "CLIP"
 
     def get_info(self):
-        return {"query_visualisation": list(self.query_visualisation.items()),
+        return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],
                 "country_to_visualise": self.country_to_visualise,
                 "place_to_visualise": self.place_to_visualise}
 
@@ -224,7 +238,7 @@ class Query:
                 print(place)
                 dist = "0.5km"
                 pivot = "5m"
-                if "airport" in loc:
+                if "airport" in loc or "home" in loc:
                     dist = "2km"
                     pivot = "200m"
                 elif "dcu" in loc:

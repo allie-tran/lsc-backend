@@ -32,9 +32,8 @@ format_func = group_results
 
 # CLIP
 device = "cuda" if torch.cuda.is_available() else "cpu"
-photo_features = np.load("/home/DATA/clip_embeddings/features.npy")
-photo_ids = pd.read_csv("/home/DATA/clip_embeddings/metadata_20211118.csv")
-clip_model, preprocess = clip.load("ViT-B/32", device=device)
+photo_features = np.load("/home/DATA/clip_embeddings_2/features.npy")
+clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 def clip_query(main_query):
     with torch.no_grad():
@@ -168,25 +167,39 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, clip
             "score_mode": "sum",
             "boost_mode": "sum"
         }}
-
-    json_query = {
-        "size": size,
-        "_source": {
-            "includes": includes
-        },
-        "query": {
-            "script_score": {
-                "query": main_query,
-                "script": clip_script
-            }
-        },
-        "sort": [
-            "_score",
-            {"timestamp": {
-                "order": "asc"
-            }}
-        ]
-    }
+    if clip_script:
+        json_query = {
+            "size": size,
+            "_source": {
+                "includes": includes
+            },
+            "query": {
+                "script_score": {
+                    "query": main_query,
+                    "script": clip_script
+                }
+            },
+            "sort": [
+                "_score",
+                {"timestamp": {
+                    "order": "asc"
+                }}
+            ]
+        }
+    else:
+        json_query = {
+            "size": size,
+            "_source": {
+                "includes": includes
+            },
+            "query": main_query,
+            "sort": [
+                "_score",
+                {"timestamp": {
+                    "order": "asc"
+                }}
+            ]
+        }
     return json_query
 
 
@@ -223,7 +236,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                                         }
                 }
 
-            json_query = get_json_query([], [], filter_queries, [], len(
+            json_query = get_json_query([], [], filter_queries, [], None, len(
                 images), includes=["image_path", "scene", "weekday"])
             results, _ = post_request(json.dumps(
                 json_query), "lsc2020", scroll=False)
@@ -237,7 +250,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                     scene = new_results[image][1]
                     weekdays[scene] = new_results[image][0]
                     grouped_results[scene].append(image)
-            times = [(grouped_results[scene], weekdays[scene] + "\n" + scene.split("_")[0] + "\n" + time_info[scene])
+            times = [(grouped_results[scene], weekdays[scene][:3].upper() + ", " + scene.split("_")[0] + "\n" + time_info[scene])
                      for scene in grouped_results]
             return times[:100]
         print("No results from ES request.")
@@ -298,7 +311,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
 
     embedding = clip_query(query.clip_text)
     clip_script = {
-        "source": "cosineSimilarity(params.embedding, doc['clip_vector']) * 100 + _score",
+        "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
         "params": {"embedding": embedding.tolist()[0]}
     }
     if scroll:

@@ -111,9 +111,31 @@ def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'
                                for img in group_segments[date][new_group_id][scene] if int(scene.split('_')[1]) in scene_range])
     return images
 
-
-# # For ARRON, use something like this
-# print(get_full_scene_from_image(
-#     "2016-08-15/20160815_053701_000.jpg", group_factor="group"))
-# print(get_multiple_scenes_from_images("2016-08-23/20160823_122201_000.jpg",
-#                                       "2016-08-23/20160823_122201_000.jpg", group_factor="group"))
+# NEW LSC22
+def get_all_scenes(images):
+    images = [grouped_info_dict[image]for image in images]
+    scene_id = images[0]["scene"]
+    group_id = int(images[0]["group"].split('_G')[-1])
+    date = images[0]["scene"].split("_")[0]
+    groups = []
+    group_range = range(group_id - 1, group_id + 2)
+    group_range = [f"{date}_G{index}" for index in group_range]
+    print(group_range)
+    line = 0
+    done = False
+    space = 0
+    for group in group_range:
+        if group in group_segments[date]:
+            scenes = []
+            for scene_name in group_segments[date][group]:
+                scenes.append(
+                    (scene_name, scene_segments[date][scene_name], time_info[scene_name]))
+                if scene_id == scene_name:
+                    line += (len(scenes) - 1) // 4 + 1
+                    done = True
+            if scenes:
+                if not done:
+                    space += 1
+                    line += (len(scenes) - 1) // 4 + 1
+                groups.append((group, grouped_info_dict[scenes[0][1][0]]["location"], scenes))
+    return groups, line, space, scene_id
