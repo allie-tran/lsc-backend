@@ -1,16 +1,12 @@
 import json
 import os
-
-COMMON_PATH = os.getenv('COMMON_PATH')
-grouped_info_dict = json.load(open(f"{COMMON_PATH}/grouped_info_dict.json"))
-
+from ..nlp_utils.common import basic_dict
 
 def get_query_request(bounds):
     return {
         "_source": {
             "includes": ["image_path",
                          "descriptions",
-                         "activity",
                          "location",
                          "weekday",
                          "time",
@@ -35,9 +31,7 @@ def get_query_request(bounds):
 
 
 def get_gps(image):
-    return grouped_info_dict[image]["gps"]
-
-def get_filter
+    return basic_dict[image]["gps"]
 
 
 def gps_search(es, bounds, images, display_type):

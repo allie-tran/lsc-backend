@@ -3,8 +3,8 @@ from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
 from ..nlp_utils.synonym import process_string, freq
-from ..nlp_utils.common import to_vector, countries, stop_words, ocr_keywords, gps_locations, aIDF, attributeIDF
-from datetime import timedelta, datetime, timezone
+from ..nlp_utils.common import countries, map_visualisation, basic_dict, COMMON_DIRECTORY
+from datetime import timedelta, datetime
 import time as timecounter
 from collections import defaultdict
 import copy
@@ -13,9 +13,8 @@ import numpy as np
 from clip import clip
 from torch import torch
 
-COMMON_PATH = os.getenv('COMMON_PATH')
-full_similar_images = json.load(
-    open(f"{COMMON_PATH}/full_similar_images.json"))
+full_similar_images = list(basic_dict.keys()) #TODO! need rechecking
+
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "before", "after", "timestamp"]
@@ -32,7 +31,6 @@ format_func = group_results
 
 # CLIP
 device = "cuda" if torch.cuda.is_available() else "cpu"
-photo_features = np.load("/home/DATA/clip_embeddings_2/features.npy")
 clip_model, preprocess = clip.load("ViT-L/14", device=device)
 
 def clip_query(main_query):
@@ -215,7 +213,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                 "term": {"image_index": img_index}
             },
         }
-        results = post_request(json.dumps(request), "lsc2020_similar")
+        results = post_request(json.dumps(request), "lsc2022_similar")
         if results:
             images = [full_similar_images[r]
                       for r in results[0][0][0]["similars"]][:100]
@@ -239,7 +237,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
             json_query = get_json_query([], [], filter_queries, [], None, len(
                 images), includes=["image_path", "scene", "weekday"])
             results, _ = post_request(json.dumps(
-                json_query), "lsc2020", scroll=False)
+                json_query), "lsc2022", scroll=False)
             new_results = dict(
                 [(r[0]["image_path"], (r[0]["weekday"], r[0]["scene"])) for r in results])
             images = [image for image in images if image in new_results]
@@ -250,7 +248,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                     scene = new_results[image][1]
                     weekdays[scene] = new_results[image][0]
                     grouped_results[scene].append(image)
-            times = [(grouped_results[scene], weekdays[scene][:3].upper() + ", " + scene.split("_")[0] + "\n" + time_info[scene])
+            times = [(grouped_results[scene], weekdays[scene] + "\n" + scene.split("_")[0] + "\n" + time_info[scene])
                      for scene in grouped_results]
             return times[:100]
         print("No results from ES request.")
@@ -280,17 +278,14 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
                                "should": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
-    if query.negative:
-        filter_queries["bool"]["must_not"] = {
-            "terms": {"scene_concepts": query.negative}}
     functions = []
 
     if query.locations:
         should_queries.append(
             {"match": {"location": {"query": " ".join(query.locations), "boost": 10}}})
         location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
+        # if location_query:
+            # should_queries.append(location_query)
         filter_queries["bool"]["should"].extend(query.location_filters)
 
     # FILTERS
@@ -324,7 +319,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     global cached_queries
     cached_queries = (must_queries, should_queries, functions)
     results, scroll_id = post_request(
-        json.dumps(json_query), "lsc2020", scroll=True)
+        json.dumps(json_query), "lsc2022", scroll=True)
     print("Num Images:", len(results))
     return query, format_func(results, group_factor), scroll_id
 
@@ -349,17 +344,14 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
                                "should": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
-    if query.negative:
-        filter_queries["bool"]["must_not"] = {
-            "terms": {"scene_concepts": query.negative}}
     functions = []
 
     if query.locations:
         should_queries.append(
             {"match": {"location": {"query": " ".join(query.locations), "boost": 10}}})
         location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
+        # if location_query:
+            # should_queries.append(location_query)
         filter_queries["bool"]["should"].extend(query.location_filters)
 
     # FILTERS
@@ -418,7 +410,8 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
-            start_time.replace(tzinfo=timezone.utc).timestamp(), end_time.replace(tzinfo=timezone.utc).timestamp()))
+            start_time.timestamp(), end_time.timestamp()))
+
     print("Results:", len(main_events))
     print("Time:", timecounter.time() - start, "seconds.")
     print("-" * 80)

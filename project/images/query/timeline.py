@@ -1,17 +1,16 @@
 import json
 import os
 from .utils import *
+from ..nlp_utils.common import FILE_DIRECTORY, COMMON_DIRECTORY, basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
-group_segments = json.load(open(f"{COMMON_PATH}/group_segments.json"))
+groups = json.load(open(f"{COMMON_DIRECTORY}/group_segments.json"))
 scene_segments = {}
-for date, groups in group_segments.items():
-    scene_segments[date] = {}
-    for group_name, scenes in groups.items():
-        for scene_name, images in scenes.items():
-            assert "_S" in scene_name, f"{scene_name} is not a valid scene id"
-            scene_segments[date][scene_name] = images
-time_info = json.load(open(f"{COMMON_PATH}/time_info.json"))
+for group_name in groups:
+    for scene_name, images in groups[group_name]["scenes"]:
+        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
+        scene_segments[scene_name] = images
+time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
 
 def get_next_scenes(date, group_range, max_scene):
     scenes = []
@@ -40,7 +39,7 @@ def get_prev_scenes(date, group_range, min_scene):
     return scenes, -1
 
 def get_timeline(images, direction="full"):
-    images = [grouped_info_dict[image]for image in images]
+    images = [basic_dict[image]for image in images]
     scene_id = int(images[0]["scene"].split('_S')[-1])
     group_id = int(images[0]["group"].split('_G')[-1])
     scenes = []
@@ -72,19 +71,19 @@ def get_timeline_group(date):
 def get_full_scene_from_image(image, group_factor='group'):
     assert group_factor in [
         "group", "scene"], f"Invalid value of group_factor({group_factor}). Use \"scene\" or \"group\"."
-    group_id = grouped_info_dict[image]["group"]
+    group_id = basic_dict[image]["group"]
     date = group_id.split("_")[0]
     if group_factor == "group":
         return [img for scene in group_segments[date][group_id]
                 for img in group_segments[date][group_id][scene]]
     else:
-        scene_id = grouped_info_dict[image]["scene"]
+        scene_id = basic_dict[image]["scene"]
         return [img for img in group_segments[date][group_id][scene_id]]
 
 
 def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'):
-    min_group = grouped_info_dict[begin_image]["group"]
-    max_group = grouped_info_dict[end_image]["group"]
+    min_group = basic_dict[begin_image]["group"]
+    max_group = basic_dict[end_image]["group"]
     date = min_group.split("_")[0]
     min_group = int(min_group.split("_")[1])
     max_group = int(max_group.split("_")[1])
@@ -98,8 +97,8 @@ def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'
                 images.extend([img for scene in group_segments[date][new_group_id]
                                for img in group_segments[date][new_group_id][scene]])
     else:
-        min_scene = grouped_info_dict[begin_image]["scene"]
-        max_scene = grouped_info_dict[end_image]["scene"]
+        min_scene = basic_dict[begin_image]["scene"]
+        max_scene = basic_dict[end_image]["scene"]
         min_scene = int(min_scene.split("_")[1])
         max_scene = int(max_scene.split("_")[1])
         images = []
@@ -111,25 +110,29 @@ def get_multiple_scenes_from_images(begin_image, end_image, group_factor='group'
                                for img in group_segments[date][new_group_id][scene] if int(scene.split('_')[1]) in scene_range])
     return images
 
+
+def to_full_key(image):
+    return f"{image[:6]}/{image[6:8]}/{image}"
+
 # NEW LSC22
 def get_all_scenes(images):
-    images = [grouped_info_dict[image]for image in images]
+    images = [basic_dict[image]for image in images]
     scene_id = images[0]["scene"]
-    group_id = int(images[0]["group"].split('_G')[-1])
+    group_id = int(images[0]["group"].split('G_')[-1])
     date = images[0]["scene"].split("_")[0]
-    groups = []
+    group_results = []
     group_range = range(group_id - 1, group_id + 2)
-    group_range = [f"{date}_G{index}" for index in group_range]
+    group_range = [f"G_{index}" for index in group_range]
     print(group_range)
     line = 0
     done = False
     space = 0
     for group in group_range:
-        if group in group_segments[date]:
+        if group in groups:
             scenes = []
-            for scene_name in group_segments[date][group]:
+            for scene_name, images in groups[group]["scenes"]:
                 scenes.append(
-                    (scene_name, scene_segments[date][scene_name], time_info[scene_name]))
+                    (scene_name, images, time_info[scene_name]))
                 if scene_id == scene_name:
                     line += (len(scenes) - 1) // 4 + 1
                     done = True
@@ -137,5 +140,6 @@ def get_all_scenes(images):
                 if not done:
                     space += 1
                     line += (len(scenes) - 1) // 4 + 1
-                groups.append((group, grouped_info_dict[scenes[0][1][0]]["location"], scenes))
-    return groups, line, space, scene_id
+                group_results.append(
+                    (group, groups[group]["location"], scenes))
+    return group_results, line, space, scene_id

@@ -5,20 +5,23 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache
+from ..nlp_utils.common import cache, FILE_DIRECTORY
 
-COMMON_PATH = os.getenv("COMMON_PATH")
-grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
+basic_dict = json.load(open(f"{FILE_DIRECTORY}/basic_dict.json"))
 
+def get_dict(image):
+    if "/" not in image:
+        image = f"{image[:6]}/{image[6:8]}/{image}"
+    return basic_dict[image]
 
 @cache
 def get_info(image):
-    time = datetime.strptime(grouped_info_dict[image]["time"], "%Y/%m/%d %H:%M:%S+00")
+    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
     return time.strftime("%A, %d %B %Y, %I:%M%p")
 
 
 def get_location(image):
-    return grouped_info_dict[image]["location"]
+    return get_dict(image)["location"]
 
 
 def spell_correct(sent):
@@ -54,9 +57,9 @@ def filter_sorted_gps(gps_points):
 def get_gps(images):
     if images:
         if isinstance(images[0], str):
-            images = [grouped_info_dict[image] for image in images]
+            images = [get_dict(image) for image in images]
         sorted_by_time = [image["gps"] for image in sorted(
-            images, key=lambda x: x["id"])]
+            images, key=lambda x: x["time"])]
         return sorted_by_time
     return []
 
@@ -171,9 +174,9 @@ def group_scene_results(results, factor="group", group_more_by=0):
             # TODO! choose what to present in scenes
             # scene[0]["current"] = random.choice(scene[0]["current"], k=min(5, len(scene[0]["current"])))
             scene[0]["begin_time"] = datetime.strptime(
-                scene[0]["begin_time"], "%Y/%m/%d %H:%M:%S+00")
+                scene[0]["begin_time"], "%Y/%m/%d %H:%M:%S%z")
             scene[0]["end_time"] = datetime.strptime(
-                scene[0]["end_time"], "%Y/%m/%d %H:%M:%S+00")
+                scene[0]["end_time"], "%Y/%m/%d %H:%M:%S%z")
             final_results.append(scene[0])
             scores.append(scene[1])
 
@@ -249,7 +252,7 @@ def group_results(results, factor="group", group_more_by=0):
 
 def get_time_of_group(images, field="time"):
     times = [datetime.strptime(
-        image[field], "%Y/%m/%d %H:%M:%S+00") for image in images]
+        image[field], "%Y/%m/%d %H:%M:%S%z") for image in images]
     begin_time = min(times)
     end_time = max(times)
     return begin_time, end_time

@@ -17,10 +17,8 @@ class Tagger:
             self.tokenizer.add_mwe(a.split())
         # Rules defined
         self.specials = {
-            "ATTRIBUTE": attribute_keywords,
-            "ACTIVITY": activities.union(["driving", "flight"]),
             "REGION": regions,
-            "KEYWORD": [word for word in all_keywords_without_attributes if ' ' in word],
+            "KEYWORD": [word for word in all_keywords if ' ' in word],
             "LOCATION": locations,
             "QUANTITY": ["at least", "more than", "less than", "at most",
                          "not more than", "a number of"],
@@ -108,7 +106,7 @@ class ElementTagger:
 
                       VERB_ING: {<VBG><RP>?(<TO>|<IN>)?}
                       VERB_ING: {<VERB_ING>((<CC>|<\,>|<\,><CC>)<VERB_ING>)+}
-                      ACTION_ING: {<TOBE>?(<VERB_ING>|<ACTIVITY>)}
+                      ACTION_ING: {<TOBE>?<VERB_ING>}
                       ACTION_ING: {<TIMEPREP>?<ACTION_ING><RP>?(<TO>|<IN>)?<DT>?((<NN>|<OBJECT>)?(<LOCATION>|<SPACE>)|<OBnPOS>|<OBJECT>)}
                       ACTION_ING: {<TIMEPREP>?<ACTION_ING>(<CC>|<\,>)<ACTION_ING>}
                                   {<TIMEPREP><ACTION_ING>}

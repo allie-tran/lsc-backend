@@ -48,10 +48,10 @@ def search_location(text):
                 break
     return results, gps_results, False
 
-gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location in gps_locations}
+gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
 gps_not_lower = {}
 for loc in locations:
-    for origin_doc in gps_locations:
+    for origin_doc, (lat, lon) in map_visualisation:
         if loc == origin_doc.lower():
             gps_not_lower[loc] = origin_doc
 
@@ -95,11 +95,11 @@ class Query:
         self.place_to_visualise = [gps_not_lower[location] for location, score in self.gps_results]
 
         if not full_match:
-            self.locations.extend(search_words(
-                [w for w in ["hotel", "restaurant", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
+            # self.locations.extend(search_words(
+                # [w for w in ["hotel", "restaurant", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
 
             for loc in self.locations[len(self.gps_results):]:
-                for place in gps_locations:
+                for place, _ in map_visualisation:
                     if loc in place.lower().split():
                         self.place_to_visualise.append(place)
         if full_match:
@@ -119,7 +119,7 @@ class Query:
         for i, (word, tag) in enumerate(tags):
             if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
                 processed.update(word.split())
-                self.query_visualisation[tag].append(word)
+                self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
             if tag == "WEEKDAY":
                 self.weekdays.append(word)
             elif tag == "TIMERANGE":
@@ -180,6 +180,7 @@ class Query:
         else:
             self.clip_text = " ".join(
                 [word for word, tag in unprocessed])
+        print("CLIP:", self.clip_text)
         # self.query_visualisation[self.clip_text] = "CLIP"
 
     def get_info(self):
@@ -244,27 +245,31 @@ class Query:
                 elif "dcu" in loc:
                     dist = "1km"
                     pivot = "100m"
-                self.location_queries.append({
-                        "distance_feature": {
-                            "field": "gps",
-                            "pivot": pivot,
-                            "origin": gps_locations[place][::-1],
-                            "boost": score * 50
-                        }
-                    })
+                
+                for place_iter, (lat, lon) in map_visualisation:
+                    if place == place_iter:
+                        self.location_queries.append({
+                                "distance_feature": {
+                                    "field": "gps",
+                                    "pivot": pivot,
+                                    "origin": [lon, lat],
+                                    "boost": score * 50
+                                }
+                            })
 
-                self.location_filters.append({
-                    "geo_distance": {
-                        "distance": dist,
-                        "gps": gps_locations[place][::-1]
-                    }
-                })
+                        self.location_filters.append({
+                            "geo_distance": {
+                                "distance": dist,
+                                "gps": [lon, lat]
+                            }
+                        })
+                        break
 
             # General:
             if len(self.gps_results) < len(self.locations):
                 for loc in self.locations[len(self.gps_results):]:
                     loc_set = set(loc.split())
-                    for place in gps_locations:
+                    for place, (lat, lon) in map_visualisation:
                         set_place = gps_location_sets[place]
                         if loc_set.issubset(set_place):
                             pivot = "5m"
@@ -273,7 +278,7 @@ class Query:
                                 self.location_filters.append({
                                     "geo_distance": {
                                         "distance": "2km",
-                                        "gps": gps_locations[place][::-1]
+                                        "gps": [lon, lat]
                                     }
                                 })
                             elif "dcu" in set_place:
@@ -282,7 +287,7 @@ class Query:
                                 "distance_feature": {
                                     "field": "gps",
                                     "pivot": pivot,
-                                    "origin": gps_locations[place][::-1],
+                                    "origin": [lon, lat],
                                     "boost": len(loc_set) / len(set_place) * 50
                                 }
                             })

@@ -121,7 +121,7 @@ class Action:
         self.loc = []
         self.time = []
         tree_tags = flatten_tree_tags(
-            tree_tags, ["VERB_ING", "PAST_VERB", "VERB", "KEYWORD"], ["OBJECT", "ACTIVITY"])
+            tree_tags, ["VERB_ING", "PAST_VERB", "VERB", "KEYWORD"], ["OBJECT"])
         self.extract(tree_tags)
         self.calibrate()
         self.tree = tree_tags
@@ -130,7 +130,7 @@ class Action:
 
     def extract(self, t):
         if isinstance(t[0], str):
-            if t[1] in ["VERB_ING", "PAST_VERB", "VERB", "ACTIVITY"]:
+            if t[1] in ["VERB_ING", "PAST_VERB", "VERB"]:
                 self.name.append(t[0])
             elif t[1] in ["NN", "NNS", "KEYWORD"]:  # prior object than location
                 self.obj.append(t)
