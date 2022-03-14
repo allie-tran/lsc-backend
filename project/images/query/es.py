@@ -286,7 +286,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
         location_query = query.make_location_query()
         # if location_query:
             # should_queries.append(location_query)
-        filter_queries["bool"]["should"].extend(query.location_filters)
+        # filter_queries["bool"]["should"].extend(query.location_filters)
 
     # FILTERS
     if query.regions:
@@ -304,11 +304,14 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     if gps_bounds:
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
 
-    embedding = clip_query(query.clip_text)
-    clip_script = {
-        "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
-        "params": {"embedding": embedding.tolist()[0]}
-    }
+    clip_script = None
+    if query.clip_text:
+        embedding = clip_query(query.clip_text)
+        clip_script = {
+            "source": "cosineSimilarity(params.embedding, doc['clip_vector']) * 100 + _score",
+            "params": {"embedding": embedding.tolist()[0]}
+        }
+
     if scroll:
         global cached_filters
         cached_filters = filter_queries
@@ -371,11 +374,13 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
     if gps_bounds:
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
 
-    embedding = clip_query(query.clip_text)
-    clip_script = {
-        "source": "cosineSimilarity(params.embedding, doc['clip_vector']) * 100 + _score",
-        "params": {"embedding": embedding.tolist()[0]}
-    }
+    clip_script = None
+    if query.clip_text:
+        embedding = clip_query(query.clip_text)
+        clip_script = {
+            "source": "cosineSimilarity(params.embedding, doc['clip_vector']) * 100 + _score",
+            "params": {"embedding": embedding.tolist()[0]}
+        }
 
     mquery = []
     for script in extra_filter_scripts:

@@ -84,11 +84,9 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
         id_images = []
         scroll_id = None
 
-    # if not id_images:
+    if not id_images:
+        print(json_query)
         # print(f'Empty results. Output in request.log')
-    if index=='lsc2020_scene':
-        with open('request.log', 'w') as f:
-            f.write(json_query + '\n')
     return id_images, scroll_id
 
 

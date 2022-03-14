@@ -90,7 +90,8 @@ class Query:
                     self.country_to_visualise.append(country)
 
         self.locations, self.gps_results, full_match = search_location(text)
-        processed = set([w for word in self.regions +
+        print("Locations:", self.locations)
+        processed = set([w.strip(",.") for word in self.regions +
                          self.locations for w in word.split()])
         self.place_to_visualise = [gps_not_lower[location] for location, score in self.gps_results]
 
@@ -117,6 +118,8 @@ class Query:
         tags = time_tagger.tag(text)
         print(tags)
         for i, (word, tag) in enumerate(tags):
+            if word in processed:
+                continue
             if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
                 processed.update(word.split())
                 self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
@@ -168,9 +171,11 @@ class Query:
                 self.weekdays.extend(shared_filters.weekdays)
             if self.dates is None:
                 self.dates = shared_filters.dates
+        print("Processed:", processed)
         unprocessed = [(word, tag) for (word, tag) in tags if word not in processed]
 
         last_non_prep = 0
+        self.clip_text = ""
         for i in range(1, len(unprocessed)):
             if unprocessed[-i][1] != "IN":
                 last_non_prep = i
@@ -180,6 +185,7 @@ class Query:
         else:
             self.clip_text = " ".join(
                 [word for word, tag in unprocessed])
+        self.clip_text = self.clip_text.strip(", ")
         print("CLIP:", self.clip_text)
         # self.query_visualisation[self.clip_text] = "CLIP"
 
@@ -236,7 +242,6 @@ class Query:
             # Matched GPS
             for loc, score in self.gps_results:
                 place = gps_not_lower[loc]
-                print(place)
                 dist = "0.5km"
                 pivot = "5m"
                 if "airport" in loc or "home" in loc:
@@ -245,7 +250,7 @@ class Query:
                 elif "dcu" in loc:
                     dist = "1km"
                     pivot = "100m"
-                
+
                 for place_iter, (lat, lon) in map_visualisation:
                     if place == place_iter:
                         self.location_queries.append({
