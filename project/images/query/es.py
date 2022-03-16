@@ -235,20 +235,22 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                 }
 
             json_query = get_json_query([], [], filter_queries, [], None, len(
-                images), includes=["image_path", "scene", "weekday"])
+                images), includes=["image_path", "scene", "weekday", "time"])
             results, _ = post_request(json.dumps(
                 json_query), "lsc2022", scroll=False)
             new_results = dict(
-                [(r[0]["image_path"], (r[0]["weekday"], r[0]["scene"])) for r in results])
+                [(r[0]["image_path"], (r[0]["weekday"], r[0]["time"], r[0]["scene"])) for r in results])
             images = [image for image in images if image in new_results]
             grouped_results = defaultdict(lambda: [])
             weekdays = {}
+            times = {}
             for image in images:
                 if image in new_results:
-                    scene = new_results[image][1]
+                    scene = new_results[image][2]
                     weekdays[scene] = new_results[image][0]
+                    times[scene] = new_results[image][1]
                     grouped_results[scene].append(image)
-            times = [(grouped_results[scene], weekdays[scene] + "\n" + scene.split("_")[0] + "\n" + time_info[scene])
+            times = [(grouped_results[scene], weekdays[scene] + " " + times[scene].split(" ")[0] + "\n" + time_info[scene])
                      for scene in grouped_results]
             return times[:100]
         print("No results from ES request.")
