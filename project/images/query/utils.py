@@ -10,12 +10,15 @@ from ..nlp_utils.common import cache
 COMMON_PATH = os.getenv("COMMON_PATH")
 grouped_info_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 
-
 @cache
 def get_info(image):
     time = datetime.strptime(grouped_info_dict[image]["time"], "%Y/%m/%d %H:%M:%S+00")
     return time.strftime("%A, %d %B %Y, %I:%M%p")
 
+@cache
+def get_date_info(image):
+    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
+    return time.strftime("%A, %d %B %Y")
 
 def get_location(image):
     return grouped_info_dict[image]["location"]
@@ -81,11 +84,11 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
         id_images = []
         scroll_id = None
 
-    # if not id_images:
-        # print(f'Empty results. Output in request.log')
-    if index=='lsc2020_scene':
-        with open('request.log', 'w') as f:
+    if not id_images:
+        with open("request.log", "a") as f:
             f.write(json_query + '\n')
+        # print(json_query)
+        print(f'Empty results. Output in request.log')
     return id_images, scroll_id
 
 
@@ -120,12 +123,6 @@ def get_min_event(images, event_type="group"):
 def get_max_event(images, event_type="group"):
     return np.argmax([int(image[event_type].split('_')[-1])
                       for image in images])
-
-
-def get_before_after(images):
-    min_group = get_min_event(images)
-    max_group = get_max_event(images)
-    return images[min_group]["before"], images[max_group]["after"]
 
 
 def find_place_in_available_group(regrouped_results, group, begin_time, end_time, group_time=2):
@@ -176,7 +173,6 @@ def group_scene_results(results, factor="group", group_more_by=0):
                 scene[0]["end_time"], "%Y/%m/%d %H:%M:%S+00")
             final_results.append(scene[0])
             scores.append(scene[1])
-
     return final_results, scores
 
 
@@ -192,8 +188,6 @@ def format_single_result(results, factor="dummy", group_more_by=0):
         scores.append(score)
         results_with_info.append({
             "current": [result["image_path"]],
-            "before": result["before"],
-            "after": result["after"],
             "begin_time": result["time"],
             "end_time": result["time"],
             "group": result["group"],
@@ -222,10 +216,9 @@ def group_results(results, factor="group", group_more_by=0):
         begin_time, end_time = get_time_of_group(images)
         results_with_info.append({
             "current": [image["image_path"] for image in images][:5],
-            "before": images[0]["before"],
-            "after": images[0]["after"],
             "begin_time": begin_time,
             "end_time": end_time,
+            "location": images[0]["location"],
             "group": images[0]["group"],
             "scene": images[0]["scene"]})
 
@@ -290,8 +283,7 @@ def find_time_span(groups):
 def add_gps_path(pairs):
     new_pairs = []
     for pair in pairs:
-        pair["gps"] = [get_gps(pair["before"]), get_gps(
-            pair["current"]), get_gps(pair["after"])]
-        pair["gps_path"] = pair["gps"][0] + pair["gps"][1] + pair["gps"][2]
+        pair["gps"] = get_gps(pair["current"])
+        # pair["gps_path"] = pair["gps"]
         new_pairs.append(pair)
     return new_pairs

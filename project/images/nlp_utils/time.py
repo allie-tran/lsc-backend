@@ -5,9 +5,8 @@ from parsedatetime import Constants, Calendar
 from ..nlp_utils.common import *
 
 more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
-                  "morning": ["breakfast"],
-                  "evening": ["nightfall", "dusk", "dinner", "dinnertime", "sunset", "twilight"],
-                  "noon": ["midday", "lunchtime", "lunch"],
+                  "evening": ["nightfall", "dusk", "dinner", "dinnertime", "twilight", "sunset"],
+                  "noon": ["midday", "lunchtime"],
                   "night": ["nighttime"],
                   "afternoon": ["supper", "suppertime", "teatime"]}
 
@@ -21,11 +20,9 @@ timeofday = {"early; morning": "5am-8am",
              "early; evening": "5pm-7pm",
              "midevening": "7pm-9pm",
              "evening": "5pm-9pm",
-             "night": "9pm-4am",
+             "night": "9pm-11:59pm",
              "noon": "11am-1pm",
              "midday": "11am-1pm",
-             "midnight": "11pm-1am",
-             "bedtime": "8pm-1am",
              }
 
 for t in more_timeofday:
@@ -157,7 +154,7 @@ def get_day_month(date_string):
         y = None
     if y:
         date_string = date_string.replace(str(y), "")
-    if m == today.tm_mon and (num2month[m] not in date_string or str(m) not in date_string):
+    if m == today.tm_mon and str(num2month[m]) not in date_string and str(m) not in date_string:
         m = None
     if str(d) not in date_string:
         d = None

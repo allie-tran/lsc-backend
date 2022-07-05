@@ -18,8 +18,8 @@ full_similar_images = json.load(
     open(f"{COMMON_PATH}/full_similar_images.json"))
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
-INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "before", "after", "timestamp"]
-INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "before", "after"]
+INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
+INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 cached_queries = None
 cached_filters =  {"bool": {"filter": [],
@@ -31,9 +31,27 @@ cached_filters =  {"bool": {"filter": [],
 format_func = group_results
 
 # CLIP
+
+def load_model(model_name, path, alpha=0.5):
+    original_model, preprocess = clip.load(model_name, device=device)
+
+    theta_0 = original_model.state_dict()
+    theta_1 = torch.load(path, map_location=device)['state_dict']
+
+    # make sure checkpoints are compatible
+    assert set(theta_0.keys()) == set(theta_1.keys())
+    # interpolate between checkpoints with mixing coefficient alpha
+    theta = {
+        key: (1-alpha) * theta_0[key] + alpha * theta_1[key]
+        for key in theta_0.keys()
+    }
+
+    # update the model acccording to the new weights
+    original_model.load_state_dict(theta)
+    return original_model
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
-photo_features = np.load("/home/DATA/clip_embeddings_2/features.npy")
-clip_model, preprocess = clip.load("ViT-L/14", device=device)
+clip_model = load_model("ViT-B/16", "/home/tlduyen/LQA/BDG/models/b16.pt", alpha=0.875)
 
 def clip_query(main_query):
     with torch.no_grad():
@@ -44,10 +62,7 @@ def clip_query(main_query):
     return text_features
 
 def query_all(query, includes, index, group_factor):
-    if query.original_text:
-        query = {"match": {"address": query.original_text}}
-    else:
-        query = {"match_all": {}}
+    query = {"match_all": {}}
     request = {
         "size": 2000,
         "_source": {
@@ -55,7 +70,6 @@ def query_all(query, includes, index, group_factor):
         },
         "query": query,
         "sort": [
-            "_score",
             {"time": {
                 "order": "asc"
             }}
@@ -64,11 +78,11 @@ def query_all(query, includes, index, group_factor):
     return query_text, format_func(post_request(json.dumps(request), index), group_factor)
 
 
-def es_more(scroll_id):
+def es_more(scroll_id, size=200):
     global multiple_pairs
     if scroll_id == 'pairs':
         position = multiple_pairs["position"]
-        new_position = min(position + 21, len(multiple_pairs["pairs"]))
+        new_position = min(position + 24, len(multiple_pairs["pairs"]))
         last_results = multiple_pairs["pairs"][position: new_position]
         multiple_pairs["position"] = new_position
         return scroll_id, add_gps_path(last_results), []
@@ -86,13 +100,13 @@ def es_more(scroll_id):
 
         scroll_id = response_json["_scroll_id"]
         scenes = [scene[0]["scene"] for scene in results]
-        must_queries, should_queries, functions = cached_queries
+        must_queries, should_queries = cached_queries
         filter_queries = {"bool": {"filter": [{"terms": {"scene": scenes}}],
                                 "should": [],
                                 "must": {"match_all": {}},
                                 "must_not": []}}
         # CONSTRUCT JSON
-        json_query = get_json_query(must_queries, should_queries, filter_queries, functions, 100, includes=INCLUDE_IMAGE)
+        json_query = get_json_query(must_queries, should_queries, filter_queries, size, includes=INCLUDE_IMAGE)
         results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
         print("Num Results:", len(results))
         results, scores = format_func(results, 'scene', 0)
@@ -142,7 +156,7 @@ def query_list(query_list):
     return query_list[0] if len(query_list) == 1 else query_list
 
 
-def get_json_query(must_queries, should_queries, filter_queries, functions, clip_script, size, includes):
+def get_json_query(must_queries, should_queries, filter_queries, size, includes, min_score=0):
     # CONSTRUCT JSON
     main_query = {}
     if must_queries:
@@ -159,104 +173,68 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, clip
         main_query["filter"] = filter_queries
     main_query = {"bool": main_query}
 
-    if functions:
-        main_query = {"function_score": {
-            "query": main_query,
-            "boost": 5,
-            "functions": functions,
-            "score_mode": "sum",
-            "boost_mode": "sum"
-        }}
-    if clip_script:
-        json_query = {
-            "size": size,
-            "_source": {
-                "includes": includes
-            },
-            "query": {
-                "script_score": {
-                    "query": main_query,
-                    "script": clip_script
-                }
-            },
-            "sort": [
-                "_score",
-                {"timestamp": {
-                    "order": "asc"
-                }}
-            ]
-        }
-    else:
-        json_query = {
-            "size": size,
-            "_source": {
-                "includes": includes
-            },
-            "query": main_query,
-            "sort": [
-                "_score",
-                {"timestamp": {
-                    "order": "asc"
-                }}
-            ]
-        }
+
+    json_query = {
+        "size": size,
+        "_source": {
+            "includes": includes
+        },
+        "query": main_query,
+        "sort": [
+            "_score",
+            {"timestamp": {
+                "order": "asc"
+            }}
+        ]
+    }
+    if min_score:
+        json_query["min_score"] = min_score
     return json_query
 
 
 def get_neighbors(image, lsc, query_info, gps_bounds):
-    img_index = full_similar_images.index(image)
-    if img_index >= 0:
-        request = {
-            "size": 1,
-            "_source": {
-                "includes": ["similars"]
-            },
-            "query": {
-                "term": {"image_index": img_index}
-            },
-        }
-        results = post_request(json.dumps(request), "lsc2020_similar")
-        if results:
-            images = [full_similar_images[r]
-                      for r in results[0][0][0]["similars"]][:100]
-            print(f"Found {len(images)} unfiltered images:", images[0:2])
-            if lsc:
-                global cached_filters
-                print("Using cached filters")
-                print(cached_filters)
-                filter_queries = copy.deepcopy(cached_filters)
-                filter_queries["bool"]["filter"].append(
-                    {"terms": {"image_path": images}})
-            else:
-                filter_queries = {
-                                    "bool": {
-                                        "filter": {
-                                            "terms": {"image_path": images}
-                                            }
-                                        }
-                }
-
-            json_query = get_json_query([], [], filter_queries, [], None, len(
-                images), includes=["image_path", "scene", "weekday"])
-            results, _ = post_request(json.dumps(
-                json_query), "lsc2020", scroll=False)
-            new_results = dict(
-                [(r[0]["image_path"], (r[0]["weekday"], r[0]["scene"])) for r in results])
-            images = [image for image in images if image in new_results]
-            grouped_results = defaultdict(lambda: [])
-            weekdays = {}
-            for image in images:
-                if image in new_results:
-                    scene = new_results[image][1]
-                    weekdays[scene] = new_results[image][0]
-                    grouped_results[scene].append(image)
-            times = [(grouped_results[scene], weekdays[scene][:3].upper() + ", " + scene.split("_")[0] + "\n" + time_info[scene])
-                     for scene in grouped_results]
-            return times[:100]
-        print("No results from ES request.")
+    if lsc:
+        global cached_filters
+        # print("Using cached filters")
+        # print(cached_filters)
+        filter_queries = copy.deepcopy(cached_filters)
     else:
-        print("Can't find image in full_similar_images.")
-    return []
+        filter_queries = []
+
+    should_queries = {
+            "elastiknn_nearest_neighbors": {
+                "field": "clip_vector",                # 1
+                "vec": {                               # 2
+                    "index": "lsc2022",
+                    "field": "clip_vector",
+                    "id": image
+                },
+                "model": "permutation_lsh",            # 3
+                "similarity": "cosine",                # 4
+                "candidates": 1000                   # 5
+            }
+        }
+
+    json_query = get_json_query([should_queries], [], filter_queries, 40,
+                includes=["image_path", "group", "location", "weekday", "time"])
+
+    results, _ = post_request(json.dumps(json_query), "lsc2022")
+    new_results = dict([(r[0]["image_path"], r[0]) for r in results])
+
+    grouped_results = defaultdict(lambda: [])
+    weekdays = {}
+    dates = {}
+    locations = {}
+    for image in new_results:
+        group = new_results[image]["group"]
+        weekdays[group] = new_results[image]["weekday"].capitalize()
+        dates[group] = new_results[image]["time"]
+        locations[group] = new_results[image]["location"]
+
+        grouped_results[group].append(image)
+    times = [(grouped_results[group], locations[group] + "\n" + weekdays[group] + " " + dates[group].split(" ")[0] + "\n" + time_info[group])
+                for group in grouped_results]
+    return times[:100]
 
 
 def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
@@ -273,59 +251,86 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     must_queries = []
     # !TODO
     should_queries = []
+    is_empty = True
+
     if query.ocr:
         should_queries.extend(query.make_ocr_query())
+        is_empty = False
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
-    if query.negative:
-        filter_queries["bool"]["must_not"] = {
-            "terms": {"scene_concepts": query.negative}}
-    functions = []
 
     if query.locations:
         should_queries.append(
-            {"match": {"location": {"query": " ".join(query.locations), "boost": 10}}})
-        location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
-        filter_queries["bool"]["should"].extend(query.location_filters)
+            {"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
+        location_filters = query.make_location_query()
+        # if location_query:
+            # should_queries.append(location_query)
+        filter_queries["bool"]["should"].extend(location_filters)
+        filter_queries["bool"]["should"].append({"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
+        is_empty = False
 
     # FILTERS
     if query.regions:
+        is_empty = False
         filter_queries["bool"]["filter"].extend([{"term": {"region": region}} for region in query.regions])
     if query.weekdays:
+        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
+        if query.start[0] != 0 and query.end[0] != 24:
+            is_empty = False
         filter_queries["bool"]["filter"].append(time_filters)
 
     if date_filters:
+        is_empty = False
         filter_queries["bool"]["filter"].extend(date_filters)
 
     if gps_bounds:
+        is_empty = False
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
 
     embedding = clip_query(query.clip_text)
-    clip_script = {
-        "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
-        "params": {"embedding": embedding.tolist()[0]}
-    }
+    clip_script = None
+    if query.clip_text:
+        embedding = clip_query(query.clip_text)
+        # clip_script = {
+        #     "source": "((doc['clip_vector'].size() == 0 ? 0 : cosineSimilarity(params.embedding, 'clip_vector')) + 1) * 100 + _score",
+        #     # "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
+        #     "params": {"embedding": embedding.tolist()[0]}
+        # }
+        clip_script = {
+            "elastiknn_nearest_neighbors": {
+                "field": "clip_vector",                     # 1
+                "vec": {                               # 2
+                    "values": embedding.tolist()[0]
+                },
+                "model": "exact",            # 3
+                "similarity": "cosine",                # 4
+                "candidates": 1000                     # 5
+            }
+        }
+        should_queries.append(clip_script)
+
     if scroll:
         global cached_filters
         cached_filters = filter_queries
+        if filter_queries["bool"]["should"] or filter_queries["bool"]["filter"]:
+            is_empty = False
 
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries,
-                                filter_queries, functions, clip_script, 100, includes=INCLUDE_IMAGE)
+                                filter_queries, size, includes=INCLUDE_IMAGE)
     global cached_queries
-    cached_queries = (must_queries, should_queries, functions)
+    cached_queries = (must_queries, should_queries)
     results, scroll_id = post_request(
         json.dumps(json_query), "lsc2020", scroll=True)
     print("Num Images:", len(results))
+    # print([r[1] for r in results])
     return query, format_func(results, group_factor), scroll_id
 
 
@@ -356,11 +361,12 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
 
     if query.locations:
         should_queries.append(
-            {"match": {"location": {"query": " ".join(query.locations), "boost": 10}}})
-        location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
-        filter_queries["bool"]["should"].extend(query.location_filters)
+                {"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
+        location_filters = query.make_location_query()
+        # if location_query:
+            # should_queries.append(location_query)
+        filter_queries["bool"]["should"].extend(location_filters)
+        filter_queries["bool"]["should"].append({"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
 
     # FILTERS
     if query.regions:
@@ -379,11 +385,22 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
     if gps_bounds:
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
 
-    embedding = clip_query(query.clip_text)
-    clip_script = {
-        "source": "cosineSimilarity(params.embedding, doc['clip_vector']) * 100 + _score",
-        "params": {"embedding": embedding.tolist()[0]}
-    }
+
+    clip_script = None
+    if query.clip_text:
+        embedding = clip_query(query.clip_text)
+        clip_script = {
+            "elastiknn_nearest_neighbors": {
+                "field": "clip_vector",                # 1
+                "vec": {                               # 2
+                    "values": embedding.tolist()[0]
+                },
+                "model": "exact",            # 3
+                "similarity": "cosine",                # 4
+                "candidates": 1000                       # 5
+            }
+        }
+        should_queries.append(clip_script)
 
     mquery = []
     for script in extra_filter_scripts:
@@ -391,7 +408,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         new_filter_queries["bool"]["filter"].append(script)
         mquery.append(json.dumps({}))
         mquery.append(json.dumps(get_json_query(
-            must_queries, should_queries, new_filter_queries, functions, clip_script, 1, INCLUDE_IMAGE)))
+            must_queries, should_queries, new_filter_queries, 1, INCLUDE_IMAGE, min_score=2.2 if query.clip_text else 0.2)))
 
     results = post_mrequest("\n".join(mquery) + "\n", "lsc2020")
     return query, results
@@ -412,9 +429,9 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     for event in main_events:
         if condition == "before":
             start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"]
+            end_time = event["begin_time"] - time_limit // 2
         elif condition == "after":
-            start_time = event["end_time"]
+            start_time = event["end_time"] + time_limit // 2
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
@@ -447,6 +464,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
                 if conditional_event["scene"] not in already_done:
                     pair_event = conditional_event.copy()
                     pair_event[condition] = main_event["current"]
+                    pair_event[f"location_{condition}"] = main_event["location"]
                     pair_events.append((pair_event, s2, s1))
                     already_done.add(
                         conditional_event["scene"])
@@ -454,6 +472,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
                 if main_event["scene"] not in already_done:
                     pair_event = main_event.copy()
                     pair_event[condition] = conditional_event["current"]
+                    pair_event[f"location_{condition}"] = conditional_event["location"]
                     pair_events.append((pair_event, s1, s2))
                     already_done.add(
                         main_event["scene"])
@@ -498,10 +517,10 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
     pair_events = [event for (event, s1, s2) in pair_events]
     print("Max Scores:", max_score1, max_score2)
     print("Pairs:", len(pair_events))
-    multiple_pairs = {"position": 21,
+    multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    return query, conditional_query, (pair_events[:21], total_scores[:21]), "pairs"
+    return query, conditional_query, (pair_events[:24], total_scores[:24]), "pairs"
 
 
 def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, share_info=False):
@@ -549,6 +568,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
         for conditional_event, s3 in zip(cond_events, cond_scores):
             pair_event = before_pair.copy()
             pair_event["after"] = conditional_event["current"]
+            pair_event["location_after"] = conditional_event["location"]
             pair_events.append((pair_event, s1, s2, s3))
 
     after_query, (_, scores), _ = individual_es(
@@ -561,10 +581,10 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
     pair_events = [event for event, s in pair_events]
     print("Pairs:", len(pair_events))
 
-    multiple_pairs = {"position": 21,
+    multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    return query, before_query, after_query, (pair_events[:21], []), "pairs"
+    return query, before_query, after_query, (pair_events[:24], []), "pairs"
 
 
 if __name__ == "__main__":
