@@ -3,7 +3,7 @@ from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
 from ..nlp_utils.synonym import process_string, freq
-from ..nlp_utils.common import to_vector, countries, stop_words, ocr_keywords, gps_locations, aIDF, attributeIDF
+from ..nlp_utils.common import to_vector, countries, stop_words, ocr_keywords, aIDF, attributeIDF
 from datetime import timedelta, datetime, timezone
 import time as timecounter
 from collections import defaultdict
@@ -14,8 +14,6 @@ from clip import clip
 from torch import torch
 
 COMMON_PATH = os.getenv('COMMON_PATH')
-full_similar_images = json.load(
-    open(f"{COMMON_PATH}/full_similar_images.json"))
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
@@ -328,7 +326,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     global cached_queries
     cached_queries = (must_queries, should_queries)
     results, scroll_id = post_request(
-        json.dumps(json_query), "lsc2020", scroll=True)
+        json.dumps(json_query), "lsc2020", scroll=scroll)
     print("Num Images:", len(results))
     # print([r[1] for r in results])
     return query, format_func(results, group_factor), scroll_id
@@ -429,9 +427,9 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     for event in main_events:
         if condition == "before":
             start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"] - time_limit // 2
+            end_time = event["begin_time"]
         elif condition == "after":
-            start_time = event["end_time"] + time_limit // 2
+            start_time = event["end_time"]
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(

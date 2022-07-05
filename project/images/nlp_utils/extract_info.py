@@ -50,7 +50,7 @@ def search_possible_location(text):
 # gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
 gps_not_lower = {}
 for loc in locations:
-    for origin_doc, (lat, lon) in map_visualisation:
+    for origin_doc, (lat, lon) in map_visualisation.items():
         if loc == origin_doc.lower():
             gps_not_lower[loc] = origin_doc
 
@@ -294,7 +294,7 @@ class Query:
                     dist = "1km"
                     pivot = "100m"
 
-                for place_iter, (lat, lon) in map_visualisation:
+                for place_iter, (lat, lon) in map_visualisation.items():
                     if place == place_iter:
                         # self.location_queries.append({
                         #         "distance_feature": {
