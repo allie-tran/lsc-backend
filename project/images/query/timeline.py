@@ -12,6 +12,21 @@ for group_name in groups:
         scene_segments[scene_name] = images
 time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
 
+def get_submission(image, scene):
+    submissions = []
+    if scene:
+        images = scene_segments[basic_dict[image]["scene"]]
+        for img in images:
+            submissions.append(img.split('.')[0].split('/')[-1])
+    else:
+        submissions.append(image.split('.')[0].split('/')[-1])
+    return submissions
+
+def get_image_list(first, last):
+    first = all_images.index(first)
+    last = all_images.index(last)
+    return [img.split('.')[0].split('/')[-1] for img in all_images[first:last+1]]
+
 def get_next_scenes(date, group_range, max_scene):
     scenes = []
     for index in group_range:
@@ -40,8 +55,8 @@ def get_prev_scenes(date, group_range, min_scene):
 
 def get_timeline(images, direction="full"):
     images = [basic_dict[image]for image in images]
-    scene_id = int(images[0]["scene"].split('_S')[-1])
-    group_id = int(images[0]["group"].split('_G')[-1])
+    scene_id = int(images[0]["scene"].split('S_')[-1])
+    group_id = int(images[0]["group"].split('G_')[-1])
     scenes = []
     date = images[0]["scene"].split("_")[0]
     marked = -1
@@ -119,7 +134,6 @@ def get_all_scenes(images):
     images = [basic_dict[image]for image in images]
     scene_id = images[0]["scene"]
     group_id = int(images[0]["group"].split('G_')[-1])
-    date = images[0]["scene"].split("_")[0]
     group_results = []
     group_range = range(group_id - 1, group_id + 2)
     group_range = [f"G_{index}" for index in group_range]
@@ -142,4 +156,33 @@ def get_all_scenes(images):
                     line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
                     (group, groups[group]["location"], scenes))
+
+    print("Line:", line, ", scene_id", scene_id)
     return group_results, line, space, scene_id
+
+def get_more_scenes(group_id, direction="top"):
+    group_id = int(group_id.split('G_')[-1])
+    group_results = []
+    if direction == "bottom":
+        group_range = range(group_id + 1, group_id + 3)
+    else:
+        group_range = range(group_id - 2, group_id)
+    line = 0
+    space = 0
+    group_range = [f"G_{index}" for index in group_range]
+    for group in group_range:
+        if group in groups:
+            scenes = []
+            for scene_name, images in groups[group]["scenes"]:
+                scenes.append(
+                    (scene_name, images, time_info[scene_name]))
+            if scenes:
+                space += 1
+                line += (len(scenes) - 1) // 4 + 1
+                group_results.append(
+                    (group, groups[group]["location"], scenes))
+    return group_results, line, space
+
+def get_full_scene(image):
+    scene_id = basic_dict[image]["scene"]
+    return [img for img in scene_segments[scene_id]]

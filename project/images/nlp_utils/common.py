@@ -15,8 +15,10 @@ basic_dict = json.load(open(f"{FILE_DIRECTORY}/basic_dict.json"))
 
 locations = json.load(open(f'{FILE_DIRECTORY}/locations.json'))
 map_visualisation = json.load(open(f'{FILE_DIRECTORY}/map_visualisation.json'))
-countries = ["England", "United Kingdom", "China", "Ireland", "Germany", "Greece"]
+# countries = ["England", "United Kingdom", "China", "Ireland", "Germany", "Greece", "Thailand", "Vietnam", "Spain", "Turkey", "Korea", "France", "Switzerland", "Australia", "Denmark", "Romania", "Norway"]
 regions = json.load(open(f'{FILE_DIRECTORY}/regions.json'))
+countries = json.load(open(f'{FILE_DIRECTORY}/countries.json'))
+
 
 all_keywords = json.load(open(f'{FILE_DIRECTORY}/all_keywords.json'))
 

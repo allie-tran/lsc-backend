@@ -6,15 +6,14 @@ from collections import defaultdict
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
-from images.query import es, get_gps, get_timeline, get_timeline_group, individual_es, get_multiple_scenes_from_images, es_more, get_info, get_location, get_neighbors, get_all_scenes
+from images.query import *
 import requests
-saved = defaultdict(lambda: [])
-session = None
-submit_time = defaultdict(lambda: [])
-messages = defaultdict(lambda: {})
-last_message = {}
+
+sessionId = None
 raw_results = defaultdict(lambda: [])
 last_scroll_id = None
+server = "https://vbs.videobrowsing.org"
+
 
 def jsonize(response):
     # JSONize
@@ -28,64 +27,62 @@ def jsonize(response):
 
 @csrf_exempt
 def restart(request):
-    global saved
-    global session
-    global submit_time
-    global messages
-    global last_message
-    saved = defaultdict(lambda: [])
-    session = datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S")
-    submit_time = defaultdict(lambda: [])
-    messages = defaultdict(lambda: {})
-    last_message = {}
+    global sessionId
+    sessionId = request.GET.get('user')
     return jsonize({"success": True})
-
 
 @csrf_exempt
-def save(request):
-    global saved
-    global messages
-    global last_message
-    query_id = request.GET.get('query_id')
-    image = request.GET.get('image_id')
-    if image not in saved[query_id]:
-        saved[query_id].append(image)
-    messages[query_id] = last_message
-    return jsonize({"success": True})
-
-
-@csrf_exempt
-def remove(request):
-    global saved
-    global messages
-    global last_message
-    query_id = request.GET.get('query_id')
-    image = request.GET.get('image_id')
-    saved[query_id] = [img for img in saved[query_id] if img != image]
-    messages[query_id] = last_message
-    return jsonize({"success": True})
-
+def login(request):
+    global sessionId
+    url = f"{server}/api/v1/login/"
+    res = requests.post(url, json={"username": "mysceal",
+                                   "password": "mQFbxFf9Cx3q"})
+    print(res)
+    if res.status_code == 200:
+        sessionId = res.json()["sessionId"]
+        return jsonize({"description": f"Login successful: {sessionId}!"})
+    else:
+        return jsonize({"description": "Login error!"})
 
 @csrf_exempt
 def export(request):
-    global saved
-    global session
-    global submit_time
-    global messages
-    global last_message
-    global raw_results
+    global sessionId
+    # query_id = int(request.GET.get('query_id'))
+    # time = int(request.GET.get('time'))
+    image = request.GET.get('image_id')
+    scene = str(request.GET.get('scene')) == "true"
+    results = []
+    print(image, scene)
+    for i, item in enumerate(get_submission(image, scene)):
+        # OFFICIAL: UNCOMMENT TO SUBMIT
+        url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
+        res = requests.get(url)
+        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        # with open('unhelpful_images.txt', 'a') as f:
+            # f.write(f'{item}\n')
+    return jsonize({"description": "\n".join(results)})
 
-    query_id = request.GET.get('query_id')
-    time = request.GET.get('time')
-    submit_time[query_id] = time
-    # json.dump({"time": submit_time, "saved": saved},
-            #   open(f'results/{session}.json', 'w'))
-    json.dump(raw_results,
-              open(f'duy/{session}.json', 'w'))
-    # json.dum({"query_id"})
-    messages[query_id] = last_message
-    return jsonize({"success": True})
+@csrf_exempt
+def submit_all(request):
+    global sessionId
+    message = json.loads(request.body.decode('utf-8'))
+    saved_scenes = message["saved"]
+    results = []
+    submissions = []
+    for first in range(0, len(saved_scenes), 2):
+        last = first + 1
+        submissions.extend(get_image_list(saved_scenes[first][0], saved_scenes[last][-1]))
+    for i, item in enumerate(submissions):
+        # OFFICIAL: UNCOMMENT TO SUBMIT
+        url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
+        res = requests.get(url)
+        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        #  with open('unhelpful_images.txt', 'a') as f:
+            # f.write(f'{item}\n')
+    return jsonize({"description": "\n".join(results)})
 
+    # DEBUG:
+    # return {"description": submission(image, scene)}
 
 @csrf_exempt
 def images(request):
@@ -162,12 +159,12 @@ def timeline_group(request):
 
 # @csrf_exempt
 # def timeline(request):
-    # Get message
-    # message = json.loads(request.body.decode('utf-8'))
-    # timeline, position, group = get_timeline(
-    #     message['images'], message["direction"])
-    # response = {'timeline': timeline, 'position': position, 'group': group}
-    # return jsonize(response)
+#     # Get message
+#     message = json.loads(request.body.decode('utf-8'))
+#     timeline, position, group = get_timeline(
+#         message['images'], message["direction"])
+#     response = {'timeline': timeline, 'position': position, 'group': group}
+#     return jsonize(response)
 
 # LSC22
 @csrf_exempt
@@ -175,18 +172,28 @@ def timeline(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     timeline, line, space, scene_id = get_all_scenes(message['images'])
-    response = {'timeline': timeline, 'line': line, 'space': space, 'scene_id': scene_id}
+    response = {'timeline': timeline, 'line': line, 'space': space, 'scene_id': scene_id, 'image': message['images'][0]}
     return jsonize(response)
 
+@csrf_exempt
+def more_scenes(request):
+    # Get message
+    message = json.loads(request.body.decode('utf-8'))
+    timeline, line, space = get_more_scenes(message['group'], message['direction'])
+    response = {'timeline': timeline, 'direction': message['direction'], 'line': line, 'space': space}
+    return jsonize(response)
 
 @csrf_exempt
 def detailed_info(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
-    images = message['images']
-    response = {'info':[get_info(image) for image in images]}
+    if 'image' in message:
+        image = message['image']
+        info = get_date_info(message['image'])
+        response = {'info': info}
+    else:
+        response = {'info': ""}
     return jsonize(response)
-
 
 @csrf_exempt
 def gpssearch(request):
@@ -252,7 +259,10 @@ def aaron_timeline(request):
 def similar(request):
     message = json.loads(request.body.decode('utf-8'))
     image = message['image_id']
-    lsc = message['lsc']
+    if 'lsc' in message:
+        lsc = message['lsc']
+    else:
+        lsc = True
     info = message['info']
     gps_bounds = message['gps_bounds']
     similar_images = get_neighbors(image, lsc, info, gps_bounds)[:500]
