@@ -92,8 +92,8 @@ def images(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     print("=" * 80)
-    # with open("query_log.txt", "a") as f:
-        # f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
+    with open("E-Mysceal Logs.txt", "a") as f:
+        f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
     print(message)
     # Calculations
     scroll_id, queryset, scores, info = es(
