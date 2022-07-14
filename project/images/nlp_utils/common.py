@@ -9,18 +9,14 @@ import joblib
 import numpy as np
 
 stop_words = stopwords.words('english')
-FILE_DIRECTORY = "/home/tlduyen/LSC22/process/files/backend"
-COMMON_DIRECTORY = "/home/tlduyen/LSC22/process/files/"
-basic_dict = json.load(open(f"{FILE_DIRECTORY}/basic_dict.json"))
-
-locations = json.load(open(f'{FILE_DIRECTORY}/locations.json'))
-map_visualisation = json.load(open(f'{FILE_DIRECTORY}/map_visualisation.json'))
+FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
+basic_dict = json.load(open(f"{FILES_DIRECTORY}/backend/basic_dict.json"))
+locations = json.load(open(f'{FILES_DIRECTORY}/backend//locations.json'))
+map_visualisation = json.load(open(f'{FILES_DIRECTORY}/backend/map_visualisation.json'))
 # countries = ["England", "United Kingdom", "China", "Ireland", "Germany", "Greece", "Thailand", "Vietnam", "Spain", "Turkey", "Korea", "France", "Switzerland", "Australia", "Denmark", "Romania", "Norway"]
-regions = json.load(open(f'{FILE_DIRECTORY}/regions.json'))
-countries = json.load(open(f'{FILE_DIRECTORY}/countries.json'))
-
-
-all_keywords = json.load(open(f'{FILE_DIRECTORY}/all_keywords.json'))
+regions = json.load(open(f'{FILES_DIRECTORY}/backend/regions.json'))
+countries = json.load(open(f'{FILES_DIRECTORY}/backend/countries.json'))
+all_keywords = json.load(open(f'{FILES_DIRECTORY}/backend/all_keywords.json'))
 
 def find_regex(regex, text, escape=False):
     regex = re.compile(regex, re.IGNORECASE + re.VERBOSE)
@@ -75,23 +71,3 @@ def cache(_func=None, *, file_name=None, separator='_'):
         return decorator
     else:
         return decorator(_func)
-
-
-overlap_keywords = json.load(open(f"{FILE_DIRECTORY}/overlap_keywords.json"))
-
-@cache
-def intersect(word, keyword):
-    if word == keyword:
-        return True
-    try:
-        if word in keyword.split(' '):
-            cofreq = overlap_keywords[word][keyword]
-            # return True
-            return cofreq / freq[word] > 0.9
-        elif keyword in word.split(' '):
-            cofreq = overlap_keywords[keyword][word]
-            # return True
-            return cofreq / all_keywords[keyword] > 0.8
-    except (KeyError, AttributeError) as e:
-        pass
-    return False

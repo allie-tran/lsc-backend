@@ -1,16 +1,16 @@
 import json
 import os
 from .utils import *
-from ..nlp_utils.common import FILE_DIRECTORY, COMMON_DIRECTORY, basic_dict
+from ..nlp_utils.common import FILES_DIRECTORY, basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
-groups = json.load(open(f"{COMMON_DIRECTORY}/group_segments.json"))
+groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
 scene_segments = {}
 for group_name in groups:
     for scene_name, images in groups[group_name]["scenes"]:
         assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
         scene_segments[scene_name] = images
-time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
+time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
 def get_submission(image, scene):
     submissions = []

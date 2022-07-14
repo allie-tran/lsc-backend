@@ -5,9 +5,9 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache, FILE_DIRECTORY
+from ..nlp_utils.common import cache, FILES_DIRECTORY
 
-basic_dict = json.load(open(f"{FILE_DIRECTORY}/basic_dict.json"))
+basic_dict = json.load(open(f"{FILES_DIRECTORY}/backend/basic_dict.json"))
 all_images = list(basic_dict.keys())
 
 def get_dict(image):
