@@ -2,7 +2,6 @@ from .query_types import *
 from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
-from ..nlp_utils.synonym import process_string, freq
 from ..nlp_utils.common import countries, map_visualisation, basic_dict, COMMON_DIRECTORY
 from datetime import timedelta, datetime
 import time as timecounter
@@ -567,12 +566,3 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
                       "pairs": pair_events,
                       "total_scores": total_scores}
     return query, before_query, after_query, (pair_events[:24], []), "pairs"
-
-
-if __name__ == "__main__":
-    query = "woman in red top"
-    info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(
-        query)
-    exact_terms, must_terms, expansion, expansion_score = process_string(
-        info, keywords, [])
-    print(exact_terms, must_terms, expansion, expansion_score)

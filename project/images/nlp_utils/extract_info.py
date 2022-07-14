@@ -6,14 +6,10 @@ from collections import defaultdict
 from ..nlp_utils.common import *
 from ..nlp_utils.pos_tag import *
 from ..nlp_utils.time import *
-from ..nlp_utils.synonym import *
 import numpy as np
 init_tagger = Tagger(locations)
 time_tagger = TimeTagger()
 e_tag = ElementTagger()
-
-
-bigram_phraser = Phraser.load(f"{COMMON_PATH}/bigram_phraser.pkl")
 
 def process_for_ocr(text):
     final_text = defaultdict(lambda : defaultdict(float))
