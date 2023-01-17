@@ -204,9 +204,12 @@ def aaron(request):
     size = request.GET.get('size')
     size = size if size else 100
     print(f"query: {query}")
-    _, queryset, *_ = individual_es(query, size=size, scroll=False)
-    result = [group['current'][0] for group in queryset[0]]
-    response = {'results': result}
+
+    query, (results, _), _ = individual_es(
+            query, None, size=size, scroll=False)
+    query_info = query.get_info()
+    results = [group['current'][0] for group in results]
+    response = {'results': results, 'query_info': query_info}
     return jsonize(response)
 
 

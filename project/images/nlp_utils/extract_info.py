@@ -140,18 +140,12 @@ def search(wordset, text):
 # Partial match only
 def search_possible_location(text):
     results = []
-    gps_results = []
     for location in locations:
         for i, extra in enumerate(locations[location]):
-            # Full match
-            if i == 0 and re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                return [extra], [(location, 1.0)], True
             if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
                 if extra not in results:
-                    results.append(extra)
-                gps_results.append((location, len(extra.split())/len(location.split())))
-                break
-    return results, gps_results, False
+                    results.append(location)
+    return results
 
 # gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
 gps_not_lower = {}
@@ -373,18 +367,20 @@ class Query:
             to_visualise = [w for w in expanded if w in all_keywords]
             if word.__repr__() in all_keywords:
                 self.keywords.append(word.__repr__())
-                self.query_visualisation[word.__repr__()] = "KEYWORD\n" + "\n".join(to_visualise)
+                self.query_visualisation[word.__repr__()] = ["KEYWORD\n" + "\n".join(to_visualise)]
             else:
                 if expanded:
                     self.query_visualisation[word.__repr__(
-                    )] = "NON-KEYWORD\n" + "\n".join(to_visualise)
+                    )] = ["NON-KEYWORD\n" + "\n".join(to_visualise)]
                 else:
                     self.useless.append(word.__repr__())
 
         for word in self.keywords:
             self.scores[word] += 20
+        print(self.keywords)
 
     def get_info(self):
+        print(self.query_visualisation)
         return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],
                 "country_to_visualise": self.country_to_visualise,
                 "place_to_visualise": self.place_to_visualise}

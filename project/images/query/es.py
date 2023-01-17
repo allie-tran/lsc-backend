@@ -11,8 +11,6 @@ from collections import defaultdict
 import copy
 
 COMMON_PATH = os.getenv('COMMON_PATH')
-full_similar_images = json.load(
-    open(f"{COMMON_PATH}/full_similar_images.json"))
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
