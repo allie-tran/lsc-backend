@@ -143,13 +143,13 @@ num2month = dict([(n, m) for (m, n) in month2num.items()])
 
 def get_day_month(date_string):
     print(date_string)
-    if (date_string) in ["2015", "2016", "2018"]:
+    if (date_string) in ["2015", "2016", "2018","2019", "2020"]:
         return int(date_string), None, None
     today = cal.parse("today")[0]
     date = cal.parse(date_string)[0]
     date_string = date_string.lower()
     y, m, d = date.tm_year, date.tm_mon, date.tm_mday
-    for ex_year in ["2015", "2016", "2018"]:
+    for ex_year in ["2015", "2016", "2018", "2019", "2020"]:
         if ex_year in date_string:
             y = int(ex_year)
             break
@@ -157,7 +157,7 @@ def get_day_month(date_string):
         y = None
     if y:
         date_string = date_string.replace(str(y), "")
-    if m == today.tm_mon and (num2month[m] not in date_string or str(m) not in date_string):
+    if m == today.tm_mon and str(num2month[m]) not in date_string and str(m) not in date_string:
         m = None
     if str(d) not in date_string:
         d = None

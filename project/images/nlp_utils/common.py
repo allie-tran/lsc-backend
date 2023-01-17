@@ -42,7 +42,7 @@ pattern = re.compile(f"\s?({'|'.join(all_words)}+)\s")
 #                  for w in img["microsoft_tags"] + img["microsoft_descriptions"]])
 
 locations = json.load(open(f'{COMMON_PATH}/locations.json'))
-gps_locations = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
+map_visualisation = json.load(open(f'{COMMON_PATH}/map_visualisation.json'))
 countries = ["England", "United Kingdom", "China", "Ireland", "Czech Republic", "Germany", "Belarus", "Belgium", "Netherlands", "Norway", "Poland", "Russia", "Sweden", "Turkey"]
 regions = json.load(open(f'{COMMON_PATH}/regions.json'))
 microsoft = json.load(open(f'{COMMON_PATH}/microsoft.json'))
@@ -152,6 +152,8 @@ attribute_keywords = ['beige',
                            'wooden',
                            'yellow',
                            'young']
+
+basic_dict = json.load(open(f"{COMMON_PATH}/basic_dict.json"))
 all_address = '|'.join([re.escape(a) for a in locations])
 activities = set(["walking", "airplane", "transport", "running"])
 # phrases = json.load(open(f'{COMMON_PATH}/phrases.json'))

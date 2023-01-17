@@ -113,8 +113,8 @@ def create_time_range_query(start, end, boost=1.0):
             {
                 "timestamp":
                 {
-                    "gte": start,
-                    "lte": end,
+                    "gt": start,
+                    "lt": end,
                     "boost": boost
                 }
                 }

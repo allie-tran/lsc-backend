@@ -3,7 +3,8 @@ from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
 from ..nlp_utils.synonym import process_string, freq
-from ..nlp_utils.common import to_vector, countries, stop_words, ocr_keywords, gps_locations, aIDF, attributeIDF
+from ..nlp_utils.common import countries, map_visualisation, basic_dict, aIDF, attributeIDF
+
 from datetime import timedelta, datetime, timezone
 import time as timecounter
 from collections import defaultdict
@@ -14,8 +15,8 @@ full_similar_images = json.load(
     open(f"{COMMON_PATH}/full_similar_images.json"))
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
-INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "before", "after", "timestamp"]
-INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "before", "after"]
+INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
+INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 cached_queries = None
 cached_filters =  {"bool": {"filter": [],
@@ -27,10 +28,7 @@ cached_filters =  {"bool": {"filter": [],
 format_func = group_results
 
 def query_all(query, includes, index, group_factor):
-    if query.original_text:
-        query = {"match": {"address": query.original_text}}
-    else:
-        query = {"match_all": {}}
+    query = {"match_all": {}}
     request = {
         "size": 2000,
         "_source": {
@@ -38,20 +36,19 @@ def query_all(query, includes, index, group_factor):
         },
         "query": query,
         "sort": [
-            "_score",
             {"time": {
                 "order": "asc"
             }}
         ]
     }
-    return query_text, format_func(post_request(json.dumps(request), index), group_factor)
+    return query, format_func(post_request(json.dumps(request), index), group_factor)
 
 
-def es_more(scroll_id):
+def es_more(scroll_id, size=200):
     global multiple_pairs
     if scroll_id == 'pairs':
         position = multiple_pairs["position"]
-        new_position = min(position + 21, len(multiple_pairs["pairs"]))
+        new_position = min(position + 24, len(multiple_pairs["pairs"]))
         last_results = multiple_pairs["pairs"][position: new_position]
         multiple_pairs["position"] = new_position
         return scroll_id, add_gps_path(last_results), []
@@ -75,7 +72,7 @@ def es_more(scroll_id):
                                 "must": {"match_all": {}},
                                 "must_not": []}}
         # CONSTRUCT JSON
-        json_query = get_json_query(must_queries, should_queries, filter_queries, functions, 100, includes=INCLUDE_IMAGE)
+        json_query = get_json_query(must_queries, should_queries, filter_queries, functions, size, includes=INCLUDE_IMAGE)
         results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
         print("Num Results:", len(results))
         results, scores = format_func(results, 'scene', 0)
@@ -132,6 +129,7 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, size
         main_query["must"] = query_list(must_queries)
     else:
         main_query["must"] = {"match_all": {}}
+
     if should_queries:
         main_query["should"] = query_list(should_queries)
         main_query["minimum_should_match"] = 1
@@ -202,21 +200,23 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                 }
 
             json_query = get_json_query([], [], filter_queries, [], len(
-                images), includes=["image_path", "scene", "weekday"])
-            results, _ = post_request(json.dumps(
-                json_query), "lsc2020", scroll=False)
-            new_results = dict(
-                [(r[0]["image_path"], (r[0]["weekday"], r[0]["scene"])) for r in results])
-            images = [image for image in images if image in new_results]
+                images), includes=["image_path", "scene", "location", "time", "weekday"])
+            results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
+            new_results = dict([(r[0]["image_path"], r[0]) for r in results])
+
             grouped_results = defaultdict(lambda: [])
             weekdays = {}
-            for image in images:
-                if image in new_results:
-                    scene = new_results[image][1]
-                    weekdays[scene] = new_results[image][0]
-                    grouped_results[scene].append(image)
-            times = [(grouped_results[scene], weekdays[scene] + "\n" + scene.split("_")[0] + "\n" + time_info[scene])
-                     for scene in grouped_results]
+            dates = {}
+            locations = {}
+            for image in new_results:
+                group = new_results[image]["group"]
+                weekdays[group] = new_results[image]["weekday"].capitalize()
+                dates[group] = new_results[image]["time"]
+                locations[group] = new_results[image]["location"]
+
+                grouped_results[group].append(image)
+            times = [(grouped_results[group], locations[group] + "\n" + weekdays[group] + " " + dates[group].split(" ")[0] + "\n" + time_info[group])
+                        for group in grouped_results]
             return times[:100]
         print("No results from ES request.")
     else:
@@ -230,10 +230,10 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
 
     if not query.original_text and not gps_bounds:
         return query_all(query, INCLUDE_IMAGE, "lsc2020", group_factor)
-    return construct_scene_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
+    return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
 
 
-def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
+def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
     # !TODO
@@ -272,7 +272,8 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
-        filter_queries["bool"]["filter"].append(time_filters)
+        if query.start[0] != 0 and query.end[0] != 24:
+            filter_queries["bool"]["filter"].append(time_filters)
 
     if date_filters:
         filter_queries["bool"]["filter"].extend(date_filters)
@@ -354,7 +355,7 @@ def construct_scene_es(query, gps_bounds=None, extra_filter_scripts=None, group_
 
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries,
-                                filter_queries, functions, 100, includes=INCLUDE_IMAGE)
+                                filter_queries, functions, size, includes=INCLUDE_IMAGE)
     global cached_queries
     cached_queries = (must_queries, should_queries, functions)
     results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
@@ -368,7 +369,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2020", group_factor)
+        return query_all(query, INCLUDE_IMAGE, "lsc2020")
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
@@ -499,6 +500,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
                 if conditional_event["scene"] not in already_done:
                     pair_event = conditional_event.copy()
                     pair_event[condition] = main_event["current"]
+                    pair_event[f"location_{condition}"] = main_event["location"]
                     pair_events.append((pair_event, s2, s1))
                     already_done.add(
                         conditional_event["scene"])
@@ -544,16 +546,17 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
                                 time_limit, scores, already_done=already_done, reverse=True)
 
     pair_events.extend(pair_events2)
-    pair_events = sorted(pair_events, key=lambda x: -
-                         x[1]/max_score1 - x[2]/max_score2)
+    pair_events = sorted(pair_events, key=lambda x: -x[1]/max_score1 - x[2]/max_score2)
+
     total_scores = [(s1, s2) for (event, s1, s2) in pair_events]
     pair_events = [event for (event, s1, s2) in pair_events]
     print("Max Scores:", max_score1, max_score2)
     print("Pairs:", len(pair_events))
-    multiple_pairs = {"position": 21,
+    multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    return query, conditional_query, (pair_events[:21], total_scores[:21]), "pairs"
+    print(pair_events[0])
+    return query, conditional_query, (pair_events[:24], total_scores[:24]), "pairs"
 
 
 def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, share_info=False):
@@ -601,6 +604,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
         for conditional_event, s3 in zip(cond_events, cond_scores):
             pair_event = before_pair.copy()
             pair_event["after"] = conditional_event["current"]
+            pair_event["location_after"] = conditional_event["location"]
             pair_events.append((pair_event, s1, s2, s3))
 
     after_query, (_, scores), _ = individual_es(
@@ -613,16 +617,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
     pair_events = [event for event, s in pair_events]
     print("Pairs:", len(pair_events))
 
-    multiple_pairs = {"position": 21,
+    multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    return query, before_query, after_query, (pair_events[:21], []), "pairs"
-
-
-if __name__ == "__main__":
-    query = "woman in red top"
-    info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(
-        query)
-    exact_terms, must_terms, expansion, expansion_score = process_string(
-        info, keywords, [])
-    print(exact_terms, must_terms, expansion, expansion_score)
+    return query, before_query, after_query, (pair_events[:24], []), "pairs"
