@@ -24,8 +24,8 @@ cached_filters =  {"bool": {"filter": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
 
-# format_func = format_single_result # ntcir
-format_func = group_results
+format_func = format_single_result # ntcir
+# format_func = group_results
 
 def query_all(query, includes, index, group_factor):
     query = {"match_all": {}}
@@ -166,62 +166,48 @@ def get_json_query(must_queries, should_queries, filter_queries, functions, size
 
 
 def get_neighbors(image, lsc, query_info, gps_bounds):
-
-    img_index = full_similar_images.index(image)
-    if img_index >= 0:
-        request = {
-            "size": 1,
-            "_source": {
-                "includes": ["similars"]
-            },
-            "query": {
-                "term": {"image_index": img_index}
-            },
-        }
-        results = post_request(json.dumps(request), "lsc2020_similar")
-        if results:
-            images = [full_similar_images[r]
-                      for r in results[0][0][0]["similars"]][:100]
-            print(f"Found {len(images)} unfiltered images:", images[0:2])
-            if lsc:
-                global cached_filters
-                print("Using cached filters")
-                print(cached_filters)
-                filter_queries = copy.deepcopy(cached_filters)
-                filter_queries["bool"]["filter"].append(
-                    {"terms": {"image_path": images}})
-            else:
-                filter_queries = {
-                                    "bool": {
-                                        "filter": {
-                                            "terms": {"image_path": images}
-                                            }
-                                        }
-                }
-
-            json_query = get_json_query([], [], filter_queries, [], len(
-                images), includes=["image_path", "scene", "location", "time", "weekday"])
-            results, _ = post_request(json.dumps(json_query), "lsc2020", scroll=False)
-            new_results = dict([(r[0]["image_path"], r[0]) for r in results])
-
-            grouped_results = defaultdict(lambda: [])
-            weekdays = {}
-            dates = {}
-            locations = {}
-            for image in new_results:
-                group = new_results[image]["group"]
-                weekdays[group] = new_results[image]["weekday"].capitalize()
-                dates[group] = new_results[image]["time"]
-                locations[group] = new_results[image]["location"]
-
-                grouped_results[group].append(image)
-            times = [(grouped_results[group], locations[group] + "\n" + weekdays[group] + " " + dates[group].split(" ")[0] + "\n" + time_info[group])
-                        for group in grouped_results]
-            return times[:100]
-        print("No results from ES request.")
+    if lsc:
+        global cached_filters
+        # print("Using cached filters")
+        # print(cached_filters)
+        filter_queries = copy.deepcopy(cached_filters)
     else:
-        print("Can't find image in full_similar_images.")
-    return []
+        filter_queries = []
+
+    should_queries = {
+            "elastiknn_nearest_neighbors": {
+                "field": "clip_vector",                # 1
+                "vec": {                               # 2
+                    "index": "lsc2022",
+                    "field": "clip_vector",
+                    "id": image
+                },
+                "model": "permutation_lsh",            # 3
+                "similarity": "cosine",                # 4
+                "candidates": 1000                   # 5
+                            }
+    }
+
+    json_query = get_json_query([should_queries], [], filter_queries, 40,
+                includes=["image_path", "group", "location", "weekday", "time"])
+
+    results, _ = post_request(json.dumps(json_query), "lsc2022")
+    new_results = dict([(r[0]["image_path"], r[0]) for r in results])
+
+    grouped_results = defaultdict(lambda: [])
+    weekdays = {}
+    dates = {}
+    locations = {}
+    for image in new_results:
+        group = new_results[image]["group"]
+        weekdays[group] = new_results[image]["weekday"].capitalize()
+        dates[group] = new_results[image]["time"]
+        locations[group] = new_results[image]["location"]
+
+        grouped_results[group].append(image)
+    times = [(grouped_results[group], locations[group] + "\n" + weekdays[group] + " " + dates[group].split(" ")[0] + "\n" + time_info[group])
+                for group in grouped_results]
+    return times[:100]
 
 
 def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
@@ -259,10 +245,11 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
         boost = len(query.seperate_scores) + 1
         should_queries.append(
             {"match": {"location": {"query": " ".join(query.locations), "boost": boost * 10}}})
-        location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
-        filter_queries["bool"]["should"].extend(query.location_filters)
+        location_filters = query.make_location_query()
+        # if location_query:
+            # should_queries.append(location_query)
+        filter_queries["bool"]["should"].extend(location_filters)
+        filter_queries["bool"]["should"].append({"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
 
     # FILTERS
     if query.regions:
@@ -324,9 +311,12 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
         boost = len(query.seperate_scores) + 1
         should_queries.append(
             {"match": {"location": {"query": " ".join(query.locations), "boost": boost * 10}}})
-        location_query = query.make_location_query()
-        if location_query:
-            should_queries.append(location_query)
+        location_filters = query.make_location_query()
+        # if location_query:
+            # should_queries.append(location_query)
+        filter_queries["bool"]["should"].extend(location_filters)
+        filter_queries["bool"]["should"].append({"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
+
     # ATFIDF
     should_queries.extend([{"rank_feature":
                             {"field": f"atfidf.{obj}", "boost": query.atfidf[obj] / (aIDF[obj] if obj in aIDF else 1) / 20}} for obj in query.atfidf])

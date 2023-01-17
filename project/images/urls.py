@@ -3,17 +3,16 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('api/images/', views.images),
-    path('api/timeline/', views.timeline),
-    path('api/timeline/more_scene/', views.more_scenes),
-    path('api/timeline/group/', views.timeline_group),
-    path('api/timeline/info/', views.detailed_info),
-    path('api/more/', views.more),
-    path('api/gps/', views.gps),
-    path('api/similar', views.similar),
-    path('api/login', views.login),
-    path('api/submit', views.export),
-    path('api/submit_saved/', views.submit_all),
-    path('api/restart', views.restart),
-    path('aaron/', views.aaron),
-    path('aaron_timeline/', views.aaron_timeline)]
+    path('images/', views.images),
+    path('timeline/', views.timeline),
+    path('timeline/more_scene/', views.more_scenes),
+    path('timeline/group/', views.timeline_group),
+    path('timeline/info/', views.detailed_info),
+    path('more/', views.more),
+    path('gps/', views.gps),
+    path('similar', views.similar),
+    path('login', views.login),
+    path('submit', views.export),
+    path('submit_saved/', views.submit_all),
+    path('restart', views.restart),
+    path('query_list/', views.aaron)]

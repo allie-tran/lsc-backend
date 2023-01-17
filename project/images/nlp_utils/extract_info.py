@@ -12,7 +12,7 @@ init_tagger = Tagger(locations)
 time_tagger = TimeTagger()
 e_tag = ElementTagger()
 
-bigram_phraser = Phraser.load("/home/tlduyen/LSC2020/files/bigram_phraser.pkl")
+bigram_phraser = Phraser.load(f"{COMMON_PATH}/bigram_phraser.pkl")
 
 
 def morphy(word):
@@ -37,28 +37,28 @@ def process_for_ocr(text):
 def get_vector(word):
     if word:
         if model.wv.__contains__(word.replace(' ', "_")):
-            return model[word.replace(' ', "_")]
-        words = [model[word]
+            return model.wv[word.replace(' ', "_")]
+        words = [model.wv[word]
                 for word in word.split() if model.wv.__contains__(word)]
         if words:
             return np.mean(words, axis=0)
         else:
             wn_word = wn.morphy(word)
             if model.wv.__contains__(wn_word):
-                return model[wn_word]
+                return model.wv[wn_word]
     return None
 
 
 def get_deeplab_vector(word):
     if word:
-        words = [model[word]
+        words = [model.wv[word]
                  for word in word.split(';') if model.wv.__contains__(word)]
         if words:
             return np.mean(words, axis=0)
         else:
             wn_word = wn.morphy(word)
             if model.wv.__contains__(wn_word):
-                return model[wn_word]
+                return model.wv[wn_word]
     return None
 
 
@@ -156,7 +156,7 @@ def search_possible_location(text):
 # gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
 gps_not_lower = {}
 for loc in locations:
-    for origin_doc, (lat, lon) in map_visualisation:
+    for origin_doc, (lat, lon) in map_visualisation.items():
         if loc == origin_doc.lower():
             gps_not_lower[loc] = origin_doc
 
@@ -452,7 +452,7 @@ class Query:
                     dist = "1km"
                     pivot = "100m"
 
-                for place_iter, (lat, lon) in map_visualisation:
+                for place_iter, (lat, lon) in map_visualisation.items():
                     if place == place_iter:
                         # self.location_queries.append({
                         #         "distance_feature": {

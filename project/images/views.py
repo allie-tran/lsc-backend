@@ -202,48 +202,12 @@ def gpssearch(request):
 def aaron(request):
     query = request.GET.get('query')
     size = request.GET.get('size')
-    size = size if size else 2000
-    group_factor = request.GET.get('group_factor')
-    group_time = request.GET.get('group_time')
-    if group_time:
-        group_time = float(group_time)
-    event_id_start = request.GET.get('event_id_start')
-    event_id_end = request.GET.get('event_id_end')
-    event_id = request.GET.get('event_id')
+    size = size if size else 100
     print(f"query: {query}")
-    print(f"group_factor: {group_factor}")
-    print(f"event_id_start: {event_id_start}")
-    print(f"event_id_end: {event_id_end}")
-    print(f"event_id: {event_id}")
-    if event_id_start or event_id_end:
-        if event_id_end is None:
-            event_id_end = event_id_start
-        elif event_id_start is None:
-            event_id_start = event_id_end
-        result = get_multiple_scenes_from_images(event_id_start, event_id_end, group_factor=group_factor)
-        response = {'results': result}
-        return jsonize(response)
-    elif event_id:
-        result = get_multiple_scenes_from_images(event_id, event_id, group_factor=group_factor)
-        response = {'results': result}
-        return jsonize(response)
-    else:
-        # Calculations
-        # queryset = individual_es(query, size=2000, group_factor=group_factor)
-        (_, queryset, *_), *_ = individual_es(
-            query, group_factor=group_factor, size=size, starting_from=0, use_simple_process=False, scroll=False, group_more_by=group_time)
-        result = [group["current"] for group in queryset]
-        response = {'results': result}
-        return jsonize(response)
-
-
-@csrf_exempt
-def aaron_timeline(request):
-    event_id = request.GET.get('event_id')
-    condition = request.GET.get('condition')
-    timeline, *_ = get_timeline([event_id], condition)
-    timeline = [image for scene in timeline for image in scene]
-    return jsonize({"timeline": timeline})
+    _, queryset, *_ = individual_es(query, size=size, scroll=False)
+    result = [group['current'][0] for group in queryset[0]]
+    response = {'results': result}
+    return jsonize(response)
 
 
 @csrf_exempt
