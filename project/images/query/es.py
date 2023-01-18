@@ -176,7 +176,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
                 "vec": {                               # 2
-                    "index": "lsc2022",
+                    "index": "lsc2020",
                     "field": "clip_vector",
                     "id": image
                 },
@@ -186,10 +186,11 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
                             }
     }
 
-    json_query = get_json_query([should_queries], [], filter_queries, 40,
+    json_query = get_json_query([should_queries], [], filter_queries, None, 40,
                 includes=["image_path", "group", "location", "weekday", "time"])
 
-    results, _ = post_request(json.dumps(json_query), "lsc2022")
+    results, _ = post_request(json.dumps(json_query), "lsc2020")
+
     new_results = dict([(r[0]["image_path"], r[0]) for r in results])
 
     grouped_results = defaultdict(lambda: [])

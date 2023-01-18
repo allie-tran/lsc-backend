@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache, COMMON_PATH, basic_dict
+from ..nlp_utils.common import cache, basic_dict
 
 all_images = list(basic_dict.keys())
 
@@ -16,9 +16,13 @@ def get_dict(image):
 
 @cache
 def get_info(image):
-    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
+    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S+00")
     return time.strftime("%A, %d %B %Y, %I:%M%p")
 
+@cache
+def get_date_info(image):
+    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S+00")
+    return time.strftime("%A, %d %B %Y")
 
 def get_location(image):
     return get_dict(image)["location"]
@@ -77,6 +81,8 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
         print(f'Response status {response.status_code}')
         id_images = []
         scroll_id = None
+        with open('request.log', 'w') as f:
+            f.write(json_query + '\n')
 
     if not id_images:
         # print(f'Empty results. Output in request.log')

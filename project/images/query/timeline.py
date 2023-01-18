@@ -23,7 +23,7 @@ def get_all_scenes(images):
     group_id = int(images[0]["group"].split('_G')[-1])
     group_results = []
     group_range = range(group_id - 1, group_id + 2)
-    date = int(images[0]["group"].split('_G')[0])
+    date = images[0]["group"].split('_G')[0]
     group_range = [f"{date}_G{index}" for index in group_range]
 
     print(group_range)
@@ -53,8 +53,8 @@ def get_all_scenes(images):
     return group_results, line, space, scene_id
 
 def get_more_scenes(group_id, direction="top"):
-    date = int(group_id.split('_G')[0])
-    group_id = int(group_id.split('G_')[-1])
+    date = group_id.split('_G')[0]
+    group_id = int(group_id.split('_G')[-1])
     group_results = []
 
     if direction == "bottom":
