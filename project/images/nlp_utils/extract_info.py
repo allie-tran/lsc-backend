@@ -74,6 +74,8 @@ class Query:
         text = text.strip(". \n").lower()
         self.time_filters = None
         self.date_filters = None
+        self.driving = False
+        self.on_airplane = False
         self.ocr_queries = []
         self.location_queries = []
         self.query_visualisation = defaultdict(list)
@@ -87,7 +89,13 @@ class Query:
         self.original_text = text
 
         quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
-        text = text.replace(f'"{quoted_text}"', "") #TODO!
+        text = text.replace(f'"{quoted_text}"', "")
+        if "driving" in text:
+            self.driving = True
+            text = text.replace("driving", "")
+        if "on airplane" in text:
+            self.on_airplane = True
+            # text = text.replace("on airplane", "")
 
         self.ocr = process_for_ocr(quoted_text.split())
 
@@ -150,7 +158,7 @@ class Query:
         for i, (word, tag) in enumerate(tags):
             if word in processed:
                 continue
-            if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME"]:
+            if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
                 processed.add(word)
                 # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
             if tag == "WEEKDAY":
@@ -161,7 +169,7 @@ class Query:
                     "start", self.start, *am_pm_to_num(s))
                 self.end = adjust_start_end("end", self.end, *am_pm_to_num(e))
             elif tag == "TIME":
-                if word in ["2019", "2020"]:
+                if word in ["2015", "2016", "2018", "2019", "2020"]:
                     self.dates = get_day_month(word)
                 else:
                     timeprep = ""
@@ -234,13 +242,16 @@ class Query:
     def time_to_filters(self):
         if not self.time_filters:
             # Time
+            s, e = self.start[0], self.end[0]
+            if s > e: # TODO!
+                s, e = e, 24
             self.time_filters = {
                                     "range":
                                     {
                                         "hour":
                                         {
-                                            "gte": self.start[0],
-                                            "lte": self.end[0]
+                                            "gte": s,
+                                            "lte": e
                                         }
                                     }
                                 }

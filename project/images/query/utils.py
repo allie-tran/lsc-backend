@@ -5,9 +5,8 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache, FILES_DIRECTORY
+from ..nlp_utils.common import cache, basic_dict
 
-basic_dict = json.load(open(f"{FILES_DIRECTORY}/backend/basic_dict.json"))
 all_images = list(basic_dict.keys())
 
 def get_dict(image):
@@ -29,11 +28,6 @@ def get_location(image):
     return get_dict(image)["location"]
 
 
-def spell_correct(sent):
-    corrected = speller(sent)
-    if corrected != sent:
-        print(f"Spell correction: {sent} ---> {corrected}")
-    return corrected
 
 
 def distance(lt1, ln1, lt2, ln2):

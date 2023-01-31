@@ -31,6 +31,7 @@ def restart(request):
     sessionId = request.GET.get('user')
     return jsonize({"success": True})
 
+
 @csrf_exempt
 def login(request):
     global sessionId
@@ -157,16 +158,6 @@ def timeline_group(request):
     return jsonize(response)
 
 
-# @csrf_exempt
-# def timeline(request):
-#     # Get message
-#     message = json.loads(request.body.decode('utf-8'))
-#     timeline, position, group = get_timeline(
-#         message['images'], message["direction"])
-#     response = {'timeline': timeline, 'position': position, 'group': group}
-#     return jsonize(response)
-
-# LSC22
 @csrf_exempt
 def timeline(request):
     # Get message
@@ -211,48 +202,15 @@ def gpssearch(request):
 def aaron(request):
     query = request.GET.get('query')
     size = request.GET.get('size')
-    size = size if size else 2000
-    group_factor = request.GET.get('group_factor')
-    group_time = request.GET.get('group_time')
-    if group_time:
-        group_time = float(group_time)
-    event_id_start = request.GET.get('event_id_start')
-    event_id_end = request.GET.get('event_id_end')
-    event_id = request.GET.get('event_id')
+    size = size if size else 100
     print(f"query: {query}")
-    print(f"group_factor: {group_factor}")
-    print(f"event_id_start: {event_id_start}")
-    print(f"event_id_end: {event_id_end}")
-    print(f"event_id: {event_id}")
-    if event_id_start or event_id_end:
-        if event_id_end is None:
-            event_id_end = event_id_start
-        elif event_id_start is None:
-            event_id_start = event_id_end
-        result = get_multiple_scenes_from_images(event_id_start, event_id_end, group_factor=group_factor)
-        response = {'results': result}
-        return jsonize(response)
-    elif event_id:
-        result = get_multiple_scenes_from_images(event_id, event_id, group_factor=group_factor)
-        response = {'results': result}
-        return jsonize(response)
-    else:
-        # Calculations
-        # queryset = individual_es(query, size=2000, group_factor=group_factor)
-        (_, queryset, *_), *_ = individual_es(
-            query, group_factor=group_factor, size=size, starting_from=0, use_simple_process=False, scroll=False, group_more_by=group_time)
-        result = [group["current"] for group in queryset]
-        response = {'results': result}
-        return jsonize(response)
 
-
-@csrf_exempt
-def aaron_timeline(request):
-    event_id = request.GET.get('event_id')
-    condition = request.GET.get('condition')
-    timeline, *_ = get_timeline([event_id], condition)
-    timeline = [image for scene in timeline for image in scene]
-    return jsonize({"timeline": timeline})
+    query, (results, _), _ = individual_es(
+            query, None, size=size, scroll=False)
+    query_info = query.get_info()
+    results = [group['current'][0] for group in results]
+    response = {'results': results, 'query_info': query_info}
+    return jsonize(response)
 
 
 @csrf_exempt

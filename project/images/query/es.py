@@ -53,7 +53,7 @@ def query_all(query, includes, index, group_factor):
             }}
         ]
     }
-    return query_text, format_func(post_request(json.dumps(request), index), group_factor)
+    return query, format_func(post_request(json.dumps(request), index), group_factor)
 
 
 def es_more(scroll_id, size=200):
@@ -317,7 +317,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022", group_factor)
+        return query_all(query, INCLUDE_IMAGE, "lsc2022")
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
@@ -404,9 +404,9 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     for event in main_events:
         if condition == "before":
             start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"] - time_limit // 2
+            end_time = event["begin_time"]
         elif condition == "after":
-            start_time = event["end_time"] + time_limit // 2
+            start_time = event["end_time"]
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
