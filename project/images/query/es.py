@@ -2,8 +2,7 @@ from .query_types import *
 from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
-from ..nlp_utils.synonym import process_string, freq
-from ..nlp_utils.common import countries, map_visualisation, basic_dict, COMMON_DIRECTORY
+from ..nlp_utils.common import countries, map_visualisation, basic_dict
 from datetime import timedelta, datetime
 import time as timecounter
 from collections import defaultdict
@@ -13,10 +12,6 @@ import numpy as np
 from clip import clip
 import joblib
 from torch import torch
-
-full_similar_images = json.load(open(f"{FILE_DIRECTORY}/full_similar_images.json"))
-full_similar_images = [f"{image[:6]}/{image[6:8]}/{image}" for image in full_similar_images]
-# similar_features = joblib.load("/mnt/data/duyen/sift_and_vgg.feature")
 
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
@@ -58,7 +53,7 @@ def query_all(query, includes, index, group_factor):
             }}
         ]
     }
-    return query_text, format_func(post_request(json.dumps(request), index), group_factor)
+    return query, format_func(post_request(json.dumps(request), index), group_factor)
 
 
 def es_more(scroll_id, size=200):
@@ -322,7 +317,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022", group_factor)
+        return query_all(query, INCLUDE_IMAGE, "lsc2022")
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
@@ -409,9 +404,9 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     for event in main_events:
         if condition == "before":
             start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"] - time_limit // 2
+            end_time = event["begin_time"]
         elif condition == "after":
-            start_time = event["end_time"] + time_limit // 2
+            start_time = event["end_time"]
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
@@ -567,12 +562,3 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
                       "pairs": pair_events,
                       "total_scores": total_scores}
     return query, before_query, after_query, (pair_events[:24], []), "pairs"
-
-
-if __name__ == "__main__":
-    query = "woman in red top"
-    info, keywords, region, location, weekdays, start_time, end_time, dates = process_query2(
-        query)
-    exact_terms, must_terms, expansion, expansion_score = process_string(
-        info, keywords, [])
-    print(exact_terms, must_terms, expansion, expansion_score)
