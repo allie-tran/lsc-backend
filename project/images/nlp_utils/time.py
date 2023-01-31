@@ -5,8 +5,9 @@ from parsedatetime import Constants, Calendar
 from ..nlp_utils.common import *
 
 more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
-                  "evening": ["nightfall", "dusk", "dinner", "dinnertime", "twilight", "sunset"],
-                  "noon": ["midday", "lunchtime"],
+                  "morning": ["breakfast"],
+                  "evening": ["nightfall", "dusk", "dinner", "dinnertime", "sunset", "twilight"],
+                  "noon": ["midday", "lunchtime", "lunch"],
                   "night": ["nighttime"],
                   "afternoon": ["supper", "suppertime", "teatime"]}
 
@@ -20,9 +21,11 @@ timeofday = {"early; morning": "5am-8am",
              "early; evening": "5pm-7pm",
              "midevening": "7pm-9pm",
              "evening": "5pm-9pm",
-             "night": "9pm-11:59pm",
+             "night": "9pm-4am",
              "noon": "11am-1pm",
              "midday": "11am-1pm",
+             "midnight": "11pm-1am",
+             "bedtime": "8pm-1am",
              }
 
 for t in more_timeofday:
@@ -140,13 +143,13 @@ num2month = dict([(n, m) for (m, n) in month2num.items()])
 
 def get_day_month(date_string):
     print(date_string)
-    if (date_string) in ["2019", "2020"]:
+    if (date_string) in ["2015", "2016", "2018","2019", "2020"]:
         return int(date_string), None, None
     today = cal.parse("today")[0]
     date = cal.parse(date_string)[0]
     date_string = date_string.lower()
     y, m, d = date.tm_year, date.tm_mon, date.tm_mday
-    for ex_year in ["2019", "2020"]:
+    for ex_year in ["2015", "2016", "2018", "2019", "2020"]:
         if ex_year in date_string:
             y = int(ex_year)
             break
