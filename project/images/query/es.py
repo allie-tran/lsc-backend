@@ -26,6 +26,7 @@ cached_filters =  {"bool": {"filter": [],
 
 # format_func = format_single_result # ntcir
 format_func = group_results
+INDEX = "lsc2022_test"
 
 # CLIP
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -85,7 +86,7 @@ def es_more(scroll_id, size=200):
                                 "must_not": []}}
         # CONSTRUCT JSON
         json_query = get_json_query(must_queries, should_queries, filter_queries, size, includes=INCLUDE_IMAGE)
-        results, _ = post_request(json.dumps(json_query), "lsc2022", scroll=False)
+        results, _ = post_request(json.dumps(json_query), INDEX, scroll=False)
         print("Num Results:", len(results))
         results, scores = format_func(results, 'scene', 0)
         print("TOTAL TIMES:", timecounter.time() - start, " seconds.")
@@ -183,7 +184,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
                 "vec": {                               # 2
-                    "index": "lsc2022",
+                    "index": INDEX,
                     "field": "clip_vector",
                     "id": image
                 },
@@ -196,7 +197,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
     json_query = get_json_query([should_queries], [], filter_queries, 40,
                 includes=["image_path", "group", "location", "weekday", "time"])
 
-    results, _ = post_request(json.dumps(json_query), "lsc2022")
+    results, _ = post_request(json.dumps(json_query), INDEX)
     new_results = dict([(r[0]["image_path"], r[0]) for r in results])
 
     grouped_results = defaultdict(lambda: [])
@@ -220,7 +221,7 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
         query = Query(query)
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022", group_factor)
+        return query_all(query, INCLUDE_IMAGE, INDEX, group_factor)
     return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
 
 
@@ -305,7 +306,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     global cached_queries
     cached_queries = (must_queries, should_queries)
     results, scroll_id = post_request(
-        json.dumps(json_query), "lsc2022", scroll=True)
+        json.dumps(json_query), INDEX, scroll=True)
     print("Num Images:", len(results))
     # print([r[1] for r in results])
     return query, format_func(results, group_factor), scroll_id
@@ -317,7 +318,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022")
+        return query_all(query, INCLUDE_IMAGE, INDEX)
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
@@ -385,7 +386,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         mquery.append(json.dumps(get_json_query(
             must_queries, should_queries, new_filter_queries, 1, INCLUDE_IMAGE, min_score=2.2 if query.clip_text else 0.2)))
 
-    results = post_mrequest("\n".join(mquery) + "\n", "lsc2022")
+    results = post_mrequest("\n".join(mquery) + "\n", INDEX)
     return query, results
 
 
