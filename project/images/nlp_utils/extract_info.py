@@ -101,6 +101,7 @@ class Query:
 
         if not self.disable_location:
             self.locations = search_words(locations)
+            print("Locations:", self.locations)
             self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
             if self.locations:
                 self.query_visualisation["LOCATION"].extend(self.locations)
@@ -112,8 +113,6 @@ class Query:
             self.locations = []
             self.place_to_visualise = []
 
-
-        print("Locations:", self.locations)
         for loc in self.locations:
             text = rreplace(text, loc, "", 1) #TODO!
 

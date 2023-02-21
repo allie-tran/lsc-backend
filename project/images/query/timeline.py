@@ -1,17 +1,9 @@
 import json
 import os
 from .utils import *
-from ..nlp_utils.common import FILES_DIRECTORY, basic_dict
+from ..nlp_utils.common import basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
-groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
-scene_segments = {}
-for group_name in groups:
-    for scene_name, images in groups[group_name]["scenes"]:
-        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
-        scene_segments[scene_name] = images
-time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
-
 
 def to_full_key(image):
     return f"{image[:6]}/{image[6:8]}/{image}"

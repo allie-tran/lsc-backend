@@ -26,7 +26,7 @@ cached_filters =  {"bool": {"filter": [],
 
 # format_func = format_single_result # ntcir
 format_func = group_results
-INDEX = "lsc2022_test"
+INDEX = "lsc2023"
 
 # CLIP
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -125,7 +125,7 @@ def es(query, gps_bounds, size=200, share_info=False):
             query_info[key].extend(cond_query_info[key])
     else:
         query, (results, scores), scroll_id = individual_es(
-            query["current"], gps_bounds, group_factor="scene", size=size, scroll=True)
+            query["current"], gps_bounds, group_factor="group", size=size, scroll=True)
         query_info = query.get_info()
     print("TOTAL TIMES:", timecounter.time() - start, " seconds.")
     return scroll_id, add_gps_path(results), scores, query_info

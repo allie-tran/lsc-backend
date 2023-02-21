@@ -5,9 +5,16 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache, basic_dict
+from ..nlp_utils.common import cache, basic_dict, FILES_DIRECTORY
 
 all_images = list(basic_dict.keys())
+groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
+scene_segments = {}
+for group_name in groups:
+    for scene_name, images in groups[group_name]["scenes"]:
+        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
+        scene_segments[scene_name] = images
+time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
 def get_dict(image):
     if "/" not in image:
@@ -193,6 +200,22 @@ def format_single_result(results, factor="dummy", group_more_by=0):
             "scene": result["scene"]})
     return results_with_info, scores
 
+def add_full_scene(scene_id, images):
+    full_scene = scene_segments[scene_id]
+    new_scene = []
+    max_padding = 2
+    current_padding = 0
+    for img in full_scene:
+        if img in images:
+            new_scene.append((img, 1.0))
+            current_padding = 0
+        else:
+            current_padding += 1
+            if current_padding < max_padding:
+                new_scene.append((img, 0.0))
+    
+    return new_scene
+    
 
 def group_results(results, factor="group", group_more_by=0):
     size = len(results)
@@ -283,6 +306,11 @@ def add_gps_path(pairs):
     new_pairs = []
     for pair in pairs:
         pair["gps"] = get_gps(pair["current"])
+        pair["current"] = add_full_scene(pair["scene"], pair["current"])
+        if "before" in pair:
+            pair["before"] = add_full_scene(pair["scene"], pair["before"])
+        if "after" in pair:
+            pair["after"] = add_full_scene(pair["scene"], pair["after"])
         # pair["gps_path"] = pair["gps"]
         new_pairs.append(pair)
     return new_pairs
