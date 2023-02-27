@@ -107,11 +107,17 @@ def get_gps_filter(bounds):
         }
     }}
 
-def create_time_range_query(start, end, boost=1.0):
+def create_time_range_query(start, end, condition=None, boost=1.0):
+    if condition == "after":
+        field = "start_timestamp"
+    elif condition == "before":
+        field = "end_timestamp"
+    else:
+        field = "timestamp"
     return {
             "range":
             {
-                "timestamp":
+                field:
                 {
                     "gt": start,
                     "lt": end,

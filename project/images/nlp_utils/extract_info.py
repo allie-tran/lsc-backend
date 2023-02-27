@@ -22,14 +22,20 @@ def process_for_ocr(text):
                 final_text[word][word[i+1:]] += 1 - (i+1)/len(word)
     return final_text
 
+def filter_locations(location):
+    if location in ["", "the house", "restaurant"]:
+        return False
+    return True
+
 def search(wordset, text):
     results = []
     text = " " + text + " "
     for keyword in wordset:
-        if keyword:
-            if " " + keyword + " " in text:
-                results.append(keyword)
-            # if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+        if filter_locations(keyword):
+            if keyword:
+                if " " + keyword + " " in text:
+                    results.append(keyword)
+                # if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
                 # results.append(keyword)
     return results
 
@@ -37,10 +43,11 @@ def search(wordset, text):
 def search_possible_location(text):
     results = []
     for location in locations:
-        for i, extra in enumerate(locations[location]):
-            if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                if extra not in results:
-                    results.append(location)
+        if filter_locations(location):
+            for i, extra in enumerate(locations[location]):
+                if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
+                    if extra not in results:
+                        results.append(location)
     return results
 
 # gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}

@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
 from images.query import *
+
 import requests
 
 sessionId = None
@@ -110,7 +111,13 @@ def images(request):
     last_scroll_id = scroll_id
     last_message = message.copy()
     print(info["place_to_visualise"])
-    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores}
+    
+    #LSC23!
+    texts = []
+    if message["query"]["isQuestion"]:
+        # texts = get_suggested_answers(message["query"]["question"])
+        texts = answer_topk_scenes(message["query"]["current"], queryset, k=10)
+    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores, "texts": texts}
     return jsonize(response)
 
 @csrf_exempt
@@ -225,4 +232,15 @@ def similar(request):
     gps_bounds = message['gps_bounds']
     similar_images = get_neighbors(image, lsc, info, gps_bounds)[:500]
     response = {"scenes": similar_images}
+    return jsonize(response)
+
+
+@csrf_exempt
+def answer_scene(request):
+    message = json.loads(request.body.decode('utf-8'))
+    images = message["images"]
+    images = [image[0] for image in images]
+    question = message["question"]
+    response = {"texts": list(answer(images, encode_question(question)).keys())}
+    print(response)
     return jsonize(response)

@@ -15,4 +15,5 @@ urlpatterns = [
     path('submit', views.export),
     path('submit_saved/', views.submit_all),
     path('restart', views.restart),
-    path('query_list/', views.aaron)]
+    path('query_list/', views.aaron),
+    path('answer_scene/', views.answer_scene)]

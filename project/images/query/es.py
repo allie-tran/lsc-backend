@@ -12,11 +12,20 @@ import numpy as np
 from clip import clip
 import joblib
 from torch import torch
+from .common_nn import *
+from sklearn.cluster import OPTICS
+cluster = OPTICS(min_samples=2, max_eps=0.9, metric='cosine')
 
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
-INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
+INCLUDE_FULL_SCENE = ["images", "start_time", "end_time", "gps",
+                      "scene", "group", "timestamp", "location", "cluster_images"]
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
+USING_ELASTICSEARCH_SCENE = True
+USING_ELASTICSEARCH_IMAGE = False
+
+if not USING_ELASTICSEARCH_SCENE:
+    from .multiclip import *
 
 cached_queries = None
 cached_filters =  {"bool": {"filter": [],
@@ -26,19 +35,10 @@ cached_filters =  {"bool": {"filter": [],
 
 # format_func = format_single_result # ntcir
 format_func = group_results
+# format_func = group_scene_results
 INDEX = "lsc2023"
+SCENE_INDEX = "lsc2023_scene"
 
-# CLIP
-device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
-
-def clip_query(main_query):
-    with torch.no_grad():
-        text_encoded = clip_model.encode_text(
-            clip.tokenize(main_query).to(device))
-        text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
-    text_features = text_encoded.cpu().numpy()
-    return text_features
 
 def query_all(query, includes, index, group_factor):
     query = {"match_all": {}}
@@ -221,11 +221,11 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
         query = Query(query)
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, INDEX, group_factor)
+        return query_all(query, INCLUDE_FULL_SCENE, SCENE_INDEX, group_factor)
     return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
 
 
-def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
+def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
     # !TODO
@@ -274,25 +274,22 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
 
     clip_script = None
-    if query.clip_text:
-        embedding = clip_query(query.clip_text)
-        # clip_script = {
-        #     "source": "((doc['clip_vector'].size() == 0 ? 0 : cosineSimilarity(params.embedding, 'clip_vector')) + 1) * 100 + _score",
-        #     # "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
-        #     "params": {"embedding": embedding.tolist()[0]}
-        # }
-        clip_script = {
-            "elastiknn_nearest_neighbors": {
-                "field": "clip_vector",                     # 1
-                "vec": {                               # 2
-                    "values": embedding.tolist()[0]
-                },
-                "model": "exact",            # 3
-                "similarity": "cosine",                # 4
-                "candidates": 1000                     # 5
+    embedding = None
+    if USING_ELASTICSEARCH_SCENE or (not USING_ELASTICSEARCH_IMAGE):
+        if query.clip_text:
+            embedding = encode_query(query.clip_text)
+            clip_script = {
+                "elastiknn_nearest_neighbors": {
+                    "field": "clip_vector",                     # 1
+                    "vec": {                               # 2
+                        "values": embedding.tolist()[0]
+                    },
+                    "model": "exact",            # 3
+                    "similarity": "cosine",                # 4
+                    "candidates": 1000                     # 5
+                }
             }
-        }
-        should_queries.append(clip_script)
+            should_queries.append(clip_script)
 
     if scroll:
         global cached_filters
@@ -300,16 +297,120 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
         if filter_queries["bool"]["should"] or filter_queries["bool"]["filter"]:
             is_empty = False
 
-    # CONSTRUCT JSON
-    json_query = get_json_query(must_queries, should_queries,
-                                filter_queries, size, includes=INCLUDE_IMAGE)
     global cached_queries
     cached_queries = (must_queries, should_queries)
-    results, scroll_id = post_request(
-        json.dumps(json_query), INDEX, scroll=True)
-    print("Num Images:", len(results))
-    # print([r[1] for r in results])
-    return query, format_func(results, group_factor), scroll_id
+    
+    # json_query = get_json_query(must_queries, should_queries,
+    #                             filter_queries, 2000, includes=INCLUDE_IMAGE)
+    # results, scroll_id = post_request(json.dumps(json_query), INDEX, scroll=scroll)
+    
+    # return query, group_results(results), scroll_id
+
+    # CONSTRUCT JSON
+    scroll_id = None
+    print("Get scenes")
+    cluster_scores = defaultdict(lambda: defaultdict(float))
+    if USING_ELASTICSEARCH_SCENE:
+        json_query = get_json_query(must_queries, should_queries, filter_queries, size, includes=INCLUDE_FULL_SCENE)
+        scene_results, scroll_id = post_request(json.dumps(json_query), SCENE_INDEX, scroll=scroll)
+        print("Removing duplications")
+        new_scenes = []
+        new_scores = {}
+        for scene_info, score in scene_results:
+            scene = scene_info["scene"]
+            group = scene_info["group"]
+            if scene not in new_scores:
+                new_scenes.append(scene_info)
+                new_scores[scene] = score
+            for image in scene_info["cluster_images"]:
+                cluster_scores[group][image] = max(cluster_scores[group][image], score)
+                    
+        scene_results = sorted(new_scenes, key=lambda x: -new_scores[x["scene"]])
+        scores = sorted(new_scores.values(), reverse=True)
+        scene_results, scores = group_scene_results(list(zip(scene_results, scores)), "group")
+        scene_ids = [res["scene"] for res in scene_results]
+        scroll = False
+    else:
+        scene_results, weights = get_relevance_scenes(query.clip_text)
+        scene_ids = []
+        if scene_results:
+            for scene in scene_results:
+                scene_ids.extend(scene[0])
+    print("Organise images")
+    if USING_ELASTICSEARCH_IMAGE:
+        image_filters = copy.deepcopy(filter_queries)
+        image_filters["bool"]["filter"].append({"terms": {"scene": scene_ids}})
+        filter_queries = image_filters
+        scroll = False
+        json_query = get_json_query(must_queries, should_queries,
+                                    filter_queries, 2000, includes=INCLUDE_IMAGE)
+        results, _ = post_request(json.dumps(json_query), INDEX, scroll=scroll)
+        if USING_ELASTICSEARCH_SCENE:
+            print("Num Images:", len(results))
+            # print([r[1] for r in results])
+            return query, group_results(results), scroll_id
+        else:
+            filtered_images = [image[0]["image_path"] for image in results]
+            info = {image[0]["image_path"]: image[0] for image in results}
+            new_results = []
+            scores = []
+            for i, (scene_ids, scene) in enumerate(scene_results):
+                scene = [image for image in scene if image in filtered_images]
+                if scene:
+                    new_scene = {
+                        "current": [(image, weights[i][image]) for image in scene],
+                        "start_time": None,
+                        "end_time": None,
+                        "location": info[scene[0]]["location"],
+                        "group": info[scene[0]]["group"],
+                        "scene": info[scene[0]]["scene"],
+                        "gps": get_gps(scene)
+                    }
+                    new_results.append(new_scene)
+            
+            print("Num Scenes:", len(new_results))
+            # print([r[1] for r in results])
+            return query, (new_results, scores), scroll_id
+    else:
+        key = "current" if "current" in scene_results[0] else "images"
+        images = [image for scene in scene_results for image in scene[key]]
+        image_scores = {image: score for image, score in zip(images, score_images(images, embedding))}
+        final_scenes = []
+        for i, scene in enumerate(scene_results):
+            # image_features = photo_features[np.array([image_to_id[image] for image in scene[key]])]
+            scene["gps"] = get_gps(scene[key])
+            cluster_score = cluster_scores[scene["group"]]
+            logit_scale = len(scene[key]) ** 0.5
+            
+            # Filter
+            weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score[image]
+                            for image in scene[key]])).round(2)
+            if len(scene[key]) > 4:
+                max_padding = 2
+                current_padding = 0
+                best = np.argmax(weights)
+                topk = min(len(scene[key]), 4)
+                ind = np.argpartition(weights, -topk)[-topk:].tolist()
+                new_images = []
+                for j, (image, weight) in enumerate(zip(scene[key], weights)):
+                    if j == best:
+                        new_images.append((image, weight, True))
+                        current_padding = 0
+                    elif j in ind:
+                        new_images.append((image, weight, False))
+                        current_padding = 0
+                    else:
+                        current_padding += 1
+                        if current_padding < max_padding:
+                            new_images.append((image, weight, False))
+                
+                scene[key] = new_images
+            if key != "current":
+                scene["current"] = scene[key]
+                del scene[key]
+            final_scenes.append(scene)
+        print("Num Scenes:", len(final_scenes))
+        return query,(final_scenes, scores), scroll_id
 
 
 def msearch(query, gps_bounds=None, extra_filter_scripts=None):
@@ -318,7 +419,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, INDEX)
+        return query_all(query, INCLUDE_FULL_SCENE, SCENE_INDEX)
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
@@ -364,7 +465,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
 
     clip_script = None
     if query.clip_text:
-        embedding = clip_query(query.clip_text)
+        embedding = encode_query(query.clip_text)
         clip_script = {
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
@@ -384,9 +485,9 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         new_filter_queries["bool"]["filter"].append(script)
         mquery.append(json.dumps({}))
         mquery.append(json.dumps(get_json_query(
-            must_queries, should_queries, new_filter_queries, 1, INCLUDE_IMAGE, min_score=2.2 if query.clip_text else 0.2)))
+            must_queries, should_queries, new_filter_queries, 1, INCLUDE_FULL_SCENE, min_score=2.2 if query.clip_text else 0.2)))
 
-    results = post_mrequest("\n".join(mquery) + "\n", INDEX)
+    results = post_mrequest("\n".join(mquery) + "\n", SCENE_INDEX)
     return query, results
 
 
@@ -404,14 +505,14 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     max_score = scores[0] if scores else 1
     for event in main_events:
         if condition == "before":
-            start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"]
+            start_time = event["start_time"] - time_limit
+            end_time = event["start_time"]
         elif condition == "after":
             start_time = event["end_time"]
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
-            start_time.timestamp(), end_time.timestamp()))
+            start_time.timestamp(), end_time.timestamp(), condition=condition))
 
     print("Results:", len(main_events))
     print("Time:", timecounter.time() - start, "seconds.")
@@ -432,27 +533,28 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
     if not already_done:
         already_done = set()
     print(len(main_events), len(scores), len(conditional_events))
+    factor = "group"
     for i, main_event in enumerate(main_events):
         s1 = scores[i]
         cond_events, cond_scores = format_func(
-            conditional_events[i], factor="scene")
+            conditional_events[i], factor)
         for conditional_event, s2 in zip(cond_events, cond_scores):
             if reverse:
-                if conditional_event["scene"] not in already_done:
+                if conditional_event[factor] not in already_done:
                     pair_event = conditional_event.copy()
                     pair_event[condition] = main_event["current"]
                     pair_event[f"location_{condition}"] = main_event["location"]
                     pair_events.append((pair_event, s2, s1))
                     already_done.add(
-                        conditional_event["scene"])
+                        conditional_event[factor])
             else:
-                if main_event["scene"] not in already_done:
+                if main_event[factor] not in already_done:
                     pair_event = main_event.copy()
                     pair_event[condition] = conditional_event["current"]
                     pair_event[f"location_{condition}"] = conditional_event["location"]
                     pair_events.append((pair_event, s1, s2))
                     already_done.add(
-                        main_event["scene"])
+                        main_event[factor])
     return pair_events, already_done
 
 
@@ -497,7 +599,8 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
     multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    print(pair_events[0])
+    if pair_events:
+        print(pair_events[0])
     return query, conditional_query, (pair_events[:24], total_scores[:24]), "pairs"
 
 
@@ -531,7 +634,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
         start_time = time_group["end_time"]
         end_time = time_group["end_time"] + time_limit
         extra_filter_scripts.append(create_time_range_query(
-            start_time.timestamp(), end_time.timestamp()))
+            start_time.timestamp(), end_time.timestamp(), condition="after"))
 
     after_query, after_events = msearch(
         after_query, gps_bounds=gps_bound if share_info else None, extra_filter_scripts=extra_filter_scripts)
