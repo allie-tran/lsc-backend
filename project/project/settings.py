@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 """
 
 import os
+from datetime import timedelta
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -23,8 +24,13 @@ SECRET_KEY = '+9+zyjji09sas9=s56tpe%bs#g@(m-je)i13eslmu-c9@eo4k9'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+# DEBUG = False
 
 ALLOWED_HOSTS = ['*']
+
+# Set-up Redis database connection parameters
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
 
 # Application definition
 
@@ -38,6 +44,8 @@ INSTALLED_APPS = [
     'images',
     'rest_framework',
     'corsheaders',
+    "django_extensions",
+    "sslserver"
 ]
 
 MIDDLEWARE = [
@@ -73,22 +81,16 @@ WSGI_APPLICATION = 'project.wsgi.application'
 
 # # Database
 # # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
-# DATABASES = {'default': {'ENGINE': 'django.db.backends.mysql',
-#                          'NAME': 'test',
-#                          'HOST': 'mongodb+srv://alie:mrF6V4p32aOEayJX@user1-ielbg.mongodb.net/test?retryWrites=true&w=majority', }}
-# #
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'polls',
-#         'USER': '<your-database-user>',
-#         'PASSWORD': '<your-database-password>',
-#         'PORT': '3306',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
+}
+
 
 # Password validation
-# https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
+# https://docs.djangoproject.com/en/2.1/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -129,3 +131,29 @@ CORS_ORIGIN_ALLOW_ALL = True
 # CORS_ORIGIN_WHITELIST = (
 #     'http://localhost:3000/'
 # )
+
+# Setting for Simple JSON Web Token (Simple_JWT)
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(hours=0),
+    'REFRESH_TOKEN_LIFEalignItems={"center"} alignContent={"center"} justify={"center"}>TIME': timedelta(days=5),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'VERIFYING_KEY': None,
+
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+
+    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_TYPE_CLAIM': 'token_type',
+
+    'SLIDING_TOKEN_REFRESH_EXP_CLAIM': 'refresh_exp',
+    'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
+}
+
+
+SECURE_SSL_REDIRECT = True

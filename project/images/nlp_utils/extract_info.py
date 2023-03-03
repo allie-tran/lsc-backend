@@ -1,19 +1,12 @@
-from gensim.models.phrases import Phraser
-from gensim.models import Word2Vec
-from scipy.spatial.distance import cosine
-from nltk import pos_tag
 from collections import defaultdict
 from ..nlp_utils.common import *
 from ..nlp_utils.pos_tag import *
 from ..nlp_utils.time import *
-from ..nlp_utils.synonym import *
-import numpy as np
-init_tagger = Tagger(locations)
+# from ..nlp_utils.synonym import *
+init_tagger = Tagger([])
 time_tagger = TimeTagger()
 e_tag = ElementTagger()
 
-
-bigram_phraser = Phraser.load(f"{COMMON_PATH}/bigram_phraser.pkl")
 
 def process_for_ocr(text):
     final_text = defaultdict(lambda : defaultdict(float))
@@ -33,56 +26,22 @@ def search(wordset, text):
         if keyword:
             if " " + keyword + " " in text:
                 results.append(keyword)
-            # if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
-                # results.append(keyword)
     return results
-
-# Partial match only
-def search_possible_location(text):
-    results = []
-    for location in locations:
-        for i, extra in enumerate(locations[location]):
-            if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                if extra not in results:
-                    results.append(location)
-    return results
-
-# gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
-gps_not_lower = {}
-for loc in locations:
-    for origin_doc, (lat, lon) in map_visualisation:
-        if loc == origin_doc.lower():
-            gps_not_lower[loc] = origin_doc
-
-def rreplace(s, old, new, occurrence):
-    li = s.rsplit(old, occurrence)
-    return new.join(li)
 
 class Query:
     def __init__(self, text, shared_filters=None):
         self.negative = ""
-        self.disable_region = False
-        if "—disable_region" in text:
-            print("Disabling region")
-            self.disable_region = True
-            text = text.replace("—disable_region", "")
-        self.disable_location = False
-        if "—disable_location" in text:
-            print("Disabling location")
-            self.disable_location = True
-            text = text.replace("—disable_location", "")
         if "NOT" in text:
             text, self.negative = text.split("NOT")
             self.negative = self.negative.strip(". \n").lower()
-            self.negative = [word for word in self.negative.split() if word in all_keywords]
+            self.negative = [word for word in self.negative.split() if word in all_people]
         text = text.strip(". \n").lower()
-        self.time_filters = None
         self.date_filters = None
-        self.ocr_queries = []
-        self.location_queries = []
+        self.time_filters = None
+        self.persons = None
+        self.folders = None
+        self.visits = None
         self.query_visualisation = defaultdict(list)
-        self.location_filters = []
-        self.country_to_visualise = []
         self.extract_info(text, shared_filters)
 
     def extract_info(self, text, shared_filters=None):
@@ -90,64 +49,43 @@ class Query:
             return search(wordset, text)
         self.original_text = text
 
-        quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
-        text = text.replace(f'"{quoted_text}"', "") #TODO!
-
-        self.ocr = process_for_ocr(quoted_text.split())
-
-        if not self.disable_location:
-            self.locations = search_words(locations)
-            self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
-            if self.locations:
-                self.query_visualisation["LOCATION"].extend(self.locations)
-            else:
-                possible_locations = search_possible_location(text)
-                if possible_locations:
-                    self.query_visualisation["POSSIBLE LOCATION(S)"].extend(possible_locations)
-        else:
-            self.locations = []
-            self.place_to_visualise = []
-
-
-        print("Locations:", self.locations)
-        for loc in self.locations:
-            text = rreplace(text, loc, "", 1) #TODO!
-
-        if not self.disable_region:
-            self.regions = search_words(regions)
-        else:
-            self.regions = []
-
-        for reg in self.regions:
-            self.query_visualisation["REGION"].append(reg)
-            for country in countries:
-                if reg == country.lower():
-                    self.country_to_visualise.append({"country": country, "geojson": countries[country]})
-        for region in self.regions:
-            text = rreplace(text, region, "", 1) #TODO!
-
-
-        # processed = set([w.strip(",.") for word in self.regions +
-                        #  self.locations for w in word.split()])
-        # if not full_match:
-        #     # self.locations.extend(search_words(
-        #         # [w for w in ["hotel", "restaurant", "airport", "station", "cafe", "bar", "church"] if w not in self.locations]))
-        #     for loc in self.locations[len(self.gps_results):]:
-        #         for place, _ in map_visualisation:
-        #             if loc in place.lower().split():
-        #                 self.place_to_visualise.append(place)
-
-        # if full_match:
-        #     for loc in self.locations:
-        #         self.query_visualisation["LOCATION"].append(loc)
-        # else:
-        #     for loc in self.locations:
-        #         self.query_visualisation["POSSIBLE LOCATION"].append(loc)
-
         self.weekdays = []
         self.dates = None
         self.start = (0, 0)
         self.end = (24, 0)
+        self.persons = search_words(all_people)
+        print(self.persons)
+        for person in self.persons:
+            text = text.replace(person, "").replace("  ", " ")
+        if self.persons:
+            self.query_visualisation["PERSON"] = self.persons
+
+        self.folders = search_words(all_dates)
+        print(self.folders)
+        for folder in self.folders:
+            text = text.replace(folder, "").replace("  ", " ")
+        if self.folders:
+            self.query_visualisation["FOLDER"] = self.folders
+
+
+        self.visits = search_words(all_visits)
+        print(self.visits)
+        for visit in self.visits:
+            text = text.replace(visit, "").replace("  ", " ")
+
+        changed_visits = []
+        suffixes = ["th", "st", "nd", "rd", ] + ["th"] * 16
+        for visit in self.visits:
+            pattern = re.compile("^visit (\d+)$")
+            if pattern.search(visit):
+                num = int(pattern.search(visit).group(1))
+                visit = str(num) + suffixes[num % 100] + " visit"
+            changed_visits.append(visit)
+        self.visits = changed_visits
+
+        if self.visits:
+            self.query_visualisation["VISIT"] = self.visits
+
 
         tags = time_tagger.tag(text)
         processed = set()
@@ -165,7 +103,7 @@ class Query:
                     "start", self.start, *am_pm_to_num(s))
                 self.end = adjust_start_end("end", self.end, *am_pm_to_num(e))
             elif tag == "TIME":
-                if word in ["2019", "2020"]:
+                if word in ["2019", "2020", "2016", "2017"]:
                     self.dates = get_day_month(word)
                 else:
                     timeprep = ""
@@ -231,9 +169,7 @@ class Query:
         # self.query_visualisation[self.clip_text] = "CLIP"
 
     def get_info(self):
-        return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],
-                "country_to_visualise": self.country_to_visualise,
-                "place_to_visualise": self.place_to_visualise}
+        return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()]}
 
     def time_to_filters(self):
         if not self.time_filters:
@@ -260,86 +196,9 @@ class Query:
                         {"term": {"month": str(m).rjust(2, "0")}})
                 if d:
                     self.date_filters.append(
-                        {"term": {"date": str(d).rjust(2, "0")}})
-            if self.start[0] != 0 and self.end[0] != 24:
+                        {"term": {"day": str(d).rjust(2, "0")}})
+            if self.start[0] != 0 or self.end[0] != 24:
                 self.query_visualisation["TIME"] = [f"{self.start[0]}:00 - {self.end[0]}:00"]
             if str(self.dates) != "None":
                 self.query_visualisation["DATE"] = [str(self.dates)]
         return self.time_filters, self.date_filters
-
-    def make_ocr_query(self):
-        if not self.ocr_queries:
-            self.ocr_queries = []
-            for ocr_word in self.ocr:
-                dis_max = []
-                for ocr_word, score in self.ocr[ocr_word].items():
-                    dis_max.append(
-                        {"rank_feature": {"field": f"ocr_score.{ocr_word}", "boost": 200 * score, "linear": {}}})
-                self.ocr_queries.append({"dis_max": {
-                    "queries": dis_max,
-                    "tie_breaker": 0.0}})
-        return self.ocr_queries
-        #TODO: multiple word in OCR
-
-    def make_location_query(self):
-        if not self.location_filters:
-            for loc in self.locations:
-                place = gps_not_lower[loc]
-                place = gps_not_lower[loc]
-                dist = "0.5km"
-                pivot = "5m"
-                if "airport" in loc or "home" in loc:
-                    dist = "2km"
-                    pivot = "200m"
-                elif "dcu" in loc:
-                    dist = "1km"
-                    pivot = "100m"
-
-                for place_iter, (lat, lon) in map_visualisation:
-                    if place == place_iter:
-                        # self.location_queries.append({
-                        #         "distance_feature": {
-                        #             "field": "gps",
-                        #             "pivot": pivot,
-                        #             "origin": [lon, lat],
-                        #             "boost": score * 50
-                        #         }
-                        #     })
-                        self.location_filters.append({
-                            "geo_distance": {
-                                "distance": dist,
-                                "gps": [lon, lat]
-                            }
-                        })
-                        break
-
-            # # General:
-            # if len(self.gps_results) < len(self.locations):
-            #     for loc in self.locations[len(self.gps_results):]:
-            #         loc_set = set(loc.split())
-            #         for place, (lat, lon) in map_visualisation:
-            #             set_place = gps_location_sets[place]
-            #             if loc_set.issubset(set_place):
-            #                 pivot = "5m"
-            #                 if "airport" in set_place:
-            #                     pivot = "200m"
-            #                     self.location_filters.append({
-            #                         "geo_distance": {
-            #                             "distance": "2km",
-            #                             "gps": [lon, lat]
-            #                         }
-            #                     })
-            #                 elif "dcu" in set_place:
-            #                     pivot = "100m"
-
-            #                 self.location_queries.append({
-            #                     "distance_feature": {
-            #                         "field": "gps",
-            #                         "pivot": pivot,
-            #                         "origin": [lon, lat],
-            #                         "boost": len(loc_set) / len(set_place) * 50
-            #                     }
-            #                 })
-        # if self.location_queries:
-            # return {"dis_max": {"queries": self.location_queries, "tie_breaker": 0.0}}
-        return self.location_filters

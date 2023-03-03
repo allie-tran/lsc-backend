@@ -7,19 +7,14 @@ from ..nlp_utils.common import *
 from ..nlp_utils.info_objects import Location, Time, Action, Object
 from ..nlp_utils.time import TimeTagger
 
-
 ##### TAGGER #####
 class Tagger:
-    def __init__(self, locations):
+    def __init__(self, people):
         self.tokenizer = MWETokenizer()
         self.time_tagger = TimeTagger()
-        for a in locations:
-            self.tokenizer.add_mwe(a.split())
         # Rules defined
         self.specials = {
-            "REGION": regions,
-            "KEYWORD": [word for word in all_keywords if ' ' in word],
-            "LOCATION": locations,
+            "PEOPLE": people,
             "QUANTITY": ["at least", "more than", "less than", "at most",
                          "not more than", "a number of"],
             "IN": ["in front of", "called"],
@@ -50,8 +45,6 @@ class Tagger:
         new_tags = []
         keywords = []
         for word, tag in tags:
-            if word in all_keywords:
-                keywords.append((word, 'KEYWORD'))
             if '_' in word:
                 new_tag = None
                 word = word.replace('__', "'")
@@ -74,10 +67,6 @@ class Tagger:
                     t1, t2 = None, None
                 if t2 in ['NN', 'NNS']:
                     new_tags[-1] = (t1, 'VBG')
-            if tag == 'JJ' and tag in all_keywords:
-                tag = 'NN'
-            if tag == "KEYWORD":
-                keywords.append((word, 'KEYWORD'))
             new_tags.append((word, tag))
         return new_tags, keywords
 

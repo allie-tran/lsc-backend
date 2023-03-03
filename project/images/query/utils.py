@@ -7,7 +7,7 @@ import geopy.distance
 import requests
 from ..nlp_utils.common import cache, FILE_DIRECTORY
 
-basic_dict = json.load(open(f"{FILE_DIRECTORY}/basic_dict.json"))
+basic_dict = json.load(open(f"{FILE_DIRECTORY}/info_dict.json"))
 all_images = list(basic_dict.keys())
 
 def get_dict(image):
@@ -22,8 +22,7 @@ def get_info(image):
 
 @cache
 def get_date_info(image):
-    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
-    return time.strftime("%A, %d %B %Y")
+    return get_dict(image)["date"]
 
 def get_location(image):
     return get_dict(image)["location"]
@@ -77,27 +76,34 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
     headers = {"Content-Type": "application/json"}
     response = requests.post(
         f"http://localhost:9200/{index}/_search{'?scroll=5m' if scroll else ''}", headers=headers, data=json_query)
+
+    id_images = []
+    aggregations = []
+    scroll_id = None
+
     if response.status_code == 200:
         # stt = "Success"
         response_json = response.json()  # Convert to json as dict formatted
         id_images = [[d["_source"], d["_score"]]
                      for d in response_json["hits"]["hits"]]
+        if "aggregations" in response_json:
+            aggregations = response_json["aggregations"]
         scroll_id = response_json["_scroll_id"] if scroll else None
     else:
         print(f'Response status {response.status_code}')
         print(response.text)
-        id_images = []
-        scroll_id = None
 
     if not id_images:
         with open("request.log", "a") as f:
             f.write(json_query + '\n')
         # print(json_query)
         print(f'Empty results. Output in request.log')
-    return id_images, scroll_id
+    return id_images, scroll_id, aggregations
 
 
 def post_mrequest(json_query, index="lsc2019_combined_text_bow"):
+    with open('request.log', 'w') as f:
+        f.write(json_query + '\n')
     headers = {"Content-Type": "application/x-ndjson"}
     response = requests.post(
         f"http://localhost:9200/{index}/_msearch", headers=headers, data=json_query)
@@ -116,8 +122,7 @@ def post_mrequest(json_query, index="lsc2019_combined_text_bow"):
         print(f'Response status {response.status_code}')
         id_images = []
 
-    # with open('request.log', 'w') as f:
-        # f.write(json_query + '\n')
+
     return id_images
 
 def get_min_event(images, event_type="group"):
@@ -192,11 +197,16 @@ def format_single_result(results, factor="dummy", group_more_by=0):
     for result, score in results:
         scores.append(score)
         results_with_info.append({
-            "current": [result["image_path"]],
+            "current": [result["path"]],
             "begin_time": result["time"],
             "end_time": result["time"],
+            "date_identifier": result["date_identifier"],
+            "date": result["date"],
             "group": result["group"],
-            "scene": result["scene"]})
+            "scene": result["scene"],
+            "person": result["person"],
+            "visit": result["visit"],
+            "location": f'{result["hour"]:0>2}:{result["minute"]:0>2} on {result["date"]}\n{result["person"]}'})
     return results_with_info, scores
 
 
@@ -220,7 +230,7 @@ def group_results(results, factor="group", group_more_by=0):
         images = [res[0] for res in images_with_scores]
         begin_time, end_time = get_time_of_group(images)
         results_with_info.append({
-            "current": [image["image_path"] for image in images][:5],
+            "current": [image["path"] for image in images][:5],
             "begin_time": begin_time,
             "end_time": end_time,
             "location": images[0]["location"],
@@ -286,9 +296,4 @@ def find_time_span(groups):
 
 
 def add_gps_path(pairs):
-    new_pairs = []
-    for pair in pairs:
-        pair["gps"] = get_gps(pair["current"])
-        # pair["gps_path"] = pair["gps"]
-        new_pairs.append(pair)
-    return new_pairs
+    return pairs

@@ -96,7 +96,7 @@ def images(request):
         f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
     print(message)
     # Calculations
-    scroll_id, queryset, scores, info = es(
+    scroll_id, queryset, scores, aggs, info = es(
         message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, share_info=message['share_info'])
     message["query"]["info"] = info
     if last_scroll_id:
@@ -108,8 +108,7 @@ def images(request):
             pass
     last_scroll_id = scroll_id
     last_message = message.copy()
-    print(info["place_to_visualise"])
-    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores}
+    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores, 'aggregations': aggs}
     return jsonize(response)
 
 @csrf_exempt

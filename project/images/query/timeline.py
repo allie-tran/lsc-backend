@@ -1,15 +1,16 @@
 import json
 import os
 from .utils import *
-from ..nlp_utils.common import FILE_DIRECTORY, COMMON_DIRECTORY, basic_dict
+from ..nlp_utils.common import FILE_DIRECTORY, basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
-groups = json.load(open(f"{COMMON_DIRECTORY}/group_segments.json"))
+groups = json.load(open(f"{FILE_DIRECTORY}/group_segments.json"))
 scene_segments = {}
 for group_name in groups:
     for scene_name, images in groups[group_name]["scenes"]:
         assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
         scene_segments[scene_name] = images
+
 time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
 
 def get_submission(image, scene):
@@ -133,6 +134,7 @@ def to_full_key(image):
 def get_all_scenes(images):
     images = [basic_dict[image]for image in images]
     scene_id = images[0]["scene"]
+    person_id = images[0]["person"]
     group_id = int(images[0]["group"].split('G_')[-1])
     group_results = []
     group_range = range(group_id - 1, group_id + 2)
@@ -143,19 +145,20 @@ def get_all_scenes(images):
     space = 0
     for group in group_range:
         if group in groups:
-            scenes = []
-            for scene_name, images in groups[group]["scenes"]:
-                scenes.append(
-                    (scene_name, images, time_info[scene_name]))
-                if scene_id == scene_name:
-                    line += (len(scenes) - 1) // 4 + 1
-                    done = True
-            if scenes:
-                if not done:
-                    space += 1
-                    line += (len(scenes) - 1) // 4 + 1
-                group_results.append(
-                    (group, groups[group]["location"], scenes))
+            if groups[group]["person"] == person_id:
+                scenes = []
+                for scene_name, images in groups[group]["scenes"]:
+                    scenes.append(
+                        (scene_name, images, time_info[scene_name]))
+                    if scene_id == scene_name:
+                        line += (len(scenes) - 1) // 4 + 1
+                        done = True
+                if scenes:
+                    if not done:
+                        space += 1
+                        line += (len(scenes) - 1) // 4 + 1
+                    group_results.append(
+                        (group, groups[group]["date"], scenes))
 
     print("Line:", line, ", scene_id", scene_id)
     return group_results, line, space, scene_id
@@ -180,7 +183,7 @@ def get_more_scenes(group_id, direction="top"):
                 space += 1
                 line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
-                    (group, groups[group]["location"], scenes))
+                    (group,  groups[group]["visit"] + "/" + groups[group]["date"], scenes))
     return group_results, line, space
 
 def get_full_scene(image):
