@@ -12,10 +12,10 @@ transformers.logging.set_verbosity_error()
 
 # unmasker = pipeline('fill-mask', model='distilbert-base-uncased')
 
-qa_photo_features = np.load(f"{FILES_DIRECTORY}/embeddings/features.npy")
+qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/features.npy")
 DIM = qa_photo_features[0].shape[-1]
 qa_photo_ids = pd.read_csv(
-    f"{FILES_DIRECTORY}/embeddings//photo_ids.csv")["photo_id"].to_list()
+    f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
 
@@ -32,7 +32,7 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-device = "cuda"
+device = "cpu"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
 --suffix="." --max_tokens=256 --ds_factor_ff=8 --ds_factor_attn=8 \

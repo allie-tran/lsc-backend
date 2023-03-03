@@ -5,13 +5,13 @@ from parsedatetime import Constants, Calendar
 from ..nlp_utils.common import *
 
 more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
-                  "morning": ["breakfast"],
+                  "morning": [],
                   "evening": ["nightfall", "dusk", "dinner", "dinnertime", "sunset", "twilight"],
                   "noon": ["midday", "lunchtime", "lunch"],
                   "night": ["nighttime"],
                   "afternoon": ["supper", "suppertime", "teatime"]}
 
-timeofday = {"early; morning": "5am-8am",
+timeofday = {"early; morning": "5am-9am",
              "late; morning": "11am-12pm",
              "morning": "5am-12pm",
              "early; afternoon": "1pm-3pm",

@@ -33,10 +33,10 @@ def search(wordset, text):
     for keyword in wordset:
         if filter_locations(keyword):
             if keyword:
-                if " " + keyword + " " in text:
+                # if " " + keyword + " " in text:
+                    # results.append(keyword)
+                if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
                     results.append(keyword)
-                # if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
-                # results.append(keyword)
     return results
 
 # Partial match only
@@ -94,9 +94,9 @@ class Query:
         def search_words(wordset):
             return search(wordset, text)
         self.original_text = text
-
-        quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
-        text = text.replace(f'"{quoted_text}"', "")
+        quoted_text = ""
+        # quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
+        # text = text.replace(f'"{quoted_text}"', "")
         if "driving" in text:
             self.driving = True
             text = text.replace("driving", "")

@@ -179,12 +179,10 @@ def group_scene_results(results, factor="group", group_more_by=0):
                             datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d"),
                 "group": scenes[0]["group"],
                 "scene": scenes[0]["scene"]})
-            
-    return results_with_info, scores
+        return results_with_info, scores
+    return zip(*results.items())
 
-        
-
-
+    
 def format_single_result(results, factor="dummy", group_more_by=0):
     size = len(results)
     if size == 0:
@@ -325,9 +323,19 @@ def add_gps_path(pairs):
             pair["gps"] = get_gps(pair["current"])
         pair["current"] = add_full_scene(pair["scene"], pair["current"])
         if "before" in pair:
-            pair["before"] = add_full_scene(pair["scene"], pair["before"])
+            if isinstance(pair["before"][0], str):
+                first_image = pair["before"][0]
+            else:
+                first_image = pair["before"][0][0]
+            scene = basic_dict[first_image]["scene"]
+            pair["before"] = add_full_scene(scene, pair["before"])
         if "after" in pair:
-            pair["after"] = add_full_scene(pair["scene"], pair["after"])
+            if isinstance(pair["after"][0], str):
+                first_image = pair["after"][0]
+            else:
+                first_image = pair["after"][0][0]
+            scene = basic_dict[first_image]["scene"]
+            pair["after"] = add_full_scene(scene, pair["after"])
         # pair["gps_path"] = pair["gps"]
         new_pairs.append(pair)
     return new_pairs

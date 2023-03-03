@@ -19,7 +19,7 @@ cluster = OPTICS(min_samples=2, max_eps=0.9, metric='cosine')
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["images", "start_time", "end_time", "gps",
-                      "scene", "group", "timestamp", "location", "cluster_images"]
+                      "scene", "group", "timestamp", "location", "cluster_images", "weights"]
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 USING_ELASTICSEARCH_SCENE = True
 USING_ELASTICSEARCH_IMAGE = False
@@ -34,10 +34,9 @@ cached_filters =  {"bool": {"filter": [],
                                "must_not": []}}
 
 # format_func = format_single_result # ntcir
-format_func = group_results
-# format_func = group_scene_results
+format_func = group_scene_results
 INDEX = "lsc2023"
-SCENE_INDEX = "lsc2023_scene"
+SCENE_INDEX = "lsc2023_scene_sequential_weights"
 
 
 def query_all(query, includes, index, group_factor):
@@ -322,8 +321,12 @@ def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scr
             if scene not in new_scores:
                 new_scenes.append(scene_info)
                 new_scores[scene] = score
-            for image in scene_info["cluster_images"]:
-                cluster_scores[group][image] = max(cluster_scores[group][image], score)
+            if "weights" in scene_info:
+                for image, weight in zip(scene_info["cluster_images"], scene_info["weights"]):
+                    cluster_scores[group][image] = max(cluster_scores[group][image], score * weight)
+            else:
+                for image in scene_info["cluster_images"]:
+                    cluster_scores[group][image] = max(cluster_scores[group][image], score)
                     
         scene_results = sorted(new_scenes, key=lambda x: -new_scores[x["scene"]])
         scores = sorted(new_scores.values(), reverse=True)
@@ -372,45 +375,52 @@ def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scr
             # print([r[1] for r in results])
             return query, (new_results, scores), scroll_id
     else:
-        key = "current" if "current" in scene_results[0] else "images"
-        images = [image for scene in scene_results for image in scene[key]]
-        image_scores = {image: score for image, score in zip(images, score_images(images, embedding))}
-        final_scenes = []
-        for i, scene in enumerate(scene_results):
-            # image_features = photo_features[np.array([image_to_id[image] for image in scene[key]])]
-            scene["gps"] = get_gps(scene[key])
-            cluster_score = cluster_scores[scene["group"]]
-            logit_scale = len(scene[key]) ** 0.5
-            
-            # Filter
-            weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score[image]
-                            for image in scene[key]])).round(2)
-            if len(scene[key]) > 4:
-                max_padding = 2
-                current_padding = 0
-                best = np.argmax(weights)
-                topk = min(len(scene[key]), 4)
-                ind = np.argpartition(weights, -topk)[-topk:].tolist()
-                new_images = []
-                for j, (image, weight) in enumerate(zip(scene[key], weights)):
-                    if j == best:
-                        new_images.append((image, weight, True))
-                        current_padding = 0
-                    elif j in ind:
-                        new_images.append((image, weight, False))
-                        current_padding = 0
-                    else:
-                        current_padding += 1
-                        if current_padding < max_padding:
-                            new_images.append((image, weight, False))
+        if scene_results:
+            key = "current" if "current" in scene_results[0] else "images"
+            images = [image for scene in scene_results for image in scene[key]]
+            if embedding is None:
+                image_scores = defaultdict(lambda: 1)
+            else:
+                image_scores = {image: score for image, score in zip(images, score_images(images, embedding))}
+
+            final_scenes = []
+            for i, scene in enumerate(scene_results):
+                # image_features = photo_features[np.array([image_to_id[image] for image in scene[key]])]
+                scene["gps"] = get_gps(scene[key])
+                cluster_score = cluster_scores[scene["group"]]
+                logit_scale = len(scene[key]) ** 0.5
                 
-                scene[key] = new_images
-            if key != "current":
-                scene["current"] = scene[key]
-                del scene[key]
-            final_scenes.append(scene)
-        print("Num Scenes:", len(final_scenes))
-        return query,(final_scenes, scores), scroll_id
+                # Filter
+                weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score[image]
+                                for image in scene[key]])).round(2)
+                if len(scene[key]) > 4:
+                    max_padding = 2
+                    current_padding = 0
+                    best = np.argmax(weights)
+                    topk = min(len(scene[key]), 4)
+                    ind = np.argpartition(weights, -topk)[-topk:].tolist()
+                    new_images = []
+                    for j, (image, weight) in enumerate(zip(scene[key], weights)):
+                        if j == best:
+                            new_images.append((image, weight, True))
+                            current_padding = 0
+                        elif j in ind:
+                            new_images.append((image, weight, False))
+                            current_padding = 0
+                        elif weight > 0:
+                            current_padding += 1
+                            if current_padding < max_padding:
+                                new_images.append((image, weight, False))
+                    
+                    scene[key] = new_images
+                if key != "current":
+                    scene["current"] = scene[key]
+                    del scene[key]
+                final_scenes.append(scene)
+            print("Num Scenes:", len(final_scenes))
+            return query,(final_scenes, scores), scroll_id
+        else:
+            return query, ([], []), scroll_id
 
 
 def msearch(query, gps_bounds=None, extra_filter_scripts=None):
@@ -536,7 +546,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
     factor = "group"
     for i, main_event in enumerate(main_events):
         s1 = scores[i]
-        cond_events, cond_scores = format_func(
+        cond_events, cond_scores = group_scene_results(
             conditional_events[i], factor)
         for conditional_event, s2 in zip(cond_events, cond_scores):
             if reverse:
@@ -599,8 +609,6 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
     multiple_pairs = {"position": 24,
                       "pairs": pair_events,
                       "total_scores": total_scores}
-    if pair_events:
-        print(pair_events[0])
     return query, conditional_query, (pair_events[:24], total_scores[:24]), "pairs"
 
 
@@ -645,7 +653,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
     for i, before_pair in enumerate(before_pairs):
         s1, s2 = total_scores[i]
         cond_events, cond_scores = format_func(
-            after_events[i], factor="scene")
+            after_events[i], factor="group")
         for conditional_event, s3 in zip(cond_events, cond_scores):
             pair_event = before_pair.copy()
             pair_event["after"] = conditional_event["current"]
@@ -653,7 +661,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
             pair_events.append((pair_event, s1, s2, s3))
 
     after_query, (_, scores), _ = individual_es(
-        after_query, gps_bounds=gps_bound if share_info else None, size=1, group_factor="scene")
+        after_query, gps_bounds=gps_bound if share_info else None, size=1, group_factor="group")
     max_score3 = scores[0]
 
     pair_events = sorted([(event, s1/max_score1 + s2/max_score2 + s3/max_score3)
