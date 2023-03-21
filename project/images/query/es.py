@@ -36,7 +36,7 @@ cached_filters =  {"bool": {"filter": [],
 # format_func = format_single_result # ntcir
 format_func = group_scene_results
 INDEX = "lsc2023"
-SCENE_INDEX = "lsc2023_scene_sequential_weights"
+SCENE_INDEX = "lsc2023_scene_mean"
 
 
 def query_all(query, includes, index, group_factor):
@@ -321,7 +321,7 @@ def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scr
             if scene not in new_scores:
                 new_scenes.append(scene_info)
                 new_scores[scene] = score
-            if "weights" in scene_info:
+            if "weights" in scene_info and scene_info["weights"] is not None:
                 for image, weight in zip(scene_info["cluster_images"], scene_info["weights"]):
                     cluster_scores[group][image] = max(cluster_scores[group][image], score * weight)
             else:

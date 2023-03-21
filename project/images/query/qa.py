@@ -32,12 +32,12 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-device = "cpu"
+device = "cuda"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
 --suffix="." --max_tokens=256 --ds_factor_ff=8 --ds_factor_attn=8 \
---load=/home/tlduyen/LQA/Experiments/pretrained_models/{options[0]}.pth \
---msrvtt_vocab_path=/home/tlduyen/LQA/Experiments/datasets/MSRVTT-QA/vocab.json \
+--load={PRETRAINED_MODELS}/models/FrozenBiLM/{options[0]}.pth \
+--msrvtt_vocab_path={PRETRAINED_MODELS}/datasets/MSRVTT-QA/vocab.json \
 --model_name microsoft/deberta-v2-xlarge""".split())
 if args.save_dir:
     args.save_dir = os.path.join(args.presave_dir, args.save_dir)

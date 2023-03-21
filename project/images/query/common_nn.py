@@ -9,6 +9,8 @@ import os
 from numpy import linalg as LA
 
 CLIP_EMBEDDINGS = os.environ.get("CLIP_EMBEDDINGS")
+PRETRAINED_MODELS = os.environ.get("PRETRAINED_MODELS")
+
 photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-H-14_laion2b_s32b_b79k_nonorm/features.npy")
 norm_photo_features = photo_features / LA.norm(photo_features, keepdims=True, axis=-1)
 DIM = photo_features[0].shape[-1]

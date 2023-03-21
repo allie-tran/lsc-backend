@@ -1,5 +1,3 @@
-from gensim.models.phrases import Phraser
-from gensim.models import Word2Vec
 from scipy.spatial.distance import cosine
 from nltk import pos_tag
 from collections import defaultdict
