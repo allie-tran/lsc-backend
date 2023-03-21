@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/2.2/ref/settings/
 
 import os
 from datetime import timedelta
+import os.path as osp
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,8 +45,6 @@ INSTALLED_APPS = [
     'images',
     'rest_framework',
     'corsheaders',
-    "django_extensions",
-    "sslserver"
 ]
 
 MIDDLEWARE = [
@@ -155,5 +154,21 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
 
+# ---- LINUX PATH ----
+LINUX_TEMPORARY_UPLOADING_FOLDER_PATH = '/home/tlduyen/Deakin/processing/files/'
+if not osp.exists(LINUX_TEMPORARY_UPLOADING_FOLDER_PATH):
+    os.makedirs(LINUX_TEMPORARY_UPLOADING_FOLDER_PATH)
 
-SECURE_SSL_REDIRECT = True
+LINUX_IMAGES_FOLDER_PATH = '/home/tlduyen/Deakin/processing/files/'
+if not osp.exists(LINUX_IMAGES_FOLDER_PATH):
+    os.makedirs(LINUX_IMAGES_FOLDER_PATH)
+
+# ---- WINDOWS PATH ----
+WINDOWS_TEMPORARY_UPLOADING_FOLDER_PATH = 'D:/Deakin/Images/UploadingTemporaryFiles'
+if not osp.exists(WINDOWS_TEMPORARY_UPLOADING_FOLDER_PATH):
+    os.makedirs(WINDOWS_TEMPORARY_UPLOADING_FOLDER_PATH)
+
+WINDOWS_IMAGES_FOLDER_PATH = 'D:/Deakin/Images/UploadedImages'
+if not osp.exists(WINDOWS_IMAGES_FOLDER_PATH):
+    os.makedirs(WINDOWS_IMAGES_FOLDER_PATH)
+

@@ -5,7 +5,7 @@ from nltk.corpus import stopwords
 
 stop_words = stopwords.words('english')
 
-FILE_DIRECTORY = "/home/tlduyen/Deakin/MySceal/processing/files/"
+FILE_DIRECTORY = f"/home/tlduyen/Deakin/processing/files/"
 basic_dict = json.load(open(f"{FILE_DIRECTORY}/info_dict.json"))
 all_people = json.load(open(f"{FILE_DIRECTORY}/all_people.json"))
 all_dates = json.load(open(f"{FILE_DIRECTORY}/all_dates.json"))

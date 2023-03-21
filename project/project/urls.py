@@ -19,8 +19,7 @@ from django.urls import path, include
 from django.contrib import admin
 from . import views
 import os
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView, TokenObtainSlidingView
-from .auth_model import CustomTokenObtainPairView
+from .auth_models import CustomTokenObtainPairView
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
