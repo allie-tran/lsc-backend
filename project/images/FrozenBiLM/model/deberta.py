@@ -23,7 +23,7 @@ import torch
 from torch import _softmax_backward_data, nn
 from torch.nn import CrossEntropyLoss, LayerNorm
 
-from model.adapter import Adapter
+from ..model.adapter import Adapter
 from transformers.activations import ACT2FN
 from transformers.modeling_outputs import (
     # BaseModelOutput,

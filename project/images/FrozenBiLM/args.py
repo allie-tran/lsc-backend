@@ -309,6 +309,7 @@ def get_args_parser():
         "--model_name",
         default="deberta-v2-xlarge",
         choices=(
+            "microsoft/deberta-v2-xlarge",
             "bert-base-uncased",
             "bert-large-uncased",
             "deberta-v2-xlarge",
