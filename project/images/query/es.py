@@ -110,7 +110,7 @@ def es(query, gps_bounds, size=200, share_info=False):
             query_info[key].extend(cond_query_info[key])
     elif query["before"]:
         query, cond_query, (results, scores), scroll_id = es_two_events(
-            query["current"], query["before"], "before", query["beforewhen"], gps_bounds, share_info=share_info)
+            query["current"], query["before"], "before", query["beforewhen"], gps_bounds, share_info=share_info, K=2)
         query_info = query.get_info()
         cond_query_info = cond_query.get_info()
         for key in cond_query_info:
@@ -215,16 +215,16 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
     return times[:100]
 
 
-def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
+def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False, K=4):
     if isinstance(query, str):
         query = Query(query)
 
     if not query.original_text and not gps_bounds:
         return query_all(query, INCLUDE_FULL_SCENE, SCENE_INDEX, group_factor)
-    return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
+    return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll, K=K)
 
 
-def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False):
+def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scripts=None, group_factor="group", size=200, scroll=False, K=4):
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
     # !TODO
@@ -393,34 +393,43 @@ def construct_es(query, search_factor="scene", gps_bounds=None, extra_filter_scr
                 # Filter
                 weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score[image]
                                 for image in scene[key]])).round(2)
-                if len(scene[key]) > 4:
-                    max_padding = 2
-                    current_padding = 0
-                    best = np.argmax(weights)
-                    topk = min(len(scene[key]), 4)
-                    ind = np.argpartition(weights, -topk)[-topk:].tolist()
-                    new_images = []
-                    for j, (image, weight) in enumerate(zip(scene[key], weights)):
-                        if j == best:
-                            new_images.append((image, weight, True))
-                            current_padding = 0
-                        elif j in ind:
-                            new_images.append((image, weight, False))
-                            current_padding = 0
-                        elif weight > 0:
-                            current_padding += 1
-                            if current_padding < max_padding:
-                                new_images.append((image, weight, False))
-                    
-                    scene[key] = new_images
+                scene[key] = arrange_scene(K, scene, weights, key)
                 if key != "current":
                     scene["current"] = scene[key]
                     del scene[key]
                 final_scenes.append(scene)
+            
             print("Num Scenes:", len(final_scenes))
             return query,(final_scenes, scores), scroll_id
         else:
             return query, ([], []), scroll_id
+
+def arrange_scene(K, scene, weights, key):
+    best = np.argmax(weights)
+                # Left side:
+    topk = min(best, K)
+    left_ind = np.argpartition(weights[:best], -topk)[-topk:].tolist()
+    topk = min(len(weights[best:]), K)
+    right_ind = [best + i for i in np.argpartition(weights[best:], -topk)[-topk:].tolist()]
+    new_images = []
+    for j, (image, weight) in enumerate(zip(scene[key], weights)):
+        if j == best:
+            new_best = len(new_images)
+            new_images.append((image, weight, True))
+        elif j in left_ind or j in right_ind:
+            new_images.append((image, weight, False))
+                
+    best = new_best
+                # max_side_images = max(best, len(new_images) - best - 1)
+    max_side_images = K
+    if best < max_side_images:
+                    # print(i, best, len(new_images), max_side_images, "added", (max_side_images - best), "to the left")
+        new_images = [("", 0, False)] * (max_side_images - best) + new_images
+    best = max_side_images
+    if (max_side_images - len(new_images) + best + 1) > 0:
+                    # print(i, best, len(new_images), max_side_images, "added", max_side_images - len(new_images) + best , "to the right")
+        new_images = new_images + [("", 0, False)] * (max_side_images - len(new_images) + best + 1) 
+    return new_images
 
 
 def msearch(query, gps_bounds=None, extra_filter_scripts=None):
@@ -501,13 +510,13 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
     return query, results
 
 
-def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
+def forward_search(query, conditional_query, condition, time_limit, gps_bounds, K=2, reverse=False):
     print("-" * 80)
     print("Main")
     start = timecounter.time()
     query_infos = []
     query, (main_events, scores), _ = individual_es(
-        query, gps_bounds[0], size=1000, group_factor="scene")
+        query, gps_bounds[0], size=1000, group_factor="scene", K=K-1 if reverse else K)
 
     extra_filter_scripts = []
     time_limit = float(time_limit)
@@ -532,6 +541,33 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     conditional_query, conditional_events = msearch(
         conditional_query, gps_bounds=gps_bounds[1], extra_filter_scripts=extra_filter_scripts)
 
+    images = []
+    for events in conditional_events:
+        for event, score in events:
+            images.extend(event["images"])
+        
+    # Weigh images
+    if conditional_query.clip_text is None:
+        image_scores = defaultdict(lambda: 1)
+    else:
+        embedding = encode_query(conditional_query.clip_text)
+        image_scores = {image: score for image, score in zip(images, score_images(images, embedding))}
+    
+    new_events = []
+    key = 'current'
+    for events in conditional_events:
+        cond_events, cond_scores = group_scene_results(events, 'group')
+        new_scenes = []
+        for scene, cluster_score in zip(cond_events, cond_scores):
+            scene["gps"] = get_gps(scene[key])
+            logit_scale = len(scene[key]) ** 0.5
+            # Filter
+            weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score
+                            for image in scene[key]])).round(2)
+            scene[key] = arrange_scene(K if reverse else K-1, scene, weights, key) 
+            new_scenes.append((scene, cluster_score))
+        new_events.append(new_scenes)
+    conditional_events = new_events
     print("Time:", timecounter.time()-start, "seconds.")
     return query, conditional_query, main_events, conditional_events, scores
 
@@ -546,9 +582,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
     factor = "group"
     for i, main_event in enumerate(main_events):
         s1 = scores[i]
-        cond_events, cond_scores = group_scene_results(
-            conditional_events[i], factor)
-        for conditional_event, s2 in zip(cond_events, cond_scores):
+        for conditional_event, s2 in conditional_events[i]:
             if reverse:
                 if conditional_event[factor] not in already_done:
                     pair_event = conditional_event.copy()
@@ -568,7 +602,7 @@ def add_pairs(main_events, conditional_events, condition, time_limit, scores, al
     return pair_events, already_done
 
 
-def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, return_extra_filter=False, share_info=False):
+def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, return_extra_filter=False, share_info=False, K=2):
     print("Share info:", share_info)
     global multiple_pairs
     if not time_limit:
@@ -584,16 +618,16 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
     # Forward search
     print("Forward Search")
     query, conditional_query, main_events, conditional_events, scores = forward_search(
-        query, conditional_query, condition, time_limit, gps_bounds=[gps_bounds, gps_bounds if share_info else None])
+        query, conditional_query, condition, time_limit, gps_bounds=[gps_bounds, gps_bounds if share_info else None], K=K)
 
     max_score1 = scores[0]
     pair_events, already_done = add_pairs(main_events, conditional_events,
                                           condition, time_limit, scores)
 
-    # print("Backward Search")
+    print("Backward Search")
     conditional_query, query, conditional_events, main_events, scores = forward_search(
         conditional_query, query, "before" if condition == "after" else "after",
-        time_limit, gps_bounds=[gps_bounds if share_info else None, gps_bounds])
+        time_limit, gps_bounds=[gps_bounds if share_info else None, gps_bounds], K=K, reverse=True)
 
     max_score2 = scores[0]
     pair_events2, _ = add_pairs(conditional_events, main_events, condition,
@@ -612,7 +646,7 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, r
     return query, conditional_query, (pair_events[:24], total_scores[:24]), "pairs"
 
 
-def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, share_info=False):
+def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, share_info=False, K=2):
     global multiple_pairs
     if not afterwhen:
         afterwhen = "1"
@@ -629,7 +663,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
 
     query, before_query, * \
         _ = es_two_events(query, before, "before", beforewhen,
-                          gps_bounds, share_info=share_info)
+                          gps_bounds, share_info=share_info, K=K)
     print("-" * 80)
     print("Search for after events")
     before_pairs = multiple_pairs["pairs"]
@@ -647,14 +681,40 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
     after_query, after_events = msearch(
         after_query, gps_bounds=gps_bound if share_info else None, extra_filter_scripts=extra_filter_scripts)
 
+    images = []
+    for events in after_events:
+        for event, score in events:
+            images.extend(event["images"])
+        
+    # Weigh images
+    if after_query.clip_text is None:
+        image_scores = defaultdict(lambda: 1)
+    else:
+        embedding = encode_query(after_query.clip_text)
+        image_scores = {image: score for image, score in zip(images, score_images(images, embedding))}
+
+    key = 'current'
+    new_events = []
+    for events in after_events:
+        cond_events, cond_scores = group_scene_results(events, 'group')
+        new_scenes = []
+        for scene, cluster_score in zip(cond_events, cond_scores):
+            scene["gps"] = get_gps(scene[key])
+            logit_scale = len(scene[key]) ** 0.5
+            # Filter
+            weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score
+                            for image in scene[key]])).round(2)
+            scene[key] = arrange_scene(K-1, scene, weights, key) 
+            new_scenes.append((scene, cluster_score))
+        new_events.append(new_scenes)
+    after_events = new_events
+        
     pair_events = []
     max_score1 = max([s1 for s1, s2 in total_scores])
     max_score2 = max([s2 for s1, s2 in total_scores])
     for i, before_pair in enumerate(before_pairs):
         s1, s2 = total_scores[i]
-        cond_events, cond_scores = format_func(
-            after_events[i], factor="group")
-        for conditional_event, s3 in zip(cond_events, cond_scores):
+        for conditional_event, s3 in after_events[i]:
             pair_event = before_pair.copy()
             pair_event["after"] = conditional_event["current"]
             pair_event["location_after"] = conditional_event["location"]

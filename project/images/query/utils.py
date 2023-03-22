@@ -321,21 +321,33 @@ def add_gps_path(pairs):
     for pair in pairs:
         if "gps" not in pair:
             pair["gps"] = get_gps(pair["current"])
-        pair["current"] = add_full_scene(pair["scene"], pair["current"])
-        if "before" in pair:
-            if isinstance(pair["before"][0], str):
-                first_image = pair["before"][0]
-            else:
-                first_image = pair["before"][0][0]
-            scene = basic_dict[first_image]["scene"]
-            pair["before"] = add_full_scene(scene, pair["before"])
-        if "after" in pair:
-            if isinstance(pair["after"][0], str):
-                first_image = pair["after"][0]
-            else:
-                first_image = pair["after"][0][0]
-            scene = basic_dict[first_image]["scene"]
-            pair["after"] = add_full_scene(scene, pair["after"])
-        # pair["gps_path"] = pair["gps"]
+        # pair["current"] = add_full_scene(pair["scene"], pair["current"])
+        # if "before" in pair:
+        #     id = 0
+        #     while True:
+        #         if isinstance(pair["before"][id], str):
+        #             first_image = pair["before"][id]
+        #         else:
+        #             first_image = pair["before"][id][0]
+        #         if first_image == "":
+        #             id +=1
+        #         else:
+        #             break
+        #     scene = basic_dict[first_image]["scene"]
+        #     pair["before"] = add_full_scene(scene, pair["before"])
+        # if "after" in pair:
+        #     id = 0
+        #     while True:
+        #         if isinstance(pair["after"][id], str):
+        #             first_image = pair["after"][id]
+        #         else:
+        #             first_image = pair["after"][id][0]
+        #         if first_image == "":
+        #             id +=1
+        #         else:
+        #             break
+        #     scene = basic_dict[first_image]["scene"]
+        #     pair["after"] = add_full_scene(scene, pair["after"])
+        # # pair["gps_path"] = pair["gps"]
         new_pairs.append(pair)
     return new_pairs

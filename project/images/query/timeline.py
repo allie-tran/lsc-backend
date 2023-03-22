@@ -5,6 +5,21 @@ from ..nlp_utils.common import basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
 
+def get_submission(image, scene):
+    submissions = []
+    if scene:
+        images = scene_segments[basic_dict[image]["scene"]]
+        for img in images:
+            submissions.append(img.split('.')[0].split('/')[-1])
+    else:
+        submissions.append(image.split('.')[0].split('/')[-1])
+    return submissions
+
+def get_image_list(first, last):
+    first = all_images.index(first)
+    last = all_images.index(last)
+    return [img.split('.')[0].split('/')[-1] for img in all_images[first:last+1]]
+
 def to_full_key(image):
     return f"{image[:6]}/{image[6:8]}/{image}"
 

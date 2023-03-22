@@ -42,39 +42,42 @@ args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val ms
 if args.save_dir:
     args.save_dir = os.path.join(args.presave_dir, args.save_dir)
 
-# Build model
-print("Building QA model")
-tokenizer = get_tokenizer(args)
-vocab = json.load(open(args.msrvtt_vocab_path, "r"))
-id2a = {y: x for x, y in vocab.items()}
-args.n_ans = len(vocab)
-frozen_bilm = build_model(args)
-frozen_bilm.to(device)
-frozen_bilm.eval()
-n_parameters = sum(p.numel() for p in frozen_bilm.parameters() if p.requires_grad)
-print("number of params:", n_parameters)
+frozen_bilm = None
+def build_qa_model():
+    global frozen_bilm
+    # Build model
+    print("Building QA model")
+    tokenizer = get_tokenizer(args)
+    vocab = json.load(open(args.msrvtt_vocab_path, "r"))
+    id2a = {y: x for x, y in vocab.items()}
+    args.n_ans = len(vocab)
+    frozen_bilm = build_model(args)
+    frozen_bilm.to(device)
+    frozen_bilm.eval()
+    n_parameters = sum(p.numel() for p in frozen_bilm.parameters() if p.requires_grad)
+    print("number of params:", n_parameters)
 
-# Load pretrained checkpoint
-assert args.load
-print("loading from", args.load)
-checkpoint = torch.load(args.load, map_location="cpu")
-frozen_bilm.load_state_dict(checkpoint["model"], strict=False)
+    # Load pretrained checkpoint
+    assert args.load
+    print("loading from", args.load)
+    checkpoint = torch.load(args.load, map_location="cpu")
+    frozen_bilm.load_state_dict(checkpoint["model"], strict=False)
 
-# Init answer embedding module
-aid2tokid = torch.zeros(len(vocab), args.max_atokens).long()
-for a, aid in vocab.items():
-    tok = torch.tensor(
-        tokenizer(
-            a,
-            add_special_tokens=False,
-            max_length=args.max_atokens,
-            truncation=True,
-            padding="max_length",
-        )["input_ids"],
-        dtype=torch.long,
-    )
-    aid2tokid[aid] = tok
-frozen_bilm.set_answer_embeddings(aid2tokid.to(device), freeze_last=args.freeze_last)
+    # Init answer embedding module
+    aid2tokid = torch.zeros(len(vocab), args.max_atokens).long()
+    for a, aid in vocab.items():
+        tok = torch.tensor(
+            tokenizer(
+                a,
+                add_special_tokens=False,
+                max_length=args.max_atokens,
+                truncation=True,
+                padding="max_length",
+            )["input_ids"],
+            dtype=torch.long,
+        )
+        aid2tokid[aid] = tok
+    frozen_bilm.set_answer_embeddings(aid2tokid.to(device), freeze_last=args.freeze_last)
 
 
 def answer(images, encoded_question):
@@ -207,7 +210,8 @@ def answer_topk_scenes(question, scenes, k=10):
     """
     # Create a defaultdict to accumulate answer scores across all scenes
     answers = defaultdict(float)
-    
+    if frozen_bilm is None:
+        build_qa_model()
     # Encode the question using a helper function
     question = encode_question(question)
     
