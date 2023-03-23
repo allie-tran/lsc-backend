@@ -16,7 +16,17 @@ Including another URLconf
 from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path, include
+from django.contrib import admin
+from . import views
+import os
+from .auth_models import CustomTokenObtainPairView
+
+os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 urlpatterns = [
-    path('', include('images.urls')),
+    path('admin/', admin.site.urls),
+    path('cross-server-auth', views.cross_server_auth),
+    path('auth', CustomTokenObtainPairView.as_view()),
+    path('auth/refresh', CustomTokenObtainPairView.as_view()),
+    path('', include('images.urls'))
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

@@ -43,8 +43,10 @@ if args.save_dir:
     args.save_dir = os.path.join(args.presave_dir, args.save_dir)
 
 frozen_bilm = None
+tokenizer = None
 def build_qa_model():
     global frozen_bilm
+    global tokenizer
     # Build model
     print("Building QA model")
     tokenizer = get_tokenizer(args)
