@@ -21,7 +21,7 @@ time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
 format_func = format_single_result # ntcir
 # format_func = group_results
 # CLIP
-device = "cpu" #  if torch.cuda.is_available() else "cpu"
+device = "cuda" #  if torch.cuda.is_available() else "cpu"
 print("Loading CLIP on", device)
 clip_model = None
 clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
