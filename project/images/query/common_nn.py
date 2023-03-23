@@ -18,8 +18,8 @@ photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/ViT-H-14_laion2b_s32b_b79k_nonorm/ph
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
 # CLIP
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
 # clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
 model_name = "ViT-H-14"
 pretrained = "laion2b_s32b_b79k"

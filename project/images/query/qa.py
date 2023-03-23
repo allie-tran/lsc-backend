@@ -10,21 +10,11 @@ import torch
 from .common_nn import *
 transformers.logging.set_verbosity_error()
 
-# unmasker = pipeline('fill-mask', model='distilbert-base-uncased')
-
 qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/features.npy")
 DIM = qa_photo_features[0].shape[-1]
 qa_photo_ids = pd.read_csv(
     f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
-
-
-def get_suggested_answers(masked_question):
-    answers = []
-    if "[MASK]" in masked_question:
-        for ans in unmasker(masked_question, top_k=10):
-            answers.append(ans["token_str"])
-    return answers
 
 options = ["frozenbilm_activitynet",
            "frozenbilm_tgif",
@@ -44,9 +34,11 @@ if args.save_dir:
 
 frozen_bilm = None
 tokenizer = None
+id2a = {}
 def build_qa_model():
     global frozen_bilm
     global tokenizer
+    global id2a
     # Build model
     print("Building QA model")
     tokenizer = get_tokenizer(args)

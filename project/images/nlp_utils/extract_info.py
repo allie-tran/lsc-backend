@@ -86,6 +86,7 @@ class Query:
         self.query_visualisation = defaultdict(list)
         self.location_filters = []
         self.country_to_visualise = []
+        self.clip_embedding = None
         self.extract_info(text, shared_filters)
 
     def extract_info(self, text, shared_filters=None):
@@ -236,6 +237,7 @@ class Query:
                 [word for word, tag in unprocessed])
         self.clip_text = self.clip_text.strip(", ")
         print("CLIP:", self.clip_text)
+        
         # self.query_visualisation[self.clip_text] = "CLIP"
 
     def get_info(self):

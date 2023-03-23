@@ -57,11 +57,12 @@ def export(request):
     print(image, scene)
     for i, item in enumerate(get_submission(image, scene)):
         # OFFICIAL: UNCOMMENT TO SUBMIT
-        url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
-        res = requests.get(url)
-        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        # with open('unhelpful_images.txt', 'a') as f:
-            # f.write(f'{item}\n')
+        # url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
+        # res = requests.get(url)
+        # results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        results = []
+        with open('submissions.txt', 'a') as f:
+            f.write(f'{item}\n')
     return jsonize({"description": "\n".join(results)})
 
 @csrf_exempt
@@ -76,11 +77,12 @@ def submit_all(request):
         submissions.extend(get_image_list(saved_scenes[first][0], saved_scenes[last][-1]))
     for i, item in enumerate(submissions):
         # OFFICIAL: UNCOMMENT TO SUBMIT
-        url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
-        res = requests.get(url)
-        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        #  with open('unhelpful_images.txt', 'a') as f:
-            # f.write(f'{item}\n')
+        # url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
+        # res = requests.get(url)
+        # results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        results = []
+        with open('submissions.txt', 'a') as f:
+            f.write(f'{item}\n')
     return jsonize({"description": "\n".join(results)})
 
     # DEBUG:
@@ -99,7 +101,7 @@ def images(request):
     print(message)
     # Calculations
     scroll_id, queryset, scores, info = es(
-        message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, share_info=message['share_info'])
+        message['query'], message["gps_bounds"], message["size"] if "size" in message else 100, share_info=message['share_info'])
     message["query"]["info"] = info
     if last_scroll_id:
         try:
@@ -143,26 +145,26 @@ def gps(request):
     return jsonize(response)
 
 
-@csrf_exempt
-def get_saved(request):
-    global saved
-    global messages
-    query_id = request.GET.get('query_id')
-    message = messages[query_id]
-    if message:
-        queryset, _ = es_date(message['query'], message["gps_bounds"])
-        return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query'], 'gps_bounds': message["gps_bounds"]})
-    else:
-        return jsonize({"saved": saved[query_id], 'results': [], 'query': {}, 'gps_bounds': None})
+# @csrf_exempt
+# def get_saved(request):
+#     global saved
+#     global messages
+#     query_id = request.GET.get('query_id')
+#     message = messages[query_id]
+#     if message:
+#         queryset, _ = es_date(message['query'], message["gps_bounds"])
+#         return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query'], 'gps_bounds': message["gps_bounds"]})
+#     else:
+#         return jsonize({"saved": saved[query_id], 'results': [], 'query': {}, 'gps_bounds': None})
 
 
-@csrf_exempt
-def timeline_group(request):
-    # Get message
-    message = json.loads(request.body.decode('utf-8'))
-    timeline = get_timeline_group(message['date'])
-    response = {'timeline': timeline}
-    return jsonize(response)
+# @csrf_exempt
+# def timeline_group(request):
+#     # Get message
+#     message = json.loads(request.body.decode('utf-8'))
+#     timeline = get_timeline_group(message['date'])
+#     response = {'timeline': timeline}
+#     return jsonize(response)
 
 
 @csrf_exempt
@@ -193,32 +195,6 @@ def detailed_info(request):
         response = {'info': ""}
     return jsonize(response)
 
-@csrf_exempt
-def gpssearch(request):
-    # Get message
-    message = json.loads(request.body.decode('utf-8'))
-    # Calculations
-    images = message["scenes"]
-    display_type = message["display_type"]
-    queryset = es_gps(es, message['query'], images, display_type)
-    response = {'results': queryset,
-                'error': None}
-    return jsonize(response)
-
-@csrf_exempt
-def aaron(request):
-    query = request.GET.get('query')
-    size = request.GET.get('size')
-    size = size if size else 100
-    print(f"query: {query}")
-
-    query, (results, _), _ = individual_es(
-            query, None, size=size, scroll=False)
-    query_info = query.get_info()
-    results = [group['current'][0] for group in results]
-    response = {'results': results, 'query_info': query_info}
-    return jsonize(response)
-
 
 @csrf_exempt
 def similar(request):
@@ -228,9 +204,9 @@ def similar(request):
         lsc = message['lsc']
     else:
         lsc = True
-    info = message['info']
-    gps_bounds = message['gps_bounds']
-    similar_images = get_neighbors(image, lsc, info, gps_bounds)[:500]
+    # info = message['info']
+    # gps_bounds = message['gps_bounds']
+    similar_images = get_neighbors(image, lsc)[:500]
     response = {"scenes": similar_images}
     return jsonize(response)
 
