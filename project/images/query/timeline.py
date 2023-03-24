@@ -20,9 +20,6 @@ def get_image_list(first, last):
     last = all_images.index(last)
     return [img.split('.')[0].split('/')[-1] for img in all_images[first:last+1]]
 
-def to_full_key(image):
-    return f"{image[:6]}/{image[6:8]}/{image}"
-
 # NEW LSC22
 def get_all_scenes(images):
     images = [basic_dict[image]for image in images]
@@ -76,7 +73,3 @@ def get_more_scenes(group_id, direction="top"):
                 group_results.append(
                     (group, groups[group]["location"] + "\n" + str(groups[group]["location_info"]), scenes))
     return group_results, line, space
-
-def get_full_scene(image):
-    scene_id = basic_dict[image]["scene"]
-    return [img for img in scene_segments[scene_id]]

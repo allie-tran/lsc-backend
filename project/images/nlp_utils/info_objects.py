@@ -13,8 +13,6 @@ class Location:
         self.extra = ""
         self.tree = tree_tags
         self.extract(tree_tags)
-        # self.name = ", ".join(self.name)
-        # self.extra = " ".join(self.extra)
         if self.prep == "":
             self.prep = "None"
 
@@ -105,8 +103,6 @@ class Time:
                     self.prep.append(t[0])
 
     def __repr__(self):
-        # mystr = list(map(self.func, self.prep, self.period, self.name))
-        # return ", ".join(mystr)
         return "; ".join([self.info] + self.prep + self.period + self.name)
 
 

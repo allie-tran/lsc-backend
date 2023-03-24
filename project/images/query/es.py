@@ -220,9 +220,6 @@ def construct_es(query, gps_bounds, size, scroll, K):
     # !TODO
     should_queries = []
 
-    if query.ocr:
-        should_queries.extend(query.make_ocr_query())
-
     filter_queries = {"bool": {"filter": [],
                                "should": [],
                                "must": {"match_all": {}},
@@ -380,9 +377,6 @@ def msearch(query, gps_bounds, extra_filter_scripts):
     must_queries = []
     # !TODO
     should_queries = []
-
-    if query.ocr:
-        should_queries.extend(query.make_ocr_query())
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],

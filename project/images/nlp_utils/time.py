@@ -32,7 +32,6 @@ for t in more_timeofday:
     for synonym in more_timeofday[t]:
         timeofday[synonym] = timeofday[t]
 
-
 class TimeTagger:
     def __init__(self):
         regex_lib = Constants()
