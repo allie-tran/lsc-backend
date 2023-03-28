@@ -10,10 +10,11 @@ from images.query import *
 
 import requests
 
-sessionId = None
+sessionId = "test"
 raw_results = defaultdict(lambda: [])
 last_scroll_id = None
-server = "https://vbs.videobrowsing.org"
+# server = "https://vbs.videobrowsing.org/api/v1"
+server = "http://localhost:8003/"
 
 
 def jsonize(response):
@@ -36,7 +37,7 @@ def restart(request):
 @csrf_exempt
 def login(request):
     global sessionId
-    url = f"{server}/api/v1/login/"
+    url = f"{server}/login/"
     res = requests.post(url, json={"username": "mysceal",
                                    "password": "mQFbxFf9Cx3q"})
     print(res)
@@ -57,12 +58,13 @@ def export(request):
     print(image, scene)
     for i, item in enumerate(get_submission(image, scene)):
         # OFFICIAL: UNCOMMENT TO SUBMIT
-        # url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
-        # res = requests.get(url)
-        # results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        results = []
-        with open('submissions.txt', 'a') as f:
-            f.write(f'{item}\n')
+        url = f"{server}/submit?item={item}&session={sessionId}"
+        print(url)
+        res = requests.get(url)
+        print(item, res)
+        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        # with open('submissions.txt', 'a') as f:
+        #     f.write(f'{item}\n')
     return jsonize({"description": "\n".join(results)})
 
 @csrf_exempt
@@ -77,12 +79,11 @@ def submit_all(request):
         submissions.extend(get_image_list(saved_scenes[first][0], saved_scenes[last][-1]))
     for i, item in enumerate(submissions):
         # OFFICIAL: UNCOMMENT TO SUBMIT
-        # url = f"{server}/api/v1/submit?item={item}&session={sessionId}"
-        # res = requests.get(url)
-        # results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        results = []
-        with open('submissions.txt', 'a') as f:
-            f.write(f'{item}\n')
+        url = f"{server}/submit?item={item}&session={sessionId}"
+        res = requests.get(url)
+        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
+        # with open('submissions.txt', 'a') as f:
+            # f.write(f'{item}\n')
     return jsonize({"description": "\n".join(results)})
 
     # DEBUG:
