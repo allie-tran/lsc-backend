@@ -1,22 +1,19 @@
 import json
 import re
-
 import nltk
 from nltk.corpus import stopwords
 import os
 import shelve
-import joblib
-import numpy as np
+
+FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
 
 stop_words = stopwords.words('english')
-FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
 basic_dict = json.load(open(f"{FILES_DIRECTORY}/backend/basic_dict.json"))
 locations = json.load(open(f'{FILES_DIRECTORY}/backend//locations.json'))
 map_visualisation = json.load(open(f'{FILES_DIRECTORY}/backend/map_visualisation.json'))
-# countries = ["England", "United Kingdom", "China", "Ireland", "Germany", "Greece", "Thailand", "Vietnam", "Spain", "Turkey", "Korea", "France", "Switzerland", "Australia", "Denmark", "Romania", "Norway"]
 regions = json.load(open(f'{FILES_DIRECTORY}/backend/regions.json'))
 countries = json.load(open(f'{FILES_DIRECTORY}/backend/countries.json'))
-all_keywords = json.load(open(f'{FILES_DIRECTORY}/backend/all_keywords.json'))
+lowercase_countries = {country.lower(): country for country in countries}
 
 def find_regex(regex, text, escape=False):
     regex = re.compile(regex, re.IGNORECASE + re.VERBOSE)

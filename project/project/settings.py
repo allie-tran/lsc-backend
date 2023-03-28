@@ -73,19 +73,13 @@ WSGI_APPLICATION = 'project.wsgi.application'
 
 # # Database
 # # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
-# DATABASES = {'default': {'ENGINE': 'django.db.backends.mysql',
-#                          'NAME': 'test',
-#                          'HOST': 'mongodb+srv://alie:mrF6V4p32aOEayJX@user1-ielbg.mongodb.net/test?retryWrites=true&w=majority', }}
-# #
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.mysql',
-#         'NAME': 'polls',
-#         'USER': '<your-database-user>',
-#         'PASSWORD': '<your-database-password>',
-#         'PORT': '3306',
-#     }
-# }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+    }
+}
+
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators

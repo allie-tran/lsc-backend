@@ -1,20 +1,24 @@
 import json
 import os
 from .utils import *
-from ..nlp_utils.common import FILES_DIRECTORY, basic_dict
+from ..nlp_utils.common import basic_dict
 
 TIMELINE_SPAN = 9  # If they want more, submit more
-groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
-scene_segments = {}
-for group_name in groups:
-    for scene_name, images in groups[group_name]["scenes"]:
-        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
-        scene_segments[scene_name] = images
-time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
+def get_submission(image, scene):
+    submissions = []
+    if scene:
+        images = scene_segments[basic_dict[image]["scene"]]
+        for img in images:
+            submissions.append(img.split('.')[0].split('/')[-1])
+    else:
+        submissions.append(image.split('.')[0].split('/')[-1])
+    return submissions
 
-def to_full_key(image):
-    return f"{image[:6]}/{image[6:8]}/{image}"
+def get_image_list(first, last):
+    first = all_images.index(first)
+    last = all_images.index(last)
+    return [img.split('.')[0].split('/')[-1] for img in all_images[first:last+1]]
 
 # NEW LSC22
 def get_all_scenes(images):
@@ -42,7 +46,7 @@ def get_all_scenes(images):
                     space += 1
                     line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
-                    (group, groups[group]["location"], scenes))
+                    (group, groups[group]["location"] + "\n" + str(groups[group]["location_info"]), scenes))
 
     print("Line:", line, ", scene_id", scene_id)
     return group_results, line, space, scene_id
@@ -67,9 +71,5 @@ def get_more_scenes(group_id, direction="top"):
                 space += 1
                 line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
-                    (group, groups[group]["location"], scenes))
+                    (group, groups[group]["location"] + "\n" + str(groups[group]["location_info"]), scenes))
     return group_results, line, space
-
-def get_full_scene(image):
-    scene_id = basic_dict[image]["scene"]
-    return [img for img in scene_segments[scene_id]]

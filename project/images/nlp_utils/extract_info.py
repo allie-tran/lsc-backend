@@ -1,49 +1,34 @@
-from gensim.models.phrases import Phraser
-from gensim.models import Word2Vec
-from scipy.spatial.distance import cosine
-from nltk import pos_tag
 from collections import defaultdict
 from ..nlp_utils.common import *
-from ..nlp_utils.pos_tag import *
 from ..nlp_utils.time import *
-import numpy as np
-init_tagger = Tagger(locations)
 time_tagger = TimeTagger()
-e_tag = ElementTagger()
 
-def process_for_ocr(text):
-    final_text = defaultdict(lambda : defaultdict(float))
-    for word in text:
-        final_text[word][word] = 1
-        for i in range(0, len(word)-1):
-            if len(word[:i+1]) > 1:
-                final_text[word][word[:i+1]] += (i+1) / len(word)
-            if len(word[i+1:]) > 1:
-                final_text[word][word[i+1:]] += 1 - (i+1)/len(word)
-    return final_text
+def filter_locations(location):
+    if location in ["", "the house", "restaurant"]:
+        return False
+    return True
 
 def search(wordset, text):
     results = []
     text = " " + text + " "
     for keyword in wordset:
-        if keyword:
-            if " " + keyword + " " in text:
-                results.append(keyword)
-            # if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
-                # results.append(keyword)
+        if filter_locations(keyword):
+            if keyword:
+                if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+                    results.append(keyword)
     return results
 
 # Partial match only
 def search_possible_location(text):
     results = []
     for location in locations:
-        for i, extra in enumerate(locations[location]):
-            if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                if extra not in results:
-                    results.append(location)
+        if filter_locations(location):
+            for i, extra in enumerate(locations[location]):
+                if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
+                    if extra not in results:
+                        results.append(location)
     return results
 
-# gps_location_sets = {location: set([pl for pl in location.lower().replace(',', ' ').split() if pl not in stop_words]) for location, gps in map_visualisation}
 gps_not_lower = {}
 for loc in locations:
     for origin_doc, (lat, lon) in map_visualisation:
@@ -69,18 +54,14 @@ class Query:
             text = text.replace("—disable_location", "")
         if "NOT" in text:
             text, self.negative = text.split("NOT")
-            self.negative = self.negative.strip(". \n").lower()
-            self.negative = [word for word in self.negative.split() if word in all_keywords]
         text = text.strip(". \n").lower()
         self.time_filters = None
         self.date_filters = None
-        self.driving = False
-        self.on_airplane = False
-        self.ocr_queries = []
         self.location_queries = []
         self.query_visualisation = defaultdict(list)
         self.location_filters = []
         self.country_to_visualise = []
+        self.clip_embedding = None
         self.extract_info(text, shared_filters)
 
     def extract_info(self, text, shared_filters=None):
@@ -88,19 +69,9 @@ class Query:
             return search(wordset, text)
         self.original_text = text
 
-        quoted_text = " ".join(re.findall(r'\"(.+?)\"', text))
-        text = text.replace(f'"{quoted_text}"', "")
-        if "driving" in text:
-            self.driving = True
-            text = text.replace("driving", "")
-        if "on airplane" in text:
-            self.on_airplane = True
-            # text = text.replace("on airplane", "")
-
-        self.ocr = process_for_ocr(quoted_text.split())
-
         if not self.disable_location:
             self.locations = search_words(locations)
+            print("Locations:", self.locations)
             self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
             if self.locations:
                 self.query_visualisation["LOCATION"].extend(self.locations)
@@ -112,8 +83,6 @@ class Query:
             self.locations = []
             self.place_to_visualise = []
 
-
-        print("Locations:", self.locations)
         for loc in self.locations:
             text = rreplace(text, loc, "", 1) #TODO!
 
@@ -124,12 +93,11 @@ class Query:
 
         for reg in self.regions:
             self.query_visualisation["REGION"].append(reg)
-            for country in countries:
-                if reg == country.lower():
-                    self.country_to_visualise.append({"country": country, "geojson": countries[country]})
+            if reg in lowercase_countries:
+                country = lowercase_countries[reg]
+                self.country_to_visualise.append({"country": country, "geojson": countries[country]})
         for region in self.regions:
             text = rreplace(text, region, "", 1) #TODO!
-
 
         # processed = set([w.strip(",.") for word in self.regions +
                         #  self.locations for w in word.split()])
@@ -210,7 +178,6 @@ class Query:
                 else:
                     print(
                         word, f"is not a registered time of day ({timeofday})")
-        print(processed)
         print(tags)
         if shared_filters:
             if not self.weekdays:
@@ -232,7 +199,6 @@ class Query:
                 [word for word, tag in unprocessed])
         self.clip_text = self.clip_text.strip(", ")
         print("CLIP:", self.clip_text)
-        # self.query_visualisation[self.clip_text] = "CLIP"
 
     def get_info(self):
         return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],
@@ -273,20 +239,6 @@ class Query:
             if str(self.dates) != "None":
                 self.query_visualisation["DATE"] = [str(self.dates)]
         return self.time_filters, self.date_filters
-
-    def make_ocr_query(self):
-        if not self.ocr_queries:
-            self.ocr_queries = []
-            for ocr_word in self.ocr:
-                dis_max = []
-                for ocr_word, score in self.ocr[ocr_word].items():
-                    dis_max.append(
-                        {"rank_feature": {"field": f"ocr_score.{ocr_word}", "boost": 200 * score, "linear": {}}})
-                self.ocr_queries.append({"dis_max": {
-                    "queries": dis_max,
-                    "tie_breaker": 0.0}})
-        return self.ocr_queries
-        #TODO: multiple word in OCR
 
     def make_location_query(self):
         if not self.location_filters:

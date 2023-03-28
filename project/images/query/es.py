@@ -2,20 +2,15 @@ from .query_types import *
 from .timeline import time_info
 from .utils import *
 from ..nlp_utils.extract_info import Query
-from ..nlp_utils.common import countries, map_visualisation, basic_dict
 from datetime import timedelta, datetime
 import time as timecounter
 from collections import defaultdict
 import copy
 import pandas as pd
 import numpy as np
-from clip import clip
-import joblib
-from torch import torch
+from .common_nn import *
 
 multiple_pairs = {}
-INCLUDE_SCENE = ["scene"]
-INCLUDE_FULL_SCENE = ["current", "begin_time", "end_time", "gps", "scene", "group", "timestamp", "location"]
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 cached_queries = None
@@ -23,32 +18,22 @@ cached_filters =  {"bool": {"filter": [],
                                "should": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
+cached_embeddings = None
 
 # format_func = format_single_result # ntcir
 format_func = group_results
+INDEX = "lsc2023"
 
-# CLIP
-device = "cuda" if torch.cuda.is_available() else "cpu"
-clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
-
-def clip_query(main_query):
-    with torch.no_grad():
-        text_encoded = clip_model.encode_text(
-            clip.tokenize(main_query).to(device))
-        text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
-    text_features = text_encoded.cpu().numpy()
-    return text_features
 
 def query_all(query, includes, index, group_factor):
-    query = {"match_all": {}}
     request = {
         "size": 2000,
         "_source": {
             "includes": includes
         },
-        "query": query,
+        "query": {"match_all": {}},
         "sort": [
-            {"time": {
+            {"timestamp": {
                 "order": "asc"
             }}
         ]
@@ -85,7 +70,7 @@ def es_more(scroll_id, size=200):
                                 "must_not": []}}
         # CONSTRUCT JSON
         json_query = get_json_query(must_queries, should_queries, filter_queries, size, includes=INCLUDE_IMAGE)
-        results, _ = post_request(json.dumps(json_query), "lsc2022", scroll=False)
+        results, _ = post_request(json.dumps(json_query), INDEX, scroll=False)
         print("Num Results:", len(results))
         results, scores = format_func(results, 'scene', 0)
         print("TOTAL TIMES:", timecounter.time() - start, " seconds.")
@@ -96,7 +81,6 @@ def es_more(scroll_id, size=200):
 def es(query, gps_bounds, size=200, share_info=False):
     start = timecounter.time()
     query_info = {}
-    raw_results = []
     scroll_id = None
     if query["before"] and query["after"]:
         query, before_query, after_query, (results, scores), scroll_id = es_three_events(
@@ -173,8 +157,6 @@ def get_json_query(must_queries, should_queries, filter_queries, size, includes,
 def get_neighbors(image, lsc, query_info, gps_bounds):
     if lsc:
         global cached_filters
-        # print("Using cached filters")
-        # print(cached_filters)
         filter_queries = copy.deepcopy(cached_filters)
     else:
         filter_queries = []
@@ -183,7 +165,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
                 "vec": {                               # 2
-                    "index": "lsc2022",
+                    "index": INDEX,
                     "field": "clip_vector",
                     "id": image
                 },
@@ -196,7 +178,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
     json_query = get_json_query([should_queries], [], filter_queries, 40,
                 includes=["image_path", "group", "location", "weekday", "time"])
 
-    results, _ = post_request(json.dumps(json_query), "lsc2022")
+    results, _ = post_request(json.dumps(json_query), INDEX)
     new_results = dict([(r[0]["image_path"], r[0]) for r in results])
 
     grouped_results = defaultdict(lambda: [])
@@ -220,7 +202,7 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
         query = Query(query)
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022", group_factor)
+        return query_all(query, INCLUDE_IMAGE, INDEX, group_factor)
     return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
 
 
@@ -229,11 +211,6 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     must_queries = []
     # !TODO
     should_queries = []
-    is_empty = True
-
-    if query.ocr:
-        should_queries.extend(query.make_ocr_query())
-        is_empty = False
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],
@@ -248,43 +225,34 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
             # should_queries.append(location_query)
         filter_queries["bool"]["should"].extend(location_filters)
         filter_queries["bool"]["should"].append({"match": {"location": {"query": " ".join(query.locations), "boost": 0.01}}})
-        is_empty = False
 
     # FILTERS
     if query.regions:
-        is_empty = False
         filter_queries["bool"]["filter"].extend([{"term": {"region": region}} for region in query.regions])
     if query.weekdays:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
         if query.start[0] != 0 and query.end[0] != 24:
-            is_empty = False
             filter_queries["bool"]["filter"].append(time_filters)
 
     if date_filters:
-        is_empty = False
         filter_queries["bool"]["filter"].extend(date_filters)
 
     if gps_bounds:
-        is_empty = False
         filter_queries["bool"]["filter"].append(get_gps_filter(gps_bounds))
-
     clip_script = None
     if query.clip_text:
-        embedding = clip_query(query.clip_text)
-        # clip_script = {
-        #     "source": "((doc['clip_vector'].size() == 0 ? 0 : cosineSimilarity(params.embedding, 'clip_vector')) + 1) * 100 + _score",
-        #     # "source": "(cosineSimilarity(params.embedding, doc['clip_vector']) + 1) * 100 + _score",
-        #     "params": {"embedding": embedding.tolist()[0]}
-        # }
+        query.clip_embedding = encode_query(query.clip_text)
+        if scroll:
+            global cached_embeddings
+            cached_embeddings = query.clip_embedding
         clip_script = {
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                     # 1
                 "vec": {                               # 2
-                    "values": embedding.tolist()[0]
+                    "values": query.clip_embedding.tolist()[0]
                 },
                 "model": "exact",            # 3
                 "similarity": "cosine",                # 4
@@ -296,8 +264,6 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     if scroll:
         global cached_filters
         cached_filters = filter_queries
-        if filter_queries["bool"]["should"] or filter_queries["bool"]["filter"]:
-            is_empty = False
 
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries,
@@ -305,7 +271,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     global cached_queries
     cached_queries = (must_queries, should_queries)
     results, scroll_id = post_request(
-        json.dumps(json_query), "lsc2022", scroll=True)
+        json.dumps(json_query), INDEX, scroll=True)
     print("Num Images:", len(results))
     # print([r[1] for r in results])
     return query, format_func(results, group_factor), scroll_id
@@ -317,15 +283,12 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         start = timecounter.time()
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "lsc2022")
+        return query_all(query, INCLUDE_IMAGE, INDEX)
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
     # !TODO
     should_queries = []
-
-    if query.ocr:
-        should_queries.extend(query.make_ocr_query())
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],
@@ -363,12 +326,12 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
 
     clip_script = None
     if query.clip_text:
-        embedding = clip_query(query.clip_text)
+        query.clip_embedding = encode_query(query.clip_text)
         clip_script = {
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
                 "vec": {                               # 2
-                    "values": embedding.tolist()[0]
+                    "values": query.clip_embedding.tolist()[0]
                 },
                 "model": "exact",            # 3
                 "similarity": "cosine",                # 4
@@ -385,7 +348,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         mquery.append(json.dumps(get_json_query(
             must_queries, should_queries, new_filter_queries, 1, INCLUDE_IMAGE, min_score=2.2 if query.clip_text else 0.2)))
 
-    results = post_mrequest("\n".join(mquery) + "\n", "lsc2022")
+    results = post_mrequest("\n".join(mquery) + "\n", INDEX)
     return query, results
 
 
@@ -403,15 +366,14 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds):
     max_score = scores[0] if scores else 1
     for event in main_events:
         if condition == "before":
-            start_time = event["begin_time"] - time_limit
-            end_time = event["begin_time"]
+            start_time = event["start_time"] - time_limit
+            end_time = event["start_time"]
         elif condition == "after":
             start_time = event["end_time"]
             end_time = event["end_time"] + time_limit
 
         extra_filter_scripts.append(create_time_range_query(
             start_time.timestamp(), end_time.timestamp()))
-
     print("Results:", len(main_events))
     print("Time:", timecounter.time() - start, "seconds.")
     print("-" * 80)
@@ -533,7 +495,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
             start_time.timestamp(), end_time.timestamp()))
 
     after_query, after_events = msearch(
-        after_query, gps_bounds=gps_bound if share_info else None, extra_filter_scripts=extra_filter_scripts)
+        after_query, gps_bounds=gps_bounds if share_info else None, extra_filter_scripts=extra_filter_scripts)
 
     pair_events = []
     max_score1 = max([s1 for s1, s2 in total_scores])
@@ -549,7 +511,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
             pair_events.append((pair_event, s1, s2, s3))
 
     after_query, (_, scores), _ = individual_es(
-        after_query, gps_bounds=gps_bound if share_info else None, size=1, group_factor="scene")
+        after_query, gps_bounds=gps_bounds if share_info else None, size=1, group_factor="scene")
     max_score3 = scores[0]
 
     pair_events = sorted([(event, s1/max_score1 + s2/max_score2 + s3/max_score3)

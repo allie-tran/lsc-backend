@@ -5,19 +5,21 @@ from datetime import datetime, timedelta
 import numpy as np
 import geopy.distance
 import requests
-from ..nlp_utils.common import cache, basic_dict
+from ..nlp_utils.common import cache, basic_dict, FILES_DIRECTORY
 
 all_images = list(basic_dict.keys())
+groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
+scene_segments = {}
+for group_name in groups:
+    for scene_name, images in groups[group_name]["scenes"]:
+        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
+        scene_segments[scene_name] = images
+time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
 def get_dict(image):
     if "/" not in image:
         image = f"{image[:6]}/{image[6:8]}/{image}"
     return basic_dict[image]
-
-@cache
-def get_info(image):
-    time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
-    return time.strftime("%A, %d %B %Y, %I:%M%p")
 
 @cache
 def get_date_info(image):
@@ -26,32 +28,6 @@ def get_date_info(image):
 
 def get_location(image):
     return get_dict(image)["location"]
-
-
-
-
-def distance(lt1, ln1, lt2, ln2):
-    return (geopy.distance.distance([lt1, ln1], [lt2, ln2]).km)
-
-
-def not_noise(last_gps, current_gps):
-    """Assume 30secs"""
-    print(distance(last_gps["lat"], last_gps["lon"],
-                   current_gps["lat"], current_gps["lon"]))
-    return distance(last_gps["lat"], last_gps["lon"],
-                    current_gps["lat"], current_gps["lon"]) < 0.03
-
-
-def filter_sorted_gps(gps_points):
-    if gps_points:
-        points = [gps_points[0]]
-        for point in gps_points[1:]:
-            if not_noise(points[-1], point):
-                points.append(point)
-        print(len(gps_points), len(points))
-        return points
-    return []
-
 
 def get_gps(images):
     if images:
@@ -62,12 +38,7 @@ def get_gps(images):
         return sorted_by_time
     return []
 
-def delete_scroll_ids(scroll_ids):
-    response = requests.delete(
-            f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"}, data=json.dumps({"scroll_id": scroll_ids}))
-    assert response.status_code == 200, f"Wrong request ({response.status_code})"
-
-def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
+def post_request(json_query, index, scroll=False):
     headers = {"Content-Type": "application/json"}
     response = requests.post(
         f"http://localhost:9200/{index}/_search{'?scroll=5m' if scroll else ''}", headers=headers, data=json_query)
@@ -91,7 +62,7 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
     return id_images, scroll_id
 
 
-def post_mrequest(json_query, index="lsc2019_combined_text_bow"):
+def post_mrequest(json_query, index):
     headers = {"Content-Type": "application/x-ndjson"}
     response = requests.post(
         f"http://localhost:9200/{index}/_msearch", headers=headers, data=json_query)
