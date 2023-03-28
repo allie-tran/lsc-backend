@@ -97,7 +97,6 @@ def group_scene_results(results, factor="group"):
             group = result[0]["group"]
             grouped_results[group].append(result)
 
-        # if factor == "scene":
         results_with_info = []
         scores = []
         for scenes_with_scores in grouped_results.values():
@@ -116,6 +115,7 @@ def group_scene_results(results, factor="group"):
                 "start_time": scenes[0]["start_time"],
                 "end_time": scenes[-1]["end_time"],
                 "location": scenes[0]["location"] + "\n" + \
+                            scenes[0]["country"].capitalize() + "\n" + \
                             datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d"),
                 "group": scenes[0]["group"],
                 "scene": scenes[0]["scene"]})

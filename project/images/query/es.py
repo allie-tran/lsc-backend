@@ -15,7 +15,7 @@ cluster = OPTICS(min_samples=2, max_eps=0.9, metric='cosine')
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["images", "start_time", "end_time", "gps",
-                      "scene", "group", "timestamp", "location", "cluster_images", "weights"]
+                      "scene", "group", "timestamp", "location", "cluster_images", "weights", "country"]
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 cached_queries = None
@@ -299,12 +299,14 @@ def organise_based_on_similarities(K, embedding, scene_results, cluster_scores):
 
     final_scenes = []
     for i, scene in enumerate(scene_results):
-            # image_features = photo_features[np.array([image_to_id[image] for image in scene[key]])]
-        scene["gps"] = get_gps(scene[key])
+        # Extra information
+        scene = extra_info(key, scene)
+        
+        # Arrange
         cluster_score = cluster_scores[scene["group"]]
         logit_scale = len(scene[key]) ** 0.5
             
-            # Filter
+        # Filter
         weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score[image]
                             for image in scene[key]])).round(2)
         scene[key] = arrange_scene(K, scene, weights, key)
@@ -313,6 +315,11 @@ def organise_based_on_similarities(K, embedding, scene_results, cluster_scores):
             del scene[key]
         final_scenes.append(scene)
     return final_scenes
+
+def extra_info(key, scene):
+    scene["gps"] = get_gps(scene[key])
+    # scene["location"] = scene["location"] + "\n" + scene["country"]
+    return scene
 
 def remove_duplications(scene_results):
     cluster_scores = defaultdict(lambda: defaultdict(float))
@@ -485,12 +492,13 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds, 
         cond_events, cond_scores = group_scene_results(events, 'group')
         new_scenes = []
         for scene, cluster_score in zip(cond_events, cond_scores):
-            scene["gps"] = get_gps(scene[key])
+            # Extra information
+            scene = extra_info(key, scene)
             logit_scale = len(scene[key]) ** 0.5
             # Filter
             weights = softmax(np.array([image_scores[image] * logit_scale * cluster_score
                             for image in scene[key]])).round(2)
-            scene[key] = arrange_scene(K if reverse else K-1, scene, weights, key) 
+            scene[key] = arrange_scene(K if reverse else K-1, scene, weights, key)
             new_scenes.append((scene, cluster_score))
         new_events.append(new_scenes)
     conditional_events = new_events
