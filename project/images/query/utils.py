@@ -158,7 +158,7 @@ def format_single_result(results, factor="dummy", group_more_by=0):
         scores.append(score)
         results_with_info.append({
             "current": [result["image_path"]],
-            "begin_time": result["time"],
+            "start_time": result["time"],
             "end_time": result["time"],
             "group": result["group"],
             "scene": result["scene"]})
