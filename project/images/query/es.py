@@ -10,7 +10,7 @@ from torch import torch
 
 multiple_pairs = {}
 INCLUDE_IMAGE = ["path", "date", "group", "scene", "person", "visit", "time", "date_identifier", "hour", "minute"]
-
+INDEX = "deakin"
 cached_queries = None
 cached_filters =  {"bool": {"filter": [],
                                "should": [],
@@ -21,7 +21,7 @@ time_info = json.load(open(f"{FILE_DIRECTORY}/time_info.json"))
 format_func = format_single_result # ntcir
 # format_func = group_results
 # CLIP
-device = "cuda" #  if torch.cuda.is_available() else "cpu"
+device = "cpu" #  if torch.cuda.is_available() else "cpu"
 print("Loading CLIP on", device)
 clip_model = None
 clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
@@ -36,20 +36,19 @@ def clip_query(main_query):
     return text_features
 
 def query_all(query, includes, index, group_factor):
-    query = {"match_all": {}}
     request = {
         "size": 2000,
         "_source": {
             "includes": includes
         },
-        "query": query,
+        "query": {"match_all": {}},
         "sort": [
             {"date": {
                 "order": "asc"
             }}
         ]
     }
-    return query_text, format_func(post_request(json.dumps(request), index), group_factor)
+    return query, format_func(post_request(json.dumps(request), index), group_factor)
 
 
 def es_more(scroll_id, size=200):
@@ -81,7 +80,7 @@ def es_more(scroll_id, size=200):
                                 "must_not": []}}
         # CONSTRUCT JSON
         json_query = get_json_query(must_queries, should_queries, filter_queries, size, includes=INCLUDE_IMAGE)
-        results, *_ = post_request(json.dumps(json_query), "deakin2", scroll=False)
+        results, *_ = post_request(json.dumps(json_query), INDEX, scroll=False)
         print("Num Results:", len(results))
         results, scores = format_func(results, 'scene', 0)
         print("TOTAL TIMES:", timecounter.time() - start, " seconds.")
@@ -207,7 +206,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
             "elastiknn_nearest_neighbors": {
                 "field": "clip_vector",                # 1
                 "vec": {                               # 2
-                    "index": "deakin2",
+                    "index": INDEX,
                     "field": "clip_vector",
                     "id": image
                 },
@@ -220,7 +219,7 @@ def get_neighbors(image, lsc, query_info, gps_bounds):
     json_query = get_json_query([should_queries], [], filter_queries, 40,
                 includes=["path", "group", "date", "person", "visit"])
 
-    results, *_ = post_request(json.dumps(json_query), "deakin2")
+    results, *_ = post_request(json.dumps(json_query), INDEX)
     new_results = dict([(r[0]["path"], r[0]) for r in results])
 
     grouped_results = defaultdict(lambda: [])
@@ -242,7 +241,7 @@ def individual_es(query, gps_bounds=None, extra_filter_scripts=None, group_facto
         query = Query(query)
 
     if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "deakin2", group_factor)
+        return query_all(query, INCLUDE_IMAGE, INDEX, group_factor)
     return construct_es(query, gps_bounds, extra_filter_scripts, group_factor, size=size, scroll=scroll)
 
 
@@ -251,7 +250,6 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     must_queries = []
     # !TODO
     should_queries = []
-    is_empty = True
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],
@@ -259,32 +257,26 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
                                "must_not": []}}
 
     if query.weekdays:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"weekday": query.weekdays}})
 
     if query.persons:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"person": query.persons}})
 
     if query.folders:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"folder": query.folders}})
 
     if query.visits:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"visit_without_cam": query.visits}})
 
     if time_filters:
         if query.start[0] != 0 or query.end[0] != 24:
-            is_empty = False
             filter_queries["bool"]["filter"].append(time_filters)
 
     if date_filters:
-        is_empty = False
         filter_queries["bool"]["filter"].extend(date_filters)
 
     clip_script = None
@@ -306,8 +298,6 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     if scroll:
         global cached_filters
         cached_filters = filter_queries
-        if filter_queries["bool"]["should"] or filter_queries["bool"]["filter"]:
-            is_empty = False
 
     # CONSTRUCT JSON
     json_query = get_json_query(must_queries, should_queries,
@@ -315,7 +305,7 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
     global cached_queries
     cached_queries = (must_queries, should_queries)
     results, scroll_id, aggs = post_request(
-        json.dumps(json_query), "deakin2", scroll=True)
+        json.dumps(json_query), INDEX, scroll=True)
     print("Num Images:", len(results))
     # print([r[1] for r in results])
     return query, format_func(results, group_factor), aggs, scroll_id
@@ -325,48 +315,37 @@ def construct_es(query, gps_bounds=None, extra_filter_scripts=None, group_factor
 def msearch(query, gps_bounds=None, extra_filter_scripts=None):
     if isinstance(query, str):
         query = Query(query)
-        start = timecounter.time()
-
-    if not query.original_text and not gps_bounds:
-        return query_all(query, INCLUDE_IMAGE, "deakin2", group_factor)
 
     time_filters, date_filters = query.time_to_filters()
     must_queries = []
     # !TODO
     should_queries = []
-    is_empty = True
 
     filter_queries = {"bool": {"filter": [],
                                "should": [],
                                "must": {"match_all": {}},
                                "must_not": []}}
     if query.persons:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"person": query.persons}})
 
     if query.folders:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"folder": query.folders}})
 
     if query.visits:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"visit_without_cam": query.visits}})
 
     if query.weekdays:
-        is_empty = False
         filter_queries["bool"]["filter"].append(
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
         if query.start[0] != 0 or query.end[0] != 24:
-            is_empty = False
             filter_queries["bool"]["filter"].append(time_filters)
 
     if date_filters:
-        is_empty = False
         filter_queries["bool"]["filter"].extend(date_filters)
 
     clip_script = None
@@ -393,7 +372,7 @@ def msearch(query, gps_bounds=None, extra_filter_scripts=None):
         mquery.append(json.dumps(get_json_query(
             must_queries, should_queries, new_filter_queries, 1, INCLUDE_IMAGE, min_score=2.2 if query.clip_text else 0.2)))
 
-    results = post_mrequest("\n".join(mquery) + "\n", "deakin2")
+    results = post_mrequest("\n".join(mquery) + "\n", INDEX)
     return query, results
 
 
@@ -543,7 +522,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
             start_time.timestamp(), end_time.timestamp()))
 
     after_query, after_events = msearch(
-        after_query, gps_bounds=gps_bound if share_info else None, extra_filter_scripts=extra_filter_scripts)
+        after_query, gps_bounds=gps_bounds if share_info else None, extra_filter_scripts=extra_filter_scripts)
 
     pair_events = []
     max_score1 = max([s1 for s1, s2 in total_scores])
@@ -559,7 +538,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
             pair_events.append((pair_event, s1, s2, s3))
 
     after_query, (_, scores), *_ = individual_es(
-        after_query, gps_bounds=gps_bound if share_info else None, size=1, group_factor="scene")
+        after_query, gps_bounds=gps_bounds if share_info else None, size=1, group_factor="scene")
     max_score3 = scores[0]
 
     pair_events = sorted([(event, s1/max_score1 + s2/max_score2 + s3/max_score3)

@@ -92,7 +92,6 @@ def post_request(json_query, index="lsc2019_combined_text_bow", scroll=False):
     else:
         print(f'Response status {response.status_code}')
         print(response.text)
-
     if not id_images:
         with open("request.log", "a") as f:
             f.write(json_query + '\n')

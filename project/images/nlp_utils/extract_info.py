@@ -177,10 +177,10 @@ class Query:
             self.time_filters = {
                                     "range":
                                     {
-                                        "hour":
+                                        "seconds_from_midnight":
                                         {
-                                            "gte": self.start[0],
-                                            "lte": self.end[0]
+                                            "gte": self.start[0] * 3600 + self.start[1] * 60,
+                                            "lte": self.end[0] * 3600 + self.end[1] * 60
                                         }
                                     }
                                 }
@@ -198,7 +198,7 @@ class Query:
                     self.date_filters.append(
                         {"term": {"day": str(d).rjust(2, "0")}})
             if self.start[0] != 0 or self.end[0] != 24:
-                self.query_visualisation["TIME"] = [f"{self.start[0]}:00 - {self.end[0]}:00"]
+                self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
             if str(self.dates) != "None":
                 self.query_visualisation["DATE"] = [str(self.dates)]
         return self.time_filters, self.date_filters
