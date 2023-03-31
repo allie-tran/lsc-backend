@@ -39,6 +39,18 @@ def rreplace(s, old, new, occurrence):
     li = s.rsplit(old, occurrence)
     return new.join(li)
 
+def range_filter(start, end, field):
+    return {
+            "range":
+            {
+                field:
+                {
+                    "gte": start,
+                    "lte": end
+                }
+            }
+        }
+
 class Query:
     def __init__(self, text, shared_filters=None):
         self.negative = ""
@@ -117,7 +129,7 @@ class Query:
         #         self.query_visualisation["POSSIBLE LOCATION"].append(loc)
 
         self.weekdays = []
-        self.dates = None
+        self.dates = []
         self.start = (0, 0)
         self.end = (24, 0)
 
@@ -138,7 +150,7 @@ class Query:
                 self.end = adjust_start_end("end", self.end, *am_pm_to_num(e))
             elif tag == "TIME":
                 if word in ["2015", "2016", "2018", "2019", "2020"]:
-                    self.dates = get_day_month(word)
+                    self.dates.append(get_day_month(word))
                 else:
                     timeprep = ""
                     if i > 1 and tags[i-1][1] == 'TIMEPREP':
@@ -155,7 +167,7 @@ class Query:
                             "start", self.start, h - 1, m)
                         self.end = adjust_start_end("end", self.end, h + 1, m)
             elif tag == "DATE":
-                self.dates = get_day_month(word)
+                self.dates.append(get_day_month(word))
             elif tag == "TIMEOFDAY":
                 if word not in ["lunch", "breakfast", "dinner", "sunrise", "sunset"]:
                     processed.add(word)
@@ -197,6 +209,19 @@ class Query:
         else:
             self.clip_text = " ".join(
                 [word for word, tag in unprocessed])
+            
+        # Remove ending words that are stop words from clip_text
+        def strip_stopwords(sentence):
+            if sentence:
+                words = sentence.split()
+                for i in reversed(range(len(words))):
+                    if words[i].lower() in stop_words:
+                        words.pop(i)
+                    else:
+                        break
+                return " ".join(words)
+            return ""
+        self.clip_text = strip_stopwords(self.clip_text)
         self.clip_text = self.clip_text.strip(", ")
         print("CLIP:", self.clip_text)
 
@@ -213,86 +238,49 @@ class Query:
             print(self.start, self.end, s, e)
             if s <= e:
                 # OR (should queries)
-                self.time_filters = [{
-                                        "range":
-                                        {
-                                            "start_seconds_from_midnight":
-                                            {
-                                                "gte": s,
-                                                "lte": e
-                                            }
-                                        }
-                                    },
-                                    {
-                                        "range":
-                                        {
-                                            "end_seconds_from_midnight":
-                                            {
-                                                "gte": s,
-                                                "lte": e
-                                            }
-                                        }
-                                    }]
+                self.time_filters = [range_filter(s, e, "start_seconds_from_midnight"),
+                                     range_filter(s, e, "end_seconds_from_midnight")]
             else: # either from midnight to end or from start to midnight
-                self.time_filters = [
-                    {
-                        "range":
-                        {
-                            "start_seconds_from_midnight":
-                            {
-                                "gte": 0, # midnight
-                                "lte": e
-                            }
-                        }
-                    },
-                    {
-                        "range":
-                        {
-                            "end_seconds_from_midnight":
-                            {
-                                "gte": 0, # midnight
-                                "lte": e
-                            }
-                        }
-                    },
-                    {
-                        "range":
-                        {
-                            "start_seconds_from_midnight":
-                            {
-                                "gte": s,
-                                "lte": 24 * 3600, # midnight
-                            }
-                        }
-                    },
-                     {
-                        "range":
-                        {
-                            "end_seconds_from_midnight":
-                            {
-                                "gte": s,
-                                "lte": 24 * 3600, # midnight
-                            }
-                        }
-                    }
-                ]
-
+                self.time_filters = [range_filter(0, e, "start_seconds_from_midnight"),
+                                     range_filter(0, e, "end_seconds_from_midnight"),
+                                     range_filter(s, 24 * 3600, "start_seconds_from_midnight"),
+                                     range_filter(s, 24 * 3600, "end_seconds_from_midnight")]
+            # combine the date filters using a bool should clause
+            self.time_filters = {"bool": {"should": self.time_filters, "minimum_should_match": 1}}
             # Date
+            # create a list to store the date filters
             self.date_filters = []
             if self.dates:
-                y, m, d = self.dates
-                if y:
-                    self.date_filters.append({"term": {"year": str(y)}})
-                if m:
-                    self.date_filters.append(
-                        {"term": {"month": str(m).rjust(2, "0")}})
-                if d:
-                    self.date_filters.append(
-                        {"term": {"date": str(d).rjust(2, "0")}})
-            if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[0] != 0:
+                for date in self.dates:
+                    y, m, d = date
+                    ymd_filter = []
+                    # date format in database is yyyy/MM/dd HH:mm:00Z
+                    if y and m and d:
+                        date_string = f"{y}/{m:02d}/{d:02d}"
+                        ymd_filter = {"term": {"date": date_string}}
+                    elif y and m:
+                        date_string = f"{m:02d}/{y}"
+                        ymd_filter = {"term": {"month_year": date_string}}
+                    elif y and d:
+                        date_string = f"{d:02d}/{y}"
+                        ymd_filter = {"term": {"day_year": date_string}}
+                    elif m and d:
+                        date_string = f"{d:02d}/{m:02d}"
+                        ymd_filter = {"term": {"day_month": date_string}}
+                    elif y:
+                        ymd_filter = {"term": {"year": y}}
+                    elif m:
+                        ymd_filter = {"term": {"month": f"{m:02d}"}}
+                    elif d:
+                        ymd_filter = {"term": {"day": f"{d:02d}"}}
+                    self.date_filters.append(ymd_filter)
+                # combine the date filters using a bool should clause
+                self.date_filters = {"bool": {"should": self.date_filters, "minimum_should_match": 1}}
+                
+            if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[1] != 0:
                 self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
-            if str(self.dates) != "None":
-                self.query_visualisation["DATE"] = [str(self.dates)]
+            if self.dates:
+                self.query_visualisation["DATE"] = ["/".join([str(x) for x in date][::-1]) for date in self.dates]
         return self.time_filters, self.date_filters
 
     def make_location_query(self):

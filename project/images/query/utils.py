@@ -55,7 +55,6 @@ def post_request(json_query, index, scroll=False):
         print(response.text)
         id_images = []
         scroll_id = None
-
     if not id_images:
         with open("request.log", "a") as f:
             f.write(json_query + '\n')
@@ -110,14 +109,16 @@ def group_scene_results(results, factor="group"):
             scenes = new_scenes
             scenes = sorted(scenes, key=lambda x: x["start_time"])
             scores.append(score)
-            results_with_info.append({
+            new_scene = {
                 "current": [image for scene in scenes for image in scene["images"]],
                 "start_time": scenes[0]["start_time"],
                 "end_time": scenes[-1]["end_time"],
                 "location": scenes[0]["location"] + "\n" + \
                             scenes[0]["country"].capitalize() + "\n" + \
-                            datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d"),
-                "group": scenes[0]["group"],
-                "scene": scenes[0]["scene"]})
+                            datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d")}
+            for key in scenes[0].keys():
+                if key not in new_scene:
+                    new_scene[key] = scenes[0][key]
+            results_with_info.append(new_scene)
         return results_with_info, scores
     return zip(*results.items())
