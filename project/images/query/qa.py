@@ -22,7 +22,7 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-device = "cuda"
+device = "cpu"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
 --suffix="." --max_tokens=256 --ds_factor_ff=8 --ds_factor_attn=8 \

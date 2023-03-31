@@ -10,7 +10,7 @@ from images.query import *
 
 import requests
 
-sessionId = "test"
+sessionId = "linh"
 raw_results = defaultdict(lambda: [])
 last_scroll_id = None
 # server = "https://vbs.videobrowsing.org/api/v1"
