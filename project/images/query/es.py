@@ -242,8 +242,8 @@ def construct_es(query, gps_bounds, size, scroll, K):
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
-        if query.start[0] != 0 and query.end[0] != 24:
-            filter_queries["bool"]["filter"].append(time_filters)
+        if query.start[0] != 0 or query.start[1] != 0 or query.end[0] != 24 or query.end[0] != 0:
+            filter_queries["bool"]["should"].extend(time_filters)
 
     if date_filters:
         filter_queries["bool"]["filter"].extend(date_filters)
@@ -408,8 +408,8 @@ def msearch(query, gps_bounds, extra_filter_scripts):
             {"terms": {"weekday": query.weekdays}})
 
     if time_filters:
-        filter_queries["bool"]["filter"].append(time_filters)
-
+        if query.start[0] != 0 or query.start[1] != 0 or query.end[0] != 24 or query.end[0] != 0:
+            filter_queries["bool"]["should"].extend(time_filters)
 
     if date_filters:
         filter_queries["bool"]["filter"].extend(date_filters)

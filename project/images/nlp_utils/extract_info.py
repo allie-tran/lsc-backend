@@ -208,19 +208,74 @@ class Query:
     def time_to_filters(self):
         if not self.time_filters:
             # Time
-            s, e = self.start[0], self.end[0]
-            if s > e: # TODO!
-                s, e = e, 24
-            self.time_filters = {
-                                    "range":
-                                    {
-                                        "hour":
+            s = self.start[0] * 3600 + self.start[1] * 60
+            e = self.end[0] * 3600 + self.end[1] * 60
+            print(self.start, self.end, s, e)
+            if s <= e:
+                # OR (should queries)
+                self.time_filters = [{
+                                        "range":
                                         {
-                                            "gte": s,
-                                            "lte": e
+                                            "start_seconds_from_midnight":
+                                            {
+                                                "gte": s,
+                                                "lte": e
+                                            }
                                         }
-                                    }
-                                }
+                                    },
+                                    {
+                                        "range":
+                                        {
+                                            "end_seconds_from_midnight":
+                                            {
+                                                "gte": s,
+                                                "lte": e
+                                            }
+                                        }
+                                    }]
+            else: # either from midnight to end or from start to midnight
+                self.time_filters = [
+                    {
+                        "range":
+                        {
+                            "start_seconds_from_midnight":
+                            {
+                                "gte": 0, # midnight
+                                "lte": e
+                            }
+                        }
+                    },
+                    {
+                        "range":
+                        {
+                            "end_seconds_from_midnight":
+                            {
+                                "gte": 0, # midnight
+                                "lte": e
+                            }
+                        }
+                    },
+                    {
+                        "range":
+                        {
+                            "start_seconds_from_midnight":
+                            {
+                                "gte": s,
+                                "lte": 24 * 3600, # midnight
+                            }
+                        }
+                    },
+                     {
+                        "range":
+                        {
+                            "end_seconds_from_midnight":
+                            {
+                                "gte": s,
+                                "lte": 24 * 3600, # midnight
+                            }
+                        }
+                    }
+                ]
 
             # Date
             self.date_filters = []
@@ -234,8 +289,8 @@ class Query:
                 if d:
                     self.date_filters.append(
                         {"term": {"date": str(d).rjust(2, "0")}})
-            if self.start[0] != 0 and self.end[0] != 24:
-                self.query_visualisation["TIME"] = [f"{self.start[0]}:00 - {self.end[0]}:00"]
+            if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[0] != 0:
+                self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
             if str(self.dates) != "None":
                 self.query_visualisation["DATE"] = [str(self.dates)]
         return self.time_filters, self.date_filters
