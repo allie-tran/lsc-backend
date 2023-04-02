@@ -11,7 +11,7 @@ more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
                   "night": ["nighttime"],
                   "afternoon": ["supper", "suppertime", "teatime"]}
 
-timeofday = {"early; morning": "5am-9am",
+timeofday = {"early; morning": "5am-10am",
              "late; morning": "11am-12pm",
              "morning": "5am-12pm",
              "early; afternoon": "1pm-3pm",
