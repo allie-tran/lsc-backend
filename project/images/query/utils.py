@@ -156,12 +156,16 @@ def format_single_result(results, factor="dummy", group_more_by=0):
     scores = []
     for result, score in results:
         scores.append(score)
-        results_with_info.append({
-            "current": [result["image_path"]],
-            "start_time": result["time"],
-            "end_time": result["time"],
-            "group": result["group"],
-            "scene": result["scene"]})
+        result["time"] = datetime.strptime(
+            result["time"], "%Y/%m/%d %H:%M:%S%z")
+        
+        new_scene = {"current": [result["image_path"]],
+                     "start_time": result["time"],
+                     "end_time": result["time"]}
+        for key in result.keys():
+            if key not in new_scene:
+                new_scene[key] = result[key]
+        results_with_info.append(new_scene)
     return results_with_info, scores
 
 
@@ -184,13 +188,18 @@ def group_results(results, factor="group", group_more_by=0):
         scores.append(score)
         images = [res[0] for res in images_with_scores]
         begin_time, end_time = get_time_of_group(images)
-        results_with_info.append({
+        
+        new_scene = {
             "current": [image["image_path"] for image in images][:5],
             "start_time": begin_time,
             "end_time": end_time,
             "location": images[0]["location"],
             "group": images[0]["group"],
-            "scene": images[0]["scene"]})
+            "scene": images[0]["scene"]}
+        for key in images[0].keys():
+            if key not in new_scene:
+                new_scene[key] = images[0][key]
+        results_with_info.append(new_scene)
 
     if results_with_info and group_more_by:
         final_results = [results_with_info[0]]
