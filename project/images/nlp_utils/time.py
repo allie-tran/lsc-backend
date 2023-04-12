@@ -28,6 +28,11 @@ timeofday = {"early; morning": "5am-10am",
              "bedtime": "8pm-1am",
              }
 
+seasons = {"spring": ["march", "april", "may", "june"],
+          "summer": ["june", "july", "august", "september"],
+          "fall": ["september", "october", "november", "december"],
+          "winter": ["december", "january", "february", "march"]}
+
 for t in more_timeofday:
     for synonym in more_timeofday[t]:
         timeofday[synonym] = timeofday[t]
@@ -55,6 +60,8 @@ class TimeTagger:
                 self.all_regexes.append(("TIMEUNIT", r))  # TIMEUNIT
         for word in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]:
             self.all_regexes.append(("WEEKDAY", word))  # WEEKDAY
+        for word in seasons:
+            self.all_regexes.append(("SEASON", word))  # SEASON
         # Added by myself
         timeofday_regex = set()
         for t in timeofday:

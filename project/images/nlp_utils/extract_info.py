@@ -87,10 +87,10 @@ class Query:
             self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
             if self.locations:
                 self.query_visualisation["LOCATION"].extend(self.locations)
-            else:
-                possible_locations = search_possible_location(text)
-                if possible_locations:
-                    self.query_visualisation["POSSIBLE LOCATION(S)"].extend(possible_locations)
+            # else:
+            #     possible_locations = search_possible_location(text)
+                # if possible_locations:
+                #     self.query_visualisation["POSSIBLE LOCATION(S)"].extend(possible_locations)
         else:
             self.locations = []
             self.place_to_visualise = []
@@ -168,6 +168,9 @@ class Query:
                         self.end = adjust_start_end("end", self.end, h + 1, m)
             elif tag == "DATE":
                 self.dates.append(get_day_month(word))
+            elif tag == "SEASON":
+                for month in seasons[word]:
+                    self.dates.append((None, month2num[month], None))
             elif tag == "TIMEOFDAY":
                 if word not in ["lunch", "breakfast", "dinner", "sunrise", "sunset"]:
                     processed.add(word)
@@ -248,39 +251,57 @@ class Query:
             # combine the date filters using a bool should clause
             self.time_filters = {"bool": {"should": self.time_filters, "minimum_should_match": 1}}
             # Date
+            # Preprocess the dates: if there is only one year available, add that year to all dates
+            years = set()
+            common_year = None
+            for date in self.dates:
+                years.add(date[0])
+            if len(years) == 1:
+                common_year = years.pop()
+            
             # create a list to store the date filters
             self.date_filters = []
             if self.dates:
+                self.query_visualisation["DATE"] = []
                 for date in self.dates:
                     y, m, d = date
+                    if not y and common_year:
+                        y = common_year
                     ymd_filter = []
                     # date format in database is yyyy/MM/dd HH:mm:00Z
                     if y and m and d:
                         date_string = f"{y}/{m:02d}/{d:02d}"
                         ymd_filter = {"term": {"date": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/{m:02d}/{y}")
                     elif y and m:
                         date_string = f"{m:02d}/{y}"
                         ymd_filter = {"term": {"month_year": date_string}}
+                        self.query_visualisation["DATE"].append(f"{m:02d}/{y}")
                     elif y and d:
                         date_string = f"{d:02d}/{y}"
                         ymd_filter = {"term": {"day_year": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/-/{y}")
                     elif m and d:
                         date_string = f"{d:02d}/{m:02d}"
                         ymd_filter = {"term": {"day_month": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/{m:02d}")
                     elif y:
                         ymd_filter = {"term": {"year": y}}
+                        self.query_visualisation["DATE"].append(f"{y}")
                     elif m:
                         ymd_filter = {"term": {"month": f"{m:02d}"}}
+                        self.query_visualisation["DATE"].append(num2month[m])
                     elif d:
                         ymd_filter = {"term": {"day": f"{d:02d}"}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}")
+
                     self.date_filters.append(ymd_filter)
                 # combine the date filters using a bool should clause
                 self.date_filters = {"bool": {"should": self.date_filters, "minimum_should_match": 1}}
                 
             if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[1] != 0:
                 self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
-            if self.dates:
-                self.query_visualisation["DATE"] = ["/".join([str(x) for x in date][::-1]) for date in self.dates]
+             
         return self.time_filters, self.date_filters
 
     def make_location_query(self):
