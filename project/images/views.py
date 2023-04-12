@@ -28,24 +28,22 @@ def jsonize(response):
 
 
 @csrf_exempt
-def restart(request):
-    global sessionId
-    sessionId = request.GET.get('user')
-    return jsonize({"success": True})
-
-
-@csrf_exempt
 def login(request):
     global sessionId
-    url = f"{server}/login/"
-    res = requests.post(url, json={"username": "mysceal",
-                                   "password": "mQFbxFf9Cx3q"})
-    print(res)
-    if res.status_code == 200:
-        sessionId = res.json()["sessionId"]
+    session_id = request.GET.get('session_id')
+    if session_id:
+        sessionId = session_id
         return jsonize({"description": f"Login successful: {sessionId}!"})
     else:
-        return jsonize({"description": "Login error!"})
+        url = f"{server}/login/"
+        res = requests.post(url, json={"username": "mysceal",
+                                    "password": "mQFbxFf9Cx3q"})
+        print(res)
+        if res.status_code == 200:
+            sessionId = res.json()["sessionId"]
+            return jsonize({"description": f"Login successful: {sessionId}!"})
+        else:
+            return jsonize({"description": "Login error!"})
 
 @csrf_exempt
 def export(request):

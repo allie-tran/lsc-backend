@@ -12,5 +12,4 @@ urlpatterns = [
     path('similar', views.similar),
     path('login', views.login),
     path('submit', views.export),
-    path('submit_saved/', views.submit_all),
-    path('restart', views.restart)]
+    path('submit_saved/', views.submit_all)]
