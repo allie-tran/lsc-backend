@@ -102,20 +102,27 @@ def group_scene_results(results, factor="group"):
             score = scenes_with_scores[0][1]
             scenes = [res[0] for res in scenes_with_scores]
             new_scenes = []
+            ocr = []
             for scene in scenes:
                 scene["start_time"] = datetime.strptime(scene["start_time"], "%Y/%m/%d %H:%M:%S%z")
                 scene["end_time"] = datetime.strptime(scene["end_time"], "%Y/%m/%d %H:%M:%S%z")
+                for text in scene["ocr"]:
+                    if text and text not in ocr:
+                        ocr.append(text)
                 new_scenes.append(scene)
             scenes = new_scenes
             scenes = sorted(scenes, key=lambda x: x["start_time"])
             scores.append(score)
+            images = [image for scene in scenes for image in scene["images"]]
             new_scene = {
-                "current": [image for scene in scenes for image in scene["images"]],
+                "current": images,
                 "start_time": scenes[0]["start_time"],
                 "end_time": scenes[-1]["end_time"],
                 "location": scenes[0]["location"] + "\n" + \
                             scenes[0]["country"].capitalize() + "\n" + \
-                            datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d")}
+                            datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d"),
+                "original_location": scenes[0]["location"],
+                "ocr": ocr}
             for key in scenes[0].keys():
                 if key not in new_scene:
                     new_scene[key] = scenes[0][key]

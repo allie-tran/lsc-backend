@@ -37,12 +37,17 @@ def encode_query(main_query):
     return text_features
 
 def score_images(images, encoded_query):
-    encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
-    # print(np.array([image_to_id[image] for image in images]))
-    image_features = norm_photo_features[np.array([image_to_id[image] for image in images])]
-    similarity = image_features @ encoded_query.T # B x D @ D x 1 = B x 1
-    similarity = similarity.reshape(-1)
-    return similarity.astype("float").tolist()
+    try:
+        encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
+    except TypeError as e:
+        return [0 for _ in images]
+    if images:
+        # print(np.array([image_to_id[image] for image in images]))
+        image_features = norm_photo_features[np.array([image_to_id[image] for image in images])]
+        similarity = image_features @ encoded_query.T # B x D @ D x 1 = B x 1
+        similarity = similarity.reshape(-1)
+        return similarity.astype("float").tolist()
+    return []
 
 
 

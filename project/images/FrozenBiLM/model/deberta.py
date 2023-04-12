@@ -585,7 +585,7 @@ def make_log_bucket_position(relative_pos, bucket_size, max_position):
         np.ceil(np.log(abs_pos / mid) / np.log((max_position - 1) / mid) * (mid - 1))
         + mid
     )
-    bucket_pos = np.where(abs_pos <= mid, relative_pos, log_pos * sign).astype(np.int)
+    bucket_pos = np.where(abs_pos <= mid, relative_pos, log_pos * sign).astype(np.int64)
     return bucket_pos
 
 

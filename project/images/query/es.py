@@ -15,7 +15,8 @@ cluster = OPTICS(min_samples=2, max_eps=0.9, metric='cosine')
 multiple_pairs = {}
 INCLUDE_SCENE = ["scene"]
 INCLUDE_FULL_SCENE = ["images", "start_time", "end_time", "gps",
-                      "scene", "group", "timestamp", "location", "cluster_images", "weights", "country"]
+                      "scene", "group", "timestamp", "location", "cluster_images", "weights", "country",
+                      "ocr", "country", "location_info"]
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 cached_queries = None
@@ -578,6 +579,10 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, s
                                 scores, already_done=already_done, reverse=True)
 
     pair_events.extend(pair_events2)
+    if max_score1 == 0:
+        max_score1 = 1
+    if max_score2 == 0:
+        max_score2 = 1
     pair_events = sorted(pair_events, key=lambda x: -x[1]/max_score1 - x[2]/max_score2 * 0.5)
 
     total_scores = [(s1, s2) for (event, s1, s2) in pair_events]
@@ -666,7 +671,12 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
     after_query, (_, scores), _ = individual_es(
         after_query, gps_bounds=gps_bounds if share_info else None, size=1, scroll=False, K=1)
     max_score3 = scores[0]
-
+    if max_score1 == 0:
+        max_score1 = 1
+    if max_score2 == 0:
+        max_score2 = 1
+    if max_score3 == 0:
+        max_score3 = 1
     pair_events = sorted([(event, s1/max_score1 + s2/max_score2 * 0.5 + s3/max_score3 * 0.5)
                           for (event, s1, s2, s3) in pair_events], key=lambda x: -x[1])
     total_scores = [s for event, s in pair_events]

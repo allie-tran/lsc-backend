@@ -8,6 +8,9 @@ from transformers import pipeline
 import json
 import torch 
 from .common_nn import *
+from transformers import pipeline
+from .utils import basic_dict, datetime
+
 transformers.logging.set_verbosity_error()
 
 qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/features.npy")
@@ -22,7 +25,11 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-device = "cpu"
+text_qa_model_name = "deepset/roberta-base-squad2"
+# a) Get predictions
+nlp = pipeline('question-answering', model=text_qa_model_name, tokenizer=text_qa_model_name)
+
+# device = "cpu"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
 --suffix="." --max_tokens=256 --ds_factor_ff=8 --ds_factor_attn=8 \
@@ -42,7 +49,10 @@ def build_qa_model():
     # Build model
     print("Building QA model")
     tokenizer = get_tokenizer(args)
-    vocab = json.load(open(args.msrvtt_vocab_path, "r"))
+    # vocab = json.load(open(args.msrvtt_vocab_path, "r"))
+    vocab = pd.read_csv(f"{FILES_DIRECTORY}/backend/all_answers.csv")["0"].to_list()[:3000]
+    vocab = [a for a in vocab if a != np.nan and str(a) != "nan"]
+    vocab = {a: i for i, a in enumerate(vocab)}
     id2a = {y: x for x, y in vocab.items()}
     args.n_ans = len(vocab)
     frozen_bilm = build_model(args)
@@ -60,19 +70,24 @@ def build_qa_model():
     # Init answer embedding module
     aid2tokid = torch.zeros(len(vocab), args.max_atokens).long()
     for a, aid in vocab.items():
-        tok = torch.tensor(
-            tokenizer(
-                a,
-                add_special_tokens=False,
-                max_length=args.max_atokens,
-                truncation=True,
-                padding="max_length",
-            )["input_ids"],
-            dtype=torch.long,
-        )
-        aid2tokid[aid] = tok
+        try:
+            tok = torch.tensor(
+                tokenizer(
+                    a,
+                    add_special_tokens=False,
+                    max_length=args.max_atokens,
+                    truncation=True,
+                    padding="max_length",
+                )["input_ids"],
+                dtype=torch.long,
+            )
+            aid2tokid[aid] = tok
+        except ValueError as e:
+            print(a, aid)
+            raise(e)
     frozen_bilm.set_answer_embeddings(aid2tokid.to(device), freeze_last=args.freeze_last)
 
+build_qa_model()
 
 def answer(images, encoded_question):
     """
@@ -90,7 +105,7 @@ def answer(images, encoded_question):
 
     # Get image embeddings for the provided images
     image_embeddings = qa_photo_features[np.array(
-        [image_to_id[image] for image in images])]
+        [image_to_id[image] for image in images if image])]
     
     # Convert image embeddings to PyTorch tensor and move to appropriate device
     video = torch.tensor(image_embeddings).to(device).float()
@@ -186,6 +201,68 @@ def encode_question(question):
 
     return encoded
 
+# Get textual description for a scene
+def get_textual_description(scene):
+    # converting datetime to string
+    start_time = scene['start_time'].strftime("%H:%M")
+    end_time = scene['end_time'].strftime("%H:%M")
+    # converting datetime to string like Jan 1, 2020
+    date = scene['start_time'].strftime("%b %d, %Y")
+    
+    location = ""
+    location_info = ""
+    if scene["original_location"] != "None":
+        location = f" in {scene['original_location']}"
+        if scene["location_info"]:
+            location_info = f", which is a {scene['location_info']}"
+    ocr = ""
+    if scene['ocr']:
+        ocr = f"Some texts that can be seen from the images are: {', '.join(scene['ocr'])}."
+    textual_description = f"The event starts from {start_time} to {end_time} on {date} " + \
+        f"{location}{location_info} in {scene['country']}. {ocr}"
+    return textual_description
+
+# Get answers from a list of images:
+def get_answers_from_images(images, question):
+    answers = []
+    # Filter out empty string images
+    images = [image for image in images if image]
+    
+    # Build a scene from list of images
+    scene = {}
+    scene["start_time"] = basic_dict[images[0]]['time']
+    scene["end_time"] = basic_dict[images[-1]]['time']
+    scene["start_time"] = datetime.strptime(scene["start_time"], "%Y/%m/%d %H:%M:%S%z")
+    scene["end_time"] = datetime.strptime(scene["end_time"], "%Y/%m/%d %H:%M:%S%z")
+    
+    scene["original_location"] = basic_dict[images[0]]["location"]
+    scene["location_info"] = basic_dict[images[0]]["location_info"]
+    scene["country"] = basic_dict[images[0]]["country"]
+    scene["ocr"] = []
+    for image in images:
+        for text in basic_dict[image]["ocr"]:
+            if text and text not in scene["ocr"]:
+                scene["ocr"].append(text)
+                
+    # Get textual description for a scene
+    textual_description = get_textual_description(scene)
+    # Get answers from textual description
+    QA_input = {
+                'question': question,
+                'context': textual_description
+            }
+    res = nlp(QA_input)
+    if res["score"] > 0.0001:
+        print(textual_description)
+        print(res)
+        answers.append(res["answer"])
+    
+    # Get answers from images
+    encoded_question = encode_question(question)
+    answers.extend(list(answer(images, encoded_question).keys()))
+    
+    return answers
+
 def answer_topk_scenes(question, scenes, k=10):
     """
     Given a natural language question and a list of scenes, returns the top k answers
@@ -207,19 +284,35 @@ def answer_topk_scenes(question, scenes, k=10):
     if frozen_bilm is None:
         build_qa_model()
     # Encode the question using a helper function
-    question = encode_question(question)
+    encoded_question = encode_question(question)
     
     # Iterate over each scene
     for scene in scenes[:k]:
         # Extract the images from the "current" field of the scene
-        images = [i[0] for i in scene["current"]]
+        images = [i[0] for i in scene["current"] if i[0]]
         
         # Compute answer scores for the current scene using an answer function
-        ans = answer(images, question)
+        ans = answer(images, encoded_question)
         
         # Accumulate the answer scores in the defaultdict
         for a, s in ans.items():
             answers[a] += float(s)
+    
+        # Extract textual information from the scene
+        
+        try:
+            textual_description = get_textual_description(scene)
+            QA_input = {
+                'question': question,
+                'context': textual_description
+            }
+            res = nlp(QA_input)
+            if res["score"] > 0.0001:
+                print(textual_description)
+                print(res)
+                answers[res['answer']] += 10.0    
+        except Exception as e:
+            pass  
     
     # Sort the answers by score and take the top 10, discarding one if zero scores
     answers = [a for a, s in sorted(answers.items(), key=lambda x: x[1], reverse=True) if s > 0][:10]
