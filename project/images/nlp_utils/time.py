@@ -37,6 +37,13 @@ for t in more_timeofday:
     for synonym in more_timeofday[t]:
         timeofday[synonym] = timeofday[t]
 
+import pytimeparse
+
+# Parse period expression
+def parse_period_expression(time_expression):
+    dt = pytimeparse.parse(time_expression)
+    return dt
+
 class TimeTagger:
     def __init__(self):
         regex_lib = Constants()

@@ -39,14 +39,15 @@ def rreplace(s, old, new, occurrence):
     li = s.rsplit(old, occurrence)
     return new.join(li)
 
-def range_filter(start, end, field):
+def range_filter(start, end, field, boost=1.0):
     return {
             "range":
             {
                 field:
                 {
                     "gte": start,
-                    "lte": end
+                    "lte": end,
+                    "boost": boost
                 }
             }
         }
@@ -69,11 +70,13 @@ class Query:
         text = text.strip(". \n").lower()
         self.time_filters = None
         self.date_filters = None
+        self.duration_filters = None
         self.location_queries = []
         self.query_visualisation = defaultdict(list)
         self.location_filters = []
         self.country_to_visualise = []
         self.clip_embedding = None
+        self.duration = None
         self.extract_info(text, shared_filters)
 
     def extract_info(self, text, shared_filters=None):
@@ -138,7 +141,7 @@ class Query:
         for i, (word, tag) in enumerate(tags):
             if word in processed:
                 continue
-            if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
+            if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY", "PERIOD"]:
                 processed.add(word)
                 # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
             if tag == "WEEKDAY":
@@ -193,6 +196,10 @@ class Query:
                 else:
                     print(
                         word, f"is not a registered time of day ({timeofday})")
+            elif tag == "PERIOD":
+                self.duration = parse_period_expression(word)
+                self.query_visualisation["DURATION"] = [f"{word}({self.duration}s)"]
+                
         print(tags)
         if shared_filters:
             if not self.weekdays:
@@ -301,8 +308,13 @@ class Query:
                 
             if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[1] != 0:
                 self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
-             
-        return self.time_filters, self.date_filters
+            
+            if self.duration:
+                self.duration_filters = [range_filter(self.duration / 2, round(self.duration * 1.5), "duration", 0.05),
+                                         range_filter(self.duration / 2, round(self.duration * 1.5), "group_duration", 0.05)]
+                self.duration_filters = {"bool": {"should": self.duration_filters, "minimum_should_match": 1}}
+                
+        return self.time_filters, self.date_filters, self.duration_filters
 
     def make_location_query(self):
         if not self.location_filters:
