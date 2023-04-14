@@ -146,6 +146,7 @@ class Query:
                 # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
             if tag == "WEEKDAY":
                 self.weekdays.append(word)
+                self.query_visualisation["WEEKDAY"].append(word)
             elif tag == "TIMERANGE":
                 s, e = word.split("-")
                 self.start = adjust_start_end(
@@ -310,7 +311,7 @@ class Query:
                 self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
             
             if self.duration:
-                self.duration_filters = [range_filter(self.duration / 2, round(self.duration * 1.5), "duration", 0.05),
+                self.duration_filters = [range_filter(self.duration / 2, round(self.duration * 1.5), "duration", 0.1),
                                          range_filter(self.duration / 2, round(self.duration * 1.5), "group_duration", 0.05)]
                 self.duration_filters = {"bool": {"should": self.duration_filters, "minimum_should_match": 1}}
                 
@@ -377,4 +378,7 @@ class Query:
             #                 })
         # if self.location_queries:
             # return {"dis_max": {"queries": self.location_queries, "tie_breaker": 0.0}}
+            if self.location_filters:
+                self.location_filters.append({"match": {"location": {"query": " ".join(self.locations), "boost": 0.01}}})
+                self.location_filters = {"bool": {"should": self.location_filters, "minimum_should_match": 1}}
         return self.location_filters
