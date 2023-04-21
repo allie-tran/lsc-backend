@@ -100,7 +100,8 @@ def images(request):
     print(message)
     # Calculations
     scroll_id, queryset, scores, info = es(
-        message['query'], message["gps_bounds"], message["size"] if "size" in message else 100, share_info=message['share_info'])
+        message['query'], message["gps_bounds"], message["size"] if "size" in message else 100, share_info=message['share_info'],
+        isQuestion=message["query"]["isQuestion"])
     message["query"]["info"] = info
     if last_scroll_id:
         try:

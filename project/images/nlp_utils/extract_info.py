@@ -78,6 +78,13 @@ class Query:
         self.clip_embedding = None
         self.duration = None
         self.extract_info(text, shared_filters)
+        # For Elasticsearch
+        self.cached = False
+        self.scroll_id = ""
+        self.es_filters = []
+        self.es_should = []
+        self.max_score = 1.0
+        self.min_score = 0.0
 
     def extract_info(self, text, shared_filters=None):
         def search_words(wordset):
@@ -201,7 +208,6 @@ class Query:
                 self.duration = parse_period_expression(word)
                 self.query_visualisation["DURATION"] = [f"{word}({self.duration}s)"]
                 
-        print(tags)
         if shared_filters:
             if not self.weekdays:
                 self.weekdays.extend(shared_filters.weekdays)
@@ -234,7 +240,10 @@ class Query:
             return ""
         self.clip_text = strip_stopwords(self.clip_text)
         self.clip_text = self.clip_text.strip(", ")
-        print("CLIP:", self.clip_text)
+        if self.clip_text:
+            print("CLIP:", self.clip_text)
+        else:
+            print("NO CLIP")
 
     def get_info(self):
         return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],

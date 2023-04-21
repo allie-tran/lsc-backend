@@ -40,6 +40,24 @@ def get_gps(images):
         return sorted_by_time
     return []
 
+def delete_scroll_id(scroll_id):
+    response = requests.delete(
+        f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"},
+        data=json.dumps({"scroll_id": scroll_id}))
+    return response.status_code == 200
+
+def get_scroll_request(scroll_id):
+    response = requests.post(
+        f"http://localhost:9200/_search/scroll", headers={"Content-Type": "application/json"},
+        data=json.dumps({"scroll": "5m",
+                        "scroll_id": scroll_id}))
+    assert response.status_code == 200, f"Wrong request: {response.text}"
+    response_json = response.json()  # Convert to json as dict formatted
+    scene_results = [[d["_source"], d["_score"]]
+            for d in response_json["hits"]["hits"]]
+    scroll_id = response_json["_scroll_id"]
+    return scene_results, scroll_id
+
 def post_request(json_query, index, scroll=False):
     headers = {"Content-Type": "application/json"}
     response = requests.post(

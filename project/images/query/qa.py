@@ -87,7 +87,7 @@ def build_qa_model():
             raise(e)
     frozen_bilm.set_answer_embeddings(aid2tokid.to(device), freeze_last=args.freeze_last)
 
-build_qa_model()
+# build_qa_model()
 
 def answer(images, encoded_question):
     """
@@ -204,8 +204,8 @@ def encode_question(question):
 # Get textual description for a scene
 def get_textual_description(scene):
     # converting datetime to string
-    start_time = scene['start_time'].strftime("%H:%M")
-    end_time = scene['end_time'].strftime("%H:%M")
+    # start_time = scene['start_time'].strftime("%H:%M")
+    # end_time = scene['end_time'].strftime("%H:%M")
     # converting datetime to string like Jan 1, 2020
     date = scene['start_time'].strftime("%b %d, %Y")
     
@@ -218,7 +218,9 @@ def get_textual_description(scene):
     ocr = ""
     if scene['ocr']:
         ocr = f"Some texts that can be seen from the images are: {', '.join(scene['ocr'])}."
-    textual_description = f"The event starts from {start_time} to {end_time} on {date} " + \
+    # textual_description = f"The event starts from {start_time} to {end_time} on {date} " + \
+        # f"{location}{location_info} in {scene['country']}. {ocr}"
+    textual_description = f"The event happened on {date} " + \
         f"{location}{location_info} in {scene['country']}. {ocr}"
     return textual_description
 
