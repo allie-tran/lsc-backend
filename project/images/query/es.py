@@ -33,9 +33,6 @@ def format_results(K, scene_results, embedding, group_factor):
     (scene_results, scores), cluster_scores = remove_duplications(scene_results, group_factor)
     scene_results, scores = group_scene_results(list(zip(scene_results, scores)), group_factor)
     print("Top scores:", scores[:10])
-    # if "201904/19/20190419_215146_000.jpg" in scene[key]:
-    #     print(i)
-    #     print(cluster_score["201904/19/20190419_215146_000.jpg"])
     final_scenes = []
     if scene_results:
         final_scenes = organise_based_on_similarities(K, embedding, scene_results, cluster_scores, group_factor)
@@ -54,7 +51,7 @@ def query_all(query, includes, index, scroll, K, timestamp="timestamp"):
             }}
         ]
     }
-    scene_results, scroll_id = post_request(json.dumps(request), index, scroll=scroll)
+    scene_results, scroll_id, _ = post_request(json.dumps(request), index, scroll=scroll)
     final_scenes, scores = format_results(K, scene_results, None, group_factor="group")
     return query, (final_scenes, scores), scroll_id
 
@@ -187,16 +184,10 @@ def es(query, gps_bounds, size, share_info, isQuestion=False):
         cond_query_info = after_query.get_info()
         for key in cond_query_info:
             query_info[key].extend(cond_query_info[key])
-    elif query["before"]:
+    elif query["before"] or query["after"]:
+        time_key = "before" if query["before"] else "after"
         query, cond_query, (results, scores), scroll_id = es_two_events(
-            query["current"], query["before"], "before", query["beforewhen"], gps_bounds, share_info, K=2)
-        query_info = query.get_info()
-        cond_query_info = cond_query.get_info()
-        for key in cond_query_info:
-            query_info[key].extend(cond_query_info[key])
-    elif query["after"]:
-        query, cond_query, (results, scores), scroll_id = es_two_events(
-            query["current"], query["after"], "after", query["afterwhen"], gps_bounds, share_info, K=2)
+            query["current"], query[time_key], time_key, query[f"{time_key}when"], gps_bounds, share_info, K=2)
         query_info = query.get_info()
         cond_query_info = cond_query.get_info()
         for key in cond_query_info:
@@ -213,7 +204,7 @@ def es(query, gps_bounds, size, share_info, isQuestion=False):
             return es(new_query, gps_bounds, size, share_info)
         else: 
             query, (results, scores), scroll_id = individual_es(
-                query["current"], gps_bounds, size, scroll=True, K=3 if isQuestion else 4, ignore_limit_score=True, cache=True)
+                query["current"], gps_bounds, size, scroll=True, K=3 if isQuestion else 4, ignore_limit_score=False, cache=True)
             query_info = query.get_info()
     print(f"TOTAL TIMES: {(timecounter.time() - start):0.4f} seconds.")
     return scroll_id, results, scores, query_info
@@ -223,7 +214,11 @@ def query_list(query_list):
     return query_list[0] if len(query_list) == 1 else query_list
 
 
-def get_json_query(must_queries, should_queries, filter_queries, size, includes, min_score=0, timestamp="timestamp"):
+def get_json_query(must_queries, 
+                   should_queries, 
+                   filter_queries, 
+                   size, 
+                   includes, min_score=0, timestamp="timestamp"):
     # CONSTRUCT JSON
     main_query = {}
     if must_queries:
@@ -232,12 +227,9 @@ def get_json_query(must_queries, should_queries, filter_queries, size, includes,
     if should_queries:
         main_query["should"] = query_list(should_queries)
         main_query["minimum_should_match"] = 1
-
-    # if filter_queries["bool"]["filter"] or filter_queries["bool"]["should"]:
-    #     # if "should" in filter_queries["bool"] and filter_queries["bool"]["should"]:
-    #     #     filter_queries["bool"]["minimum_should_match"] = 1
-    #     main_query["filter"] = filter_queries
-    main_query["filter"] = filter_queries
+    
+    if filter_queries:
+        main_query["filter"] = filter_queries
         
     main_query = {"bool": main_query}
     
@@ -254,6 +246,15 @@ def get_json_query(must_queries, should_queries, filter_queries, size, includes,
             }}
         ]
     }
+    if size == 1:
+        json_query["aggs"] = {
+            "score_stats": {
+                "extended_stats": {
+                    "script" : "_score",
+                    "sigma": 2.0
+                }
+            }
+        }
     if min_score:
         json_query["min_score"] = min_score
     return json_query
@@ -283,7 +284,7 @@ def get_neighbors(image, lsc):
     json_query = get_json_query([should_queries], [], filter_queries, 40,
                 includes=["image_path", "group", "location", "weekday", "time"], timestamp="timestamp")
 
-    results, _ = post_request(json.dumps(json_query), INDEX)
+    results, *_ = post_request(json.dumps(json_query), INDEX)
     new_results = dict([(r[0]["image_path"], r[0]) for r in results])
 
     grouped_results = defaultdict(lambda: [])
@@ -343,11 +344,14 @@ def arrange_scene(K, scene, weights, key, uniform=False):
     new_images = []
     
     for j, (image, weight) in enumerate(zip(scene[key], weights.round(6))):
+        info = get_image_time_info(image)
         if j == best:
             new_best = len(new_images)
-            new_images.append((image, weight, True))
+            new_images.append((image, info, True))
+        if weight == 0:
+            continue
         elif j in left_ind or j in right_ind:
-            new_images.append((image, weight, uniform))
+            new_images.append((image, info, uniform))
                 
     best = new_best
                 # max_side_images = max(best, len(new_images) - best - 1)
@@ -360,6 +364,12 @@ def arrange_scene(K, scene, weights, key, uniform=False):
                     # print(i, best, len(new_images), max_side_images, "added", max_side_images - len(new_images) + best , "to the right")
         new_images = new_images + [("", 0, uniform)] * (max_side_images - len(new_images) + best + 1) 
     return new_images
+
+@cache
+def get_image_time_info(image):
+    info = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
+    info = info.strftime("%I:%M%p")
+    return info
 
 
 def organise_based_on_similarities(K, embedding, scene_results, cluster_scores, group_factor):
@@ -388,8 +398,11 @@ def organise_based_on_similarities(K, embedding, scene_results, cluster_scores, 
                   image_scores["201904/19/20190419_215250_000.jpg"])
             print(sorted(scene[key], key=lambda x: image_scores[x], reverse=True).index("201904/19/20190419_215250_000.jpg"))
         # Filter
-        weights = softmax(np.array([(image_scores[image] + 1) * logit_scale * cluster_score[image]
-                            for image in scene[key]]))
+        image_final_scores = np.array([(image_scores[image] + 1) * logit_scale * cluster_score[image]
+                            for image in scene[key]])
+        weights = softmax(image_final_scores)
+        weights[image_final_scores < 0] = 0
+        
         scene[key] = arrange_scene(K, scene, weights, key)
         if key != "current":
             scene["current"] = scene[key]
@@ -429,7 +442,7 @@ def construct_es(query, gps_bounds, size, scroll, K, ignore_limit_score, cache):
         json_query = get_json_query([], should_queries, filter_queries, size, includes=INCLUDE_FULL_SCENE, 
                                     min_score=min_score,
                                     timestamp="start_timestamp")
-        scene_results, scroll_id = post_request(json.dumps(json_query), SCENE_INDEX, scroll=scroll)
+        scene_results, scroll_id, _ = post_request(json.dumps(json_query), SCENE_INDEX, scroll=scroll)
         
         # Cache/update the queries
         query.es_filters = filter_queries
@@ -496,7 +509,10 @@ def get_es_queries(query, gps_bounds, ignore_limit_score):
             }
         should_queries.append(clip_script)
     if ignore_limit_score:
-        min_score = 0.0
+        if clip_script is not None:
+            min_score = CLIP_MIN_SCORE - 0.15
+        else:
+            min_score = 0.0
         max_score = 1.0
     else:
         # Send a search request for 1 image to get the max score
@@ -504,22 +520,19 @@ def get_es_queries(query, gps_bounds, ignore_limit_score):
         json_query = None
         if clip_script is not None:
             json_query = get_json_query([], [clip_script], [], 1, includes=INCLUDE_FULL_SCENE, min_score=0, timestamp="start_timestamp")
-            results, *_  = post_request(
+            results, _, aggs  = post_request(
                 json.dumps(json_query), SCENE_INDEX, scroll=False)
             clip_max_score = results[0][1]
             print("CLIP Max score", clip_max_score)
             # Calculate the min score based on the max score
-            clip_min_score = max(clip_max_score - 0.15, CLIP_MIN_SCORE)
-            if clip_max_score > CLIP_MIN_SCORE:
-                clip_min_score = max(clip_min_score, clip_max_score - 0.15)
-            else:
-                clip_max_score = CLIP_MIN_SCORE - 0.15
+            clip_min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]
             max_score = min_score + clip_max_score
             min_score = min_score + clip_min_score
             print("Max score", max_score)
+            print("New min score", min_score)
         elif should_queries:
             json_query = get_json_query([], should_queries, [], 1, includes=INCLUDE_FULL_SCENE, min_score=0, timestamp="start_timestamp")
-            results, *_  = post_request(
+            results, _, aggs  = post_request(
                 json.dumps(json_query), SCENE_INDEX, scroll=False)
             max_score = results[0][1]
             # Calculate the min score based on the max score

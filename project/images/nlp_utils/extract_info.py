@@ -118,6 +118,11 @@ class Query:
             if reg in lowercase_countries:
                 country = lowercase_countries[reg]
                 self.country_to_visualise.append({"country": country, "geojson": countries[country]})
+            if reg in ["korea", "england"]:
+                country = reg.title()
+                if reg == "korea":
+                    self.country_to_visualise.append({"country": country, "geojson": countries["South Korea"]})
+
         for region in self.regions:
             text = rreplace(text, region, "", 1) #TODO!
 
@@ -238,8 +243,10 @@ class Query:
                         break
                 return " ".join(words)
             return ""
+        # self.clip_text = ". ".join(strip_stopwords(sentence) for sentence in self.clip_text.split("."))
+        self.clip_text = self.clip_text.strip(", ?")
         self.clip_text = strip_stopwords(self.clip_text)
-        self.clip_text = self.clip_text.strip(", ")
+        self.clip_text = self.clip_text.strip(", ?")
         if self.clip_text:
             print("CLIP:", self.clip_text)
         else:

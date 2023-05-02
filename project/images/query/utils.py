@@ -62,23 +62,26 @@ def post_request(json_query, index, scroll=False):
     headers = {"Content-Type": "application/json"}
     response = requests.post(
         f"http://localhost:9200/{index}/_search{'?scroll=5m' if scroll else ''}", headers=headers, data=json_query)
+    aggregations = []
+    id_images = []
+    scroll_id = None
     if response.status_code == 200:
         # stt = "Success"
         response_json = response.json()  # Convert to json as dict formatted
         id_images = [[d["_source"], d["_score"]]
                      for d in response_json["hits"]["hits"]]
         scroll_id = response_json["_scroll_id"] if scroll else None
+        if "aggregations" in response_json:
+            aggregations = response_json["aggregations"]
     else:
         print(f'Response status {response.status_code}')
         print(response.text)
-        id_images = []
-        scroll_id = None
     if not id_images:
         with open("request.log", "a") as f:
             f.write(json_query + '\n')
         # print(json_query)
         print(f'Empty results. Output in request.log')
-    return id_images, scroll_id
+    return id_images, scroll_id, aggregations
 
 
 def post_mrequest(json_query, index):
@@ -137,9 +140,9 @@ def group_scene_results(results, group_factor="group"):
             "start_time": scenes[0]["start_time"],
             "end_time": scenes[-1]["end_time"],
             "location": scenes[0]["location"] + "\n" + \
-                        scenes[0]["country"].capitalize() + "\n" + \
+                        scenes[0]["country"].title() + "\n" + \
                         time_info[best_scene] + ", " + \
-                        datetime.strftime(scenes[0]["start_time"], "%Y/%m/%d"),
+                        datetime.strftime(scenes[0]["start_time"], "%d/%m/%Y"),
             "original_location": scenes[0]["location"],
             "ocr": ocr}
         for key in scenes[0].keys():

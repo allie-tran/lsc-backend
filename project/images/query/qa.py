@@ -9,7 +9,7 @@ import json
 import torch 
 from .common_nn import *
 from transformers import pipeline
-from .utils import basic_dict, datetime
+from .utils import basic_dict, datetime, scene_segments
 
 transformers.logging.set_verbosity_error()
 
@@ -25,10 +25,10 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-text_qa_model_name = "deepset/roberta-base-squad2"
+text_qa_model_name = f"{PRETRAINED_MODELS}/models/question-answering__deepset--roberta-base-squad2"
 # a) Get predictions
-nlp = pipeline('question-answering', model=text_qa_model_name, tokenizer=text_qa_model_name)
-
+nlp = pipeline('question-answering', model=text_qa_model_name, tokenizer=text_qa_model_name, topk=5)
+# nlp = None
 # device = "cpu"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
@@ -229,6 +229,7 @@ def get_answers_from_images(images, question):
     answers = []
     # Filter out empty string images
     images = [image for image in images if image]
+    print(images[0])
     
     # Build a scene from list of images
     scene = {}
@@ -247,17 +248,19 @@ def get_answers_from_images(images, question):
                 scene["ocr"].append(text)
                 
     # Get textual description for a scene
+    print(question)
     textual_description = get_textual_description(scene)
     # Get answers from textual description
     QA_input = {
                 'question': question,
                 'context': textual_description
             }
-    res = nlp(QA_input)
-    if res["score"] > 0.0001:
-        print(textual_description)
-        print(res)
-        answers.append(res["answer"])
+    print(textual_description)
+    results = nlp(QA_input)
+    for res in results:
+        if res["score"] > 0.1:
+            print(res["answer"], res["score"])
+            answers.append(res["answer"])
     
     # Get answers from images
     encoded_question = encode_question(question)
@@ -265,7 +268,7 @@ def get_answers_from_images(images, question):
     
     return answers
 
-def answer_topk_scenes(question, scenes, k=10):
+def answer_topk_scenes(question, scenes, scores, k=10):
     """
     Given a natural language question and a list of scenes, returns the top k answers
     to the question across all scenes. Uses an encoding of the question and an answer
@@ -287,9 +290,10 @@ def answer_topk_scenes(question, scenes, k=10):
         build_qa_model()
     # Encode the question using a helper function
     encoded_question = encode_question(question)
+    original_question = question
     
     # Iterate over each scene
-    for scene in scenes[:k]:
+    for i, (scene, score) in enumerate(zip(scenes[:k], scores[:k])):
         # Extract the images from the "current" field of the scene
         images = [i[0] for i in scene["current"] if i[0]]
         
@@ -301,21 +305,26 @@ def answer_topk_scenes(question, scenes, k=10):
             answers[a] += float(s)
     
         # Extract textual information from the scene
-        
+        scene["ocr"] = []
+        for image in images:
+            for text in basic_dict[image]["ocr"]:
+                if text and text not in scene["ocr"]:
+                    scene["ocr"].append(text)
         try:
             textual_description = get_textual_description(scene)
             QA_input = {
-                'question': question,
+                'question': original_question,
                 'context': textual_description
             }
-            res = nlp(QA_input)
-            if res["score"] > 0.0001:
-                print(textual_description)
-                print(res)
-                answers[res['answer']] += 10.0    
+            results = nlp(QA_input)
+            for res in results:
+                if res["score"] > 0.1:
+                    ans_score = res["score"] * 5 * (score ** 4)
+                    print(res["answer"], score, ans_score)
+                    answers[res["answer"]] = max(answers[res["answer"]], ans_score)
         except Exception as e:
             pass  
-    
+    print(original_question)
     # Sort the answers by score and take the top 10, discarding one if zero scores
     answers = [a for a, s in sorted(answers.items(), key=lambda x: x[1], reverse=True) if s > 0][:10]
     

@@ -13,4 +13,5 @@ urlpatterns = [
     path('login', views.login),
     path('submit', views.export),
     path('submit_saved/', views.submit_all),
-    path('answer_scene/', views.answer_scene)]
+    path('answer_scene/', views.answer_scene),
+    path('sort/', views.sort_by)]

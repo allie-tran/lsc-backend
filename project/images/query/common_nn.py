@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from ..nlp_utils.common import FILES_DIRECTORY
-# import clip
 import open_clip
 import torch
 from scipy.special import softmax
@@ -11,22 +10,22 @@ from numpy import linalg as LA
 CLIP_EMBEDDINGS = os.environ.get("CLIP_EMBEDDINGS")
 PRETRAINED_MODELS = os.environ.get("PRETRAINED_MODELS")
 
-photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-H-14_laion2b_s32b_b79k_nonorm/features.npy")
-photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/ViT-H-14_laion2b_s32b_b79k_nonorm/photo_ids.csv")["photo_id"].to_list()
+# CLIP
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
+model_name = "ViT-H-14"
+pretrained = "laion2b_s32b_b79k"
+# model_name = "ViT-L-14-336"
+# pretrained = "openai"
+
+photo_features = np.load(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/features.npy")
+photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/photo_ids.csv")["photo_id"].to_list()
 # photo_features = np.load(f"{FILES_DIRECTORY}/embeddings/features.npy")
 # photo_ids = pd.read_csv(f"{FILES_DIRECTORY}/embeddings/photo_ids.csv")["photo_id"].to_list()
-
 norm_photo_features = photo_features / LA.norm(photo_features, keepdims=True, axis=-1)
 DIM = photo_features[0].shape[-1]
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
-# CLIP
-device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
-# clip_model, preprocess = clip.load("ViT-L/14@336px", device=device)
-# tokenizer = clip.tokenize
-model_name = "ViT-H-14"
-pretrained = "laion2b_s32b_b79k"
 clip_model, *_ = open_clip.create_model_and_transforms(model_name, 
                                                                  pretrained=pretrained,
                                                                  device=device)
@@ -75,6 +74,7 @@ def score_images(images, encoded_query):
         image_features = norm_photo_features[np.array([image_to_id[image] for image in images])]
         similarity = image_features @ encoded_query.T # B x D @ D x 1 = B x 1
         similarity = similarity.reshape(-1)
+        similarity[np.where(similarity < 0.1)] = 0
         return similarity.astype("float").tolist()
     return []
 

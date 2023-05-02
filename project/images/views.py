@@ -11,8 +11,8 @@ from images.query import *
 import requests
 
 sessionId = "linh"
-raw_results = defaultdict(lambda: [])
 last_scroll_id = None
+last_results = None
 # server = "https://vbs.videobrowsing.org/api/v1"
 server = "http://localhost:8003/"
 
@@ -90,18 +90,22 @@ def submit_all(request):
 @csrf_exempt
 def images(request):
     global last_scroll_id
+    global last_results
     global messages
-    global last_message
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     print("=" * 80)
     with open("E-Mysceal Logs.txt", "a") as f:
         f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
     print(message)
+    original_query = message["query"]["current"]
+    
     # Calculations
-    scroll_id, queryset, scores, info = es(
-        message['query'], message["gps_bounds"], message["size"] if "size" in message else 100, share_info=message['share_info'],
-        isQuestion=message["query"]["isQuestion"])
+    scroll_id, queryset, scores, info = es(message['query'], 
+                                           message["gps_bounds"], 
+                                           message["size"] if "size" in message else 100,
+                                           message['share_info'],
+                                           message["query"]["isQuestion"])
     message["query"]["info"] = info
     if last_scroll_id:
         try:
@@ -111,24 +115,32 @@ def images(request):
         except:
             pass
     last_scroll_id = scroll_id
-    last_message = message.copy()
-    print(info["place_to_visualise"])
+    last_results = (queryset, scores)
     
     #LSC23!
     texts = []
     if message["query"]["isQuestion"]:
-        # texts = get_suggested_answers(message["query"]["question"])
-        texts = answer_topk_scenes(message["query"]["current"], queryset, k=10)
-    response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores, "texts": texts}
+        print(original_query)
+        texts = answer_topk_scenes(original_query, queryset, scores, k=10)
+    response = {'results': queryset, 
+                'size': len(queryset), 
+                'info': info, 
+                'more': False, 
+                'scores': scores, 
+                "texts": texts}
     return jsonize(response)
 
 @csrf_exempt
 def more(request):
     global last_scroll_id
-    message = json.loads(request.body.decode('utf-8'))
+    global last_results
     if last_scroll_id:
         scroll_id, queryset, scores = es_more(last_scroll_id)
         last_scroll_id = scroll_id
+        last_queryset, last_scores = last_results
+        last_queryset.extend(queryset)
+        last_scores.extend(scores)
+        last_results = (last_queryset, last_scores)
         response = {'results': queryset, 'size': len(queryset), 'more': True, 'scores': scores}
     else:
         response = {'results': [], 'size': 0, 'more': True, 'scores': []}
@@ -143,29 +155,6 @@ def gps(request):
     location = get_location(message['image'])
     response = {'gps': gps, "location": location}
     return jsonize(response)
-
-
-# @csrf_exempt
-# def get_saved(request):
-#     global saved
-#     global messages
-#     query_id = request.GET.get('query_id')
-#     message = messages[query_id]
-#     if message:
-#         queryset, _ = es_date(message['query'], message["gps_bounds"])
-#         return jsonize({"saved": saved[query_id], 'results': queryset[:100], 'query': message['query'], 'gps_bounds': message["gps_bounds"]})
-#     else:
-#         return jsonize({"saved": saved[query_id], 'results': [], 'query': {}, 'gps_bounds': None})
-
-
-# @csrf_exempt
-# def timeline_group(request):
-#     # Get message
-#     message = json.loads(request.body.decode('utf-8'))
-#     timeline = get_timeline_group(message['date'])
-#     response = {'timeline': timeline}
-#     return jsonize(response)
-
 
 @csrf_exempt
 def timeline(request):
@@ -188,7 +177,6 @@ def detailed_info(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     if 'image' in message:
-        image = message['image']
         info = get_date_info(message['image'])
         response = {'info': info}
     else:
@@ -220,3 +208,20 @@ def answer_scene(request):
     response = {"texts": get_answers_from_images(images, question)}
     print(response)
     return jsonize(response)
+
+@csrf_exempt
+def sort_by(request):
+    global last_results
+    queryset, scores = last_results
+
+    sortby = str(request.GET.get('by'))
+    maximum = 50
+    if sortby == "time":
+        queryset, scores = zip(*sorted(zip(queryset[:maximum], scores[:maximum]), key=lambda x: int(x[0]["scene"].split("_")[1])))
+    elif sortby == "time-reverse":
+        queryset, scores = zip(*sorted(zip(queryset[:maximum], scores[:maximum]), key=lambda x: int(x[0]["scene"].split("_")[1]), reverse=True))
+    return jsonize({"results": queryset, 
+                    "scores": scores, 
+                    "size": len(queryset),
+                    "more": False,
+                    "sorted": True})
