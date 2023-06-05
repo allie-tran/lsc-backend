@@ -1,32 +1,36 @@
 from collections import defaultdict
+import jellyfish
+import calendar
 from ..nlp_utils.common import *
 from ..nlp_utils.time import *
+from datetime import datetime, timedelta
 time_tagger = TimeTagger()
 
-def filter_locations(location):
-    if location in ["", "the house", "restaurant"]:
+def filter_locations(location, disabled):
+    if location in ["", "the house", "restaurant"] + disabled:
         return False
     return True
 
-def search(wordset, text):
+def search(wordset, text, disabled=[]):
     results = []
     text = " " + text + " "
     for keyword in wordset:
-        if filter_locations(keyword):
-            if keyword:
-                if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
-                    results.append(keyword)
+        if filter_locations(keyword, disabled):
+            if re.search(r'\b' + re.escape(keyword) + r'\b', text, re.IGNORECASE):
+                results.append(keyword)
     return results
 
 # Partial match only
-def search_possible_location(text):
+def search_possible_location(text, disabled=[]):
     results = []
     for location in locations:
-        if filter_locations(location):
+        if filter_locations(location, disabled):
             for i, extra in enumerate(locations[location]):
-                if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
-                    if extra not in results:
-                        results.append(location)
+                if filter_locations(extra, disabled):
+                    if re.search(r'\b' + re.escape(extra) + r'\b', text, re.IGNORECASE):
+                        if location not in results:
+                            results.append(location)
+                        break
     return results
 
 gps_not_lower = {}
@@ -39,36 +43,65 @@ def rreplace(s, old, new, occurrence):
     li = s.rsplit(old, occurrence)
     return new.join(li)
 
-def range_filter(start, end, field):
+def range_filter(start, end, field, boost=1.0):
     return {
             "range":
             {
                 field:
                 {
                     "gte": start,
-                    "lte": end
+                    "lte": end,
+                    "boost": boost
                 }
             }
         }
 
+def parse_tags(query):
+    # Split the query into individual words
+    words = query.split()
+    
+    # possible tags
+    tags = {"--disable-region": [], 
+            "--disable-location": [], 
+            "--disable-time": [],
+            "--negative": []}
+
+    # Get all indexes of tags
+    all_indexes = [i for i, word in enumerate(words) if word in tags]
+    if all_indexes:
+        for i, begin_index in enumerate(all_indexes):
+            # Find the index of the next tag
+            end_index = all_indexes[i + 1] if i + 1 < len(all_indexes) else len(words)
+            
+            # Add the arguments of the tag to the list of disabled information
+            tag = words[begin_index]
+            tags[tag].extend([word.strip() for word in " ".join(words[begin_index + 1 : end_index]).split(",")])
+        
+            
+        words = words[:all_indexes[0]]
+    
+    # Join the remaining words back into a modified query string
+    modified_query = " ".join(words)
+
+    # Example output for demonstration purposes
+    result = {
+        "disabled_locations": tags["--disable-location"],
+        "disabled_regions": tags["--disable-region"],
+        "disabled_times": tags["--disable-time"],
+        "negative": tags["--negative"]
+    }
+    print(result)
+    return modified_query, result
+
+
 class Query:
     def __init__(self, text, shared_filters=None):
-        self.negative = ""
-        self.disable_region = False
-        if "—disable_region" in text:
-            print("Disabling region")
-            self.disable_region = True
-            text = text.replace("—disable_region", "")
-        self.disable_location = False
-        if "—disable_location" in text:
-            print("Disabling location")
-            self.disable_location = True
-            text = text.replace("—disable_location", "")
-        if "NOT" in text:
-            text, self.negative = text.split("NOT")
+        self.disable_region = []
         text = text.strip(". \n").lower()
+        text, self.parsed = parse_tags(text)
         self.time_filters = None
         self.date_filters = None
+        
         self.location_queries = []
         self.query_visualisation = defaultdict(list)
         self.location_filters = []
@@ -77,37 +110,35 @@ class Query:
         self.extract_info(text, shared_filters)
 
     def extract_info(self, text, shared_filters=None):
-        def search_words(wordset):
-            return search(wordset, text)
+        def search_words(wordset, disabled=[]):
+            return search(wordset, text, disabled)
         self.original_text = text
 
-        if not self.disable_location:
-            self.locations = search_words(locations)
-            print("Locations:", self.locations)
-            self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
-            if self.locations:
-                self.query_visualisation["LOCATION"].extend(self.locations)
-            else:
-                possible_locations = search_possible_location(text)
-                if possible_locations:
-                    self.query_visualisation["POSSIBLE LOCATION(S)"].extend(possible_locations)
+        self.locations = search_words(locations, self.parsed["disabled_locations"])
+        print("Locations:", self.locations)
+        self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
+        if self.locations:
+            self.query_visualisation["LOCATION"].extend(self.locations)
         else:
-            self.locations = []
-            self.place_to_visualise = []
-
+            possible_locations = search_possible_location(text, self.parsed["disabled_locations"])
+            if possible_locations:
+                self.query_visualisation["POSSIBLE LOCATION(S)"].append(", ".join(possible_locations))
+                
+        self.location_infos = search_words(location_infos, self.parsed["disabled_locations"])
         for loc in self.locations:
             text = rreplace(text, loc, "", 1) #TODO!
 
-        if not self.disable_region:
-            self.regions = search_words(regions)
-        else:
-            self.regions = []
-
+        self.regions = search_words(regions, self.parsed["disabled_regions"])
         for reg in self.regions:
             self.query_visualisation["REGION"].append(reg)
             if reg in lowercase_countries:
                 country = lowercase_countries[reg]
                 self.country_to_visualise.append({"country": country, "geojson": countries[country]})
+            if reg in ["korea", "england"]:
+                country = reg.title()
+                if reg == "korea":
+                    self.country_to_visualise.append({"country": country, "geojson": countries["South Korea"]})
+
         for region in self.regions:
             text = rreplace(text, region, "", 1) #TODO!
 
@@ -136,13 +167,15 @@ class Query:
         tags = time_tagger.tag(text)
         processed = set()
         for i, (word, tag) in enumerate(tags):
-            if word in processed:
+            if word in self.parsed["disabled_times"]:
                 continue
-            if tag in ["WEEKDAY", "TIMERANGE", "TIMEPREP", "DATE", "TIME", "TIMEOFDAY"]:
-                processed.add(word)
-                # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
+            if tag in ["WEEKDAY", "TIMERANGE", "DATEPREP", "DATE", "TIME", "TIMEOFDAY", "PERIOD"]:
+                if word not in all_in_more_timeofday:
+                    processed.add(i)
+                    # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
             if tag == "WEEKDAY":
                 self.weekdays.append(word)
+                self.query_visualisation["WEEKDAY"].append(word)
             elif tag == "TIMERANGE":
                 s, e = word.split("-")
                 self.start = adjust_start_end(
@@ -153,8 +186,9 @@ class Query:
                     self.dates.append(get_day_month(word))
                 else:
                     timeprep = ""
-                    if i > 1 and tags[i-1][1] == 'TIMEPREP':
+                    if i >= 1 and tags[i-1][1] == 'TIMEPREP':
                         timeprep = tags[i-1][0]
+                        processed.add(i-1)
                     if timeprep in ["before", "earlier than", "sooner than"]:
                         self.end = adjust_start_end(
                             "end", self.end, *am_pm_to_num(word))
@@ -166,12 +200,56 @@ class Query:
                         self.start = adjust_start_end(
                             "start", self.start, h - 1, m)
                         self.end = adjust_start_end("end", self.end, h + 1, m)
-            elif tag == "DATE":
-                self.dates.append(get_day_month(word))
+            elif tag in ["DATE", "HOLIDAY"]:
+                if tag == "DATE": 
+                    y, m, d = get_day_month(word)
+                elif tag == "HOLIDAY":
+                    y, m, d = holiday_text_to_datetime(word)
+                dateprep = ""
+                if i >= 1 and tags[i-1][1] == 'DATEPREP':
+                    dateprep = tags[i-1][0]
+                    print(tags[i-1])
+                print(word, tags[i-1], dateprep)
+                if "first day of" in dateprep:
+                    d = 1
+                elif "last day of" in dateprep:
+                    if y and m:
+                        monthrange = calendar.monthrange(y, m)
+                        d = monthrange[1]
+                    elif m != 2:
+                        monthrange = calendar.monthrange(2020, m)
+                        d = monthrange[1]
+                    else:
+                        self.dates.append((y, m, 29))
+                elif "day after" in dateprep:
+                    original_year = y
+                    if not y:
+                        y = 2020
+                    if m and d:
+                        dt_object = datetime(y, m, d)
+                        dt_object += timedelta(days=1)
+                        if y != dt_object.year and original_year:
+                            original_year += 1
+                        y, m, d = dt_object.year, dt_object.month, dt_object.day
+                    y = original_year
+                elif "day before" in dateprep:
+                    original_year = y
+                    if not y:
+                        y = 2020
+                    if m and d:
+                        dt_object = datetime(y, m, d)
+                        dt_object -= timedelta(days=1)
+                        if y != dt_object.year and original_year:
+                            original_year -= 1
+                        y, m, d = dt_object.year, dt_object.month, dt_object.day
+                    y = original_year
+                self.dates.append((y, m, d))
+            elif tag == "SEASON":
+                for month in seasons[word]:
+                    self.dates.append((None, months.index(month) + 1, None))
             elif tag == "TIMEOFDAY":
                 if word not in ["lunch", "breakfast", "dinner", "sunrise", "sunset"]:
-                    processed.add(word)
-                # self.query_visualisation["TIME" if "TIME" in tag else tag].append(word)
+                    processed.add(i)
                 timeprep = ""
                 if i > 1 and tags[i-1][1] == 'TIMEPREP':
                     timeprep = tags[i-1][0]
@@ -196,7 +274,7 @@ class Query:
                 self.weekdays.extend(shared_filters.weekdays)
             if self.dates is None:
                 self.dates = shared_filters.dates
-        unprocessed = [(word, tag) for (word, tag) in tags if word not in processed]
+        unprocessed = [(word, tag) for i, (word, tag) in enumerate(tags) if i not in processed]
 
         last_non_prep = 0
         self.clip_text = ""
@@ -221,12 +299,17 @@ class Query:
                         break
                 return " ".join(words)
             return ""
+        # self.clip_text = ". ".join(strip_stopwords(sentence) for sentence in self.clip_text.split("."))
+        self.clip_text = self.clip_text.strip(", ?")
         self.clip_text = strip_stopwords(self.clip_text)
-        self.clip_text = self.clip_text.strip(", ")
-        print("CLIP:", self.clip_text)
+        self.clip_text = self.clip_text.strip(", ?")
+        if self.clip_text:
+            print("CLIP:", self.clip_text)
+        else:
+            print("NO CLIP")
 
     def get_info(self):
-        return {"query_visualisation": [(hint, ", ".join(value)) for hint, value in self.query_visualisation.items()],
+        return {"query_visualisation": [(hint, value) for hint, value in self.query_visualisation.items()],
                 "country_to_visualise": self.country_to_visualise,
                 "place_to_visualise": self.place_to_visualise}
 
@@ -245,39 +328,67 @@ class Query:
             # combine the time filters using a bool should clause
             self.time_filters = {"bool": {"should": self.time_filters, "minimum_should_match": 1}}
             # Date
+            # Preprocess the dates: if there is only one year available, add that year to all dates
+            years = set()
+            common_year = None
+            for date in self.dates:
+                if date[0]:
+                    years.add(date[0])
+            if len(years) == 1:
+                common_year = years.pop()
+                # remove the date with the year-only
+                if len(self.dates) > 1:
+                    new_dates = []
+                    for date in self.dates:
+                        y, m, d = date
+                        if not m and not d and y:
+                            continue
+                        new_dates.append(date)
+                    self.dates = new_dates
+            
             # create a list to store the date filters
             self.date_filters = []
             if self.dates:
+                self.query_visualisation["DATE"] = []
                 for date in self.dates:
                     y, m, d = date
+                    if not y and common_year:
+                        y = common_year
                     ymd_filter = []
                     # date format in database is yyyy/MM/dd HH:mm:00Z
                     if y and m and d:
                         date_string = f"{y}/{m:02d}/{d:02d}"
                         ymd_filter = {"term": {"date": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/{m:02d}/{y}")
                     elif y and m:
                         date_string = f"{m:02d}/{y}"
                         ymd_filter = {"term": {"month_year": date_string}}
+                        self.query_visualisation["DATE"].append(f"{m:02d}/{y}")
                     elif y and d:
                         date_string = f"{d:02d}/{y}"
                         ymd_filter = {"term": {"day_year": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/-/{y}")
                     elif m and d:
                         date_string = f"{d:02d}/{m:02d}"
                         ymd_filter = {"term": {"day_month": date_string}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}/{m:02d}")
                     elif y:
                         ymd_filter = {"term": {"year": y}}
+                        self.query_visualisation["DATE"].append(f"{y}")
                     elif m:
                         ymd_filter = {"term": {"month": f"{m:02d}"}}
+                        self.query_visualisation["DATE"].append(months[m - 1].capitalize())
                     elif d:
                         ymd_filter = {"term": {"day": f"{d:02d}"}}
+                        self.query_visualisation["DATE"].append(f"{d:02d}")
+
                     self.date_filters.append(ymd_filter)
                 # combine the date filters using a bool should clause
                 self.date_filters = {"bool": {"should": self.date_filters, "minimum_should_match": 1}}
                 
             if self.start[0] != 0 or self.start[1] != 0 or self.end[0] != 24 or self.end[1] != 0:
                 self.query_visualisation["TIME"] = [f"{self.start[0]:02d}:{self.start[1]:02d} - {self.end[0]:02d}:{self.end[1]:02d}"]
-            if self.dates:
-                self.query_visualisation["DATE"] = ["/".join([str(x) for x in date][::-1]) for date in self.dates]
+                
         return self.time_filters, self.date_filters
 
     def make_location_query(self):
@@ -341,4 +452,7 @@ class Query:
             #                 })
         # if self.location_queries:
             # return {"dis_max": {"queries": self.location_queries, "tie_breaker": 0.0}}
+            if self.location_filters:
+                self.location_filters.append({"match": {"location": {"query": " ".join(self.locations), "boost": 0.01}}})
+                self.location_filters = {"bool": {"should": self.location_filters, "minimum_should_match": 1}}
         return self.location_filters

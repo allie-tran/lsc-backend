@@ -10,12 +10,18 @@ from images.query import *
 
 import requests
 
-sessionId = "test"
-raw_results = defaultdict(lambda: [])
+sessionId = None
 last_scroll_id = None
 # server = "https://vbs.videobrowsing.org/api/v1"
 server = "http://localhost:8003/"
 
+import logging
+# create logger with 'spam_application'
+logger = logging.getLogger('LSC_logging')
+# create file handler which logs even debug messages
+fh = logging.FileHandler('lsc23.log')
+fh.setLevel(logging.DEBUG)
+logger.addHandler(fh)
 
 def jsonize(response):
     # JSONize
@@ -30,11 +36,15 @@ def jsonize(response):
 @csrf_exempt
 def login(request):
     global sessionId
+    global server
+
     session_id = request.GET.get('session_id')
-    if session_id:
+    if session_id and session_id != "vbs":
+        server = "http://localhost:8003/"
         sessionId = session_id
         return jsonize({"description": f"Login successful: {sessionId}!"})
     else:
+        server = "https://vbs.videobrowsing.org/api/v1"
         url = f"{server}/login/"
         res = requests.post(url, json={"username": "mysceal",
                                     "password": "mQFbxFf9Cx3q"})
@@ -48,25 +58,28 @@ def login(request):
 @csrf_exempt
 def export(request):
     global sessionId
-    # query_id = int(request.GET.get('query_id'))
-    # time = int(request.GET.get('time'))
     image = request.GET.get('image_id')
     scene = str(request.GET.get('scene')) == "true"
+    qa_answer = str(request.GET.get('qa_answer')) == "true"
     results = []
-    print(image, scene)
-    for i, item in enumerate(get_submission(image, scene)):
-        # OFFICIAL: UNCOMMENT TO SUBMIT
-        url = f"{server}/submit?item={item}&session={sessionId}"
-        print(url)
+    if qa_answer:
+        url = f"{server}/submit?text={image}&session={sessionId}"
         res = requests.get(url)
-        print(item, res)
-        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        # with open('submissions.txt', 'a') as f:
-        #     f.write(f'{item}\n')
+        res = res.json()["description"]
+        results.append(f'{image}: {res}')
+        logger.info(f"{int(time.time())}, LSCBLANK, result-submit, {image}, {res}")
+    else:
+        for i, item in enumerate(get_submission(image, scene)):
+            url = f"{server}/submit?item={item}&session={sessionId}"
+            res = requests.get(url)
+            res = res.json()["description"]
+            results.append(f'{i + 1}. {item}: {res}')
+            logger.info(f"{int(time.time())}, LSCBLANK, result-submit, {item}, {res}")
     return jsonize({"description": "\n".join(results)})
 
 @csrf_exempt
 def submit_all(request):
+    # submitting saved section
     global sessionId
     message = json.loads(request.body.decode('utf-8'))
     saved_scenes = message["saved"]
@@ -79,9 +92,9 @@ def submit_all(request):
         # OFFICIAL: UNCOMMENT TO SUBMIT
         url = f"{server}/submit?item={item}&session={sessionId}"
         res = requests.get(url)
-        results.append(f'{i + 1}. {item}: {res.json()["description"]}')
-        # with open('submissions.txt', 'a') as f:
-            # f.write(f'{item}\n')
+        res = res.json()["description"]
+        results.append(f'{i + 1}. {item}: {res}')
+        logger.info(f"{int(time.time())}, LSCBLANK, result-submit, {item}, {res}")
     return jsonize({"description": "\n".join(results)})
 
     # DEBUG:
@@ -97,7 +110,10 @@ def images(request):
     print("=" * 80)
     with open("E-Mysceal Logs.txt", "a") as f:
         f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
+    
     print(message)
+    original_query = message["query"]["current"]
+    
     # Calculations
     scroll_id, queryset, scores, info = es(
         message['query'], message["gps_bounds"], message["size"] if "size" in message else 200, share_info=message['share_info'])
@@ -113,6 +129,10 @@ def images(request):
     last_message = message.copy()
     print(info["place_to_visualise"])
     response = {'results': queryset, 'size': len(queryset), 'info': info, 'more': False, 'scores': scores}
+    message_to_log = {"query": {key: value for key, value in message["query"].items() if key != "info"},
+                      "gps_bounds": message["gps_bounds"]}
+    result_to_log = [x['current'] for x in queryset]
+    logger.info(f"{int(time.time())}, LSCBLANK, query-string, [{json.dumps(message_to_log)}], [{json.dumps(result_to_log)}]")
     return jsonize(response)
 
 @csrf_exempt

@@ -11,7 +11,8 @@ import numpy as np
 from .common_nn import *
 
 multiple_pairs = {}
-INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
+INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location",
+                 "country"]
 
 cached_queries = None
 cached_filters =  {"bool": {"filter": [],
@@ -20,8 +21,8 @@ cached_filters =  {"bool": {"filter": [],
                                "must_not": []}}
 cached_embeddings = None
 
-# format_func = format_single_result # ntcir
-format_func = group_results
+format_func = format_single_result # ntcir
+# format_func = group_results
 INDEX = "lsc2023"
 
 

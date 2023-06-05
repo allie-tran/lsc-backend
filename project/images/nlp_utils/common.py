@@ -10,13 +10,17 @@ FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
 stop_words = stopwords.words('english')
 basic_dict = json.load(open(f"{FILES_DIRECTORY}/backend/basic_dict.json"))
 locations = json.load(open(f'{FILES_DIRECTORY}/backend//locations.json'))
+location_infos = []
 map_visualisation = json.load(open(f'{FILES_DIRECTORY}/backend/map_visualisation.json'))
 regions = json.load(open(f'{FILES_DIRECTORY}/backend/regions.json'))
 countries = json.load(open(f'{FILES_DIRECTORY}/backend/countries.json'))
 lowercase_countries = {country.lower(): country for country in countries}
 
 def find_regex(regex, text, escape=False):
-    regex = re.compile(regex, re.IGNORECASE + re.VERBOSE)
+    if "#" in regex and "\#" not in regex:
+        regex = re.compile(regex, re.IGNORECASE | re.VERBOSE)
+    else:
+        regex = re.compile(regex, re.IGNORECASE)
     for m in regex.finditer(text):
         result = m.group()
         start = m.start()
