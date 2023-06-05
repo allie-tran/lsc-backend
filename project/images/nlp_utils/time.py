@@ -1,15 +1,25 @@
 from nltk import pos_tag
 from nltk.tokenize import WordPunctTokenizer
-from parsedatetime import Constants, Calendar
-
+from parsedatetime import Constants
+import dateparser
 from ..nlp_utils.common import *
+import holidays
+
+YEARS = ["2015", "2016", "2018", "2019", "2020"]
+months = ["january", "february", "march", "april", "may", "june", "july",
+          "august", "september", "october", "november", "december"]
+short_months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sept", "oct", "nov", "dec"]
+
+
+    
 
 more_timeofday = {"early; morning": ["dawn", "sunrise", "daybreak"],
-                  "morning": [],
+                  "morning": ["breakfast"],
                   "evening": ["nightfall", "dusk", "dinner", "dinnertime", "sunset", "twilight"],
-                  "noon": ["midday", "lunchtime", "lunch"],
+                  "midday": ["lunchtime", "lunch"],
                   "night": ["nighttime"],
                   "afternoon": ["supper", "suppertime", "teatime"]}
+all_in_more_timeofday = [x for y in more_timeofday.values() for x in y]
 
 timeofday = {"early; morning": "5am-10am",
              "late; morning": "11am-12pm",
@@ -23,15 +33,24 @@ timeofday = {"early; morning": "5am-10am",
              "evening": "5pm-9pm",
              "night": "9pm-4am",
              "noon": "11am-1pm",
-             "midday": "11am-1pm",
+             "midday": "10am-2pm",
              "midnight": "11pm-1am",
              "bedtime": "8pm-1am",
              }
 
-seasons = {"spring": ["march", "april", "may", "june"],
-          "summer": ["june", "july", "august", "september"],
-          "fall": ["september", "october", "november", "december"],
-          "winter": ["december", "january", "february", "march"]}
+seasons = {"spring": ["march", "april", "may"],
+           "summer": ["june", "july", "august"],
+           "fall": ["september", "october", "november"],
+           "autumn": ["september", "october", "november"],
+           "winter": ["december", "january", "february"]}
+
+import holidays
+
+holiday_names = set()    
+all_holidays = dict()
+for holiday in holidays.Ireland(years=[int(y) for y in YEARS]).items():
+    all_holidays[f"{holiday[1]}, {holiday[0].year}".lower()] = holiday[0]
+    holiday_names.add(holiday[1])
 
 for t in more_timeofday:
     for synonym in more_timeofday[t]:
@@ -48,6 +67,11 @@ class TimeTagger:
     def __init__(self):
         regex_lib = Constants()
         self.all_regexes = []
+        self.all_regexes.append(("DATE", r"(?:\bthe )?\b\d{1,2}(?:st|nd|rd|th)? of(?: year)? \d{4}\b")) # The 3rd of 2019
+        self.all_regexes.append(("HOLIDAY", r"\b(" + "|".join(holiday_names) + r")\b(?: in)?( \d{4}\b)?")) # Christmas 2019
+        self.all_regexes.append(("DATE", r"\b(" + "|".join(months) + r")\b(?: in)?( \d{4}\b)?")) # August 2019
+        self.all_regexes.append(("DATE", r"(?:\bthe )?\d{1,2}(?:st|nd|rd|th)?(?: of)? (" + "|".join(months) + r")\b((?: in)?( \d{4}\b)?)?")) # 5th Aust 20gu19
+
         for key, r in regex_lib.cre_source.items():
             # if key in ["CRE_MODIFIER"]:
             #     self.all_regexes.append(("TIMEPREP", r))
@@ -79,13 +103,12 @@ class TimeTagger:
         timeofday_regex = "|".join(timeofday_regex)
         self.all_regexes.append(
             ("TIMEOFDAY", r"\b(" + timeofday_regex + r")\b"))
-
-        # self.all_regexes.append(
-        #     ("TIMEOFDAY", r"\b(|afternoon|noon|morning|evening|night|twilight)\b"))
+        self.all_regexes.append(
+            ("DATEPREP", r"\b((last|first)[ ]day[ ]of|(a|the)[ ]day[ ](before|after))\b"))
         self.all_regexes.append(
             ("TIMEPREP", r"\b(before|after|while|late|early|later[ ]than|earlier[ ]than|sooner[ ]than)\b"))
         self.all_regexes.append(
-            ("DATE", r"\b(2015|2016|2018)\b"))
+            ("DATE", r"\b(2015|2016|2018|2019|2020)\b"))
         self.tags = [t for t, r in self.all_regexes]
 
     def merge_interval(self, intervals):
@@ -147,22 +170,15 @@ class TimeTagger:
         return new_tags
 
 
-cal = Calendar()
-month2num = {"january": 1, "february": 2, "march": 3, "april": 4, "may": 5, "june": 6, "july": 7,
-             "august": 8,
-             "september": 9, "october": 10, "november": 11, "december": 12}
-num2month = dict([(n, m) for (m, n) in month2num.items()])
-
-
 def get_day_month(date_string):
-    print(date_string)
-    if (date_string) in ["2015", "2016", "2018","2019", "2020"]:
+    if (date_string) in YEARS:
         return int(date_string), None, None
-    today = cal.parse("today")[0]
-    date = cal.parse(date_string)[0]
+    today = dateparser.parse("today")
+    date = dateparser.parse(date_string, settings={'DATE_ORDER': 'DMY'})
+    y, m, d = date.year, date.month, date.day
+    
     date_string = date_string.lower()
-    y, m, d = date.tm_year, date.tm_mon, date.tm_mday
-    for ex_year in ["2015", "2016", "2018", "2019", "2020"]:
+    for ex_year in YEARS:
         if ex_year in date_string:
             y = int(ex_year)
             break
@@ -170,8 +186,15 @@ def get_day_month(date_string):
         y = None
     if y:
         date_string = date_string.replace(str(y), "")
-    if m == today.tm_mon and str(num2month[m]) not in date_string and str(m) not in date_string:
-        m = None
+    # if m == today.tm_mon and str(num2month[m]) not in date_string and str(m) not in date_string:
+    #     m = None
+    if m == today.month:
+        if re.search(r"\b0?" + str(m) + r"\b", date_string) or \
+            re.search(r"\b" + str(months[m-1]) + r"\b", date_string) or \
+            re.search(r"\b" + str(short_months[m-1]) + r"\b", date_string):
+            pass
+        else:
+            m = None
     if str(d) not in date_string:
         d = None
     return y, m, d
@@ -210,3 +233,25 @@ def adjust_start_end(mode, original, hour, minute):
         return hour, minute
     else:
         return original
+
+def holiday_text_to_datetime(text):
+    regex = r"\b(" + "|".join(holiday_names) + r")\b(?: in)?( \d{4}\b)?"
+    res = re.findall(regex, text, re.IGNORECASE)
+    if res:
+        holiday_name = res[0][0]
+        year = res[-1][-1]
+        
+        false_year = False
+        if not year:
+            if holiday_name.lower() in ['christmas day', "new year's day", "st. patrick's day", "st. stephen's day"]:
+                year = 2020
+                false_year = True
+        if year:
+            year = int(year)
+            if f"{holiday_name}, {year}" in all_holidays:
+                datetime = all_holidays[f"{holiday_name}, {year}"] 
+                if false_year:
+                    return None, datetime.month, datetime.day
+                else:
+                    return datetime.year, datetime.month, datetime.day
+    return None, None, None

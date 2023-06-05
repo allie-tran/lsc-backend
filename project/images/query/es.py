@@ -194,18 +194,18 @@ def es(query, gps_bounds, size, share_info, isQuestion=False):
             query_info[key].extend(cond_query_info[key])
     else:
         query["current"] = query["current"].lower()
-        if "before" in query["current"] or "after" in query["current"]:
-            new_query = extract_phrases(query["current"].lower())
-            print(new_query)
-            if "after" not in new_query:
-                new_query["after"] = ""
-            if "before" not in new_query:
-                new_query["before"] = ""
-            return es(new_query, gps_bounds, size, share_info)
-        else: 
-            query, (results, scores), scroll_id = individual_es(
-                query["current"], gps_bounds, size, scroll=True, K=3 if isQuestion else 4, ignore_limit_score=False, cache=True)
-            query_info = query.get_info()
+        # if "before" in query["current"] or "after" in query["current"]:
+        #     new_query = extract_phrases(query["current"].lower())
+        #     print("New query:", new_query)
+        #     if "after" not in new_query:
+        #         new_query["after"] = ""
+        #     if "before" not in new_query:
+        #         new_query["before"] = ""
+        #     return es(new_query, gps_bounds, size, share_info)
+        # Normal query
+        query, (results, scores), scroll_id = individual_es(
+            query["current"], gps_bounds, size, scroll=True, K=4, ignore_limit_score=False, cache=True)
+        query_info = query.get_info()
     print(f"TOTAL TIMES: {(timecounter.time() - start):0.4f} seconds.")
     return scroll_id, results, scores, query_info
 
@@ -443,7 +443,7 @@ def construct_es(query, gps_bounds, size, scroll, K, ignore_limit_score, cache):
                                     min_score=min_score,
                                     timestamp="start_timestamp")
         scene_results, scroll_id, _ = post_request(json.dumps(json_query), SCENE_INDEX, scroll=scroll)
-        
+        print("Raw results:", len(scene_results))
         # Cache/update the queries
         query.es_filters = filter_queries
         query.es_should = should_queries
@@ -471,6 +471,11 @@ def get_es_queries(query, gps_bounds, ignore_limit_score):
         location_filters = query.make_location_query()
         filter_queries.append(location_filters)
         min_score += 0.01
+        
+    if query.location_infos:
+        should_queries.append(
+                {"match": {"location_info": {"query": " ".join(query.location_infos), "boost": 0.003}}})
+        min_score += 0.003
 
         # FILTERS
     if query.regions:
@@ -523,13 +528,10 @@ def get_es_queries(query, gps_bounds, ignore_limit_score):
             results, _, aggs  = post_request(
                 json.dumps(json_query), SCENE_INDEX, scroll=False)
             clip_max_score = results[0][1]
-            print("CLIP Max score", clip_max_score)
             # Calculate the min score based on the max score
             clip_min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]
             max_score = min_score + clip_max_score
             min_score = min_score + clip_min_score
-            print("Max score", max_score)
-            print("New min score", min_score)
         elif should_queries:
             json_query = get_json_query([], should_queries, [], 1, includes=INCLUDE_FULL_SCENE, min_score=0, timestamp="start_timestamp")
             results, _, aggs  = post_request(
@@ -537,7 +539,6 @@ def get_es_queries(query, gps_bounds, ignore_limit_score):
             max_score = results[0][1]
             # Calculate the min score based on the max score
             min_score = max_score / 2
-            print("Max score", max_score)
         else:
             min_score = 0.0
             max_score = 1.0
@@ -575,13 +576,13 @@ def forward_search(query, conditional_query, condition, time_limit, gps_bounds, 
     print("Main")
     start = timecounter.time()
     query, (main_events, main_scores), _ = individual_es(
-        query, gps_bounds[0], size=200, scroll=True, 
+        query, gps_bounds[0], size=500, scroll=True, 
         K=K-1 if reverse else K, ignore_limit_score=False, cache=False)
     if len(main_events) == 0:
         return query, conditional_query, [], [], [] 
     extra_filter_scripts = []
     time_limit = float(time_limit) 
-    leeway = timedelta(hours=time_limit - 1)
+    leeway = timedelta(hours=min(time_limit - 1, time_limit / 2))
     time_limit = timedelta(hours=time_limit)
     for event in main_events:
         if condition == "before":
@@ -703,6 +704,7 @@ def es_two_events(query, conditional_query, condition, time_limit, gps_bounds, s
     pair_events, already_done = add_pairs(main_events, conditional_events,
                                           condition, scores)
     print("Pairs:", len(pair_events))
+    print("-" * 80)
     print("Backward Search")
     conditional_query, query, conditional_events, main_events, scores = forward_search(
         conditional_query, query, "before" if condition == "after" else "after",
@@ -761,7 +763,7 @@ def es_three_events(query, before, beforewhen, after, afterwhen, gps_bounds, sha
 
     extra_filter_scripts = []
     time_limit = float(afterwhen)
-    leeway = timedelta(hours=time_limit - 1)
+    leeway = timedelta(hours=min(time_limit - 1, time_limit / 2))
     time_limit = timedelta(hours=time_limit)
     for time_group, score in zip(before_pairs, total_scores):
         start_time = time_group["end_time"] + leeway

@@ -22,7 +22,8 @@ def get_image_list(first, last):
 
 # NEW LSC22
 def get_all_scenes(images):
-    images = [basic_dict[image]for image in images]
+    print(images)
+    images = [basic_dict[image] for image in images if image]
     scene_id = images[0]["scene"]
     group_id = int(images[0]["group"].split('G_')[-1])
     group_results = []
@@ -46,7 +47,7 @@ def get_all_scenes(images):
                     space += 1
                     line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
-                    (group, groups[group]["location"] + "\n" + str(groups[group]["location_info"]), scenes))
+                    (group, [groups[group]["location"], str(groups[group]["location_info"])], scenes))
 
     print("Line:", line, ", scene_id", scene_id)
     return group_results, line, space, scene_id
@@ -71,5 +72,5 @@ def get_more_scenes(group_id, direction="top"):
                 space += 1
                 line += (len(scenes) - 1) // 4 + 1
                 group_results.append(
-                    (group, groups[group]["location"] + "\n" + str(groups[group]["location_info"]), scenes))
+                    (group, [groups[group]["location"], str(groups[group]["location_info"])], scenes))
     return group_results, line, space

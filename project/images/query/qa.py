@@ -12,11 +12,13 @@ from transformers import pipeline
 from .utils import basic_dict, datetime, scene_segments
 
 transformers.logging.set_verbosity_error()
-
-qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/features.npy")
+CLIP_EMBEDDINGS = "/mnt/DATA/duyen/highres"
+qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/features.npy")
+qa_photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
 DIM = qa_photo_features[0].shape[-1]
-qa_photo_ids = pd.read_csv(
-    f"{CLIP_EMBEDDINGS}/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
+qa_photo_features = np.concatenate([qa_photo_features, 
+                                    np.load(f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/features.npy")])
+qa_photo_ids += pd.read_csv(f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
 options = ["frozenbilm_activitynet",
@@ -27,13 +29,14 @@ options = ["frozenbilm_activitynet",
 
 text_qa_model_name = f"{PRETRAINED_MODELS}/models/question-answering__deepset--roberta-base-squad2"
 # a) Get predictions
-nlp = pipeline('question-answering', model=text_qa_model_name, tokenizer=text_qa_model_name, topk=5)
-# nlp = None
+nlp = None
 # device = "cpu"
+# model_path = "/home/tlduyen/LQA/LLQA/RQ2/FrozenBiLM/lifelog_models/ftlifelogs_sub_all/ckpt.pth"
+model_path = f"{PRETRAINED_MODELS}/models/FrozenBiLM/{options[0]}.pth"
 parser = argparse.ArgumentParser(parents=[get_args_parser()])
 args = parser.parse_args(f"""--combine_datasets msrvtt --combine_datasets_val msrvtt \
 --suffix="." --max_tokens=256 --ds_factor_ff=8 --ds_factor_attn=8 \
---load={PRETRAINED_MODELS}/models/FrozenBiLM/{options[0]}.pth \
+--load={model_path} \
 --msrvtt_vocab_path={PRETRAINED_MODELS}/datasets/MSRVTT-QA/vocab.json \
 --model_name microsoft/deberta-v2-xlarge""".split())
 if args.save_dir:
@@ -46,6 +49,12 @@ def build_qa_model():
     global frozen_bilm
     global tokenizer
     global id2a
+    global nlp
+    nlp = pipeline('question-answering', 
+                   model=text_qa_model_name, 
+                   tokenizer=text_qa_model_name, 
+                   topk=5, device=-1 if device=="cpu" else 0,
+                   )
     # Build model
     print("Building QA model")
     tokenizer = get_tokenizer(args)
@@ -54,7 +63,7 @@ def build_qa_model():
     vocab = [a for a in vocab if a != np.nan and str(a) != "nan"]
     vocab = {a: i for i, a in enumerate(vocab)}
     id2a = {y: x for x, y in vocab.items()}
-    args.n_ans = len(vocab)
+    args.n_ans = 2
     frozen_bilm = build_model(args)
     frozen_bilm.to(device)
     frozen_bilm.eval()
@@ -154,16 +163,19 @@ def answer(images, encoded_question):
         encoded_question["input_ids"] == tokenizer.mask_token_id
     ]  # get the prediction on the mask token
     logits = logits.softmax(-1)
-    topk = torch.topk(logits, 5, -1)
-    topk_txt = [[id2a[x.item()] for x in y] for y in topk.indices.cpu()]
-    topk_scores = [[f"{x:.2f}".format() for x in y] for y in topk.values.cpu()]
-    topk_all = [
-        {x: y for x, y in zip(a, b)} for a, b in zip(topk_txt, topk_scores)
-    ]
+    try:
+        topk = torch.topk(logits, 5, -1)
+        topk_txt = [[id2a[x.item()] for x in y] for y in topk.indices.cpu()]
+        topk_scores = [[f"{x:.2f}".format() for x in y] for y in topk.values.cpu()]
+        topk_all = [
+            {x: y for x, y in zip(a, b)} for a, b in zip(topk_txt, topk_scores)
+        ]
+    except IndexError:
+        topk_all = [{}]
     return topk_all[0]
 
 
-def encode_question(question):
+def encode_question(question, textual_description=""):
     """
     Encodes a natural language question as a tokenized input suitable for input
     to a transformer model. The encoding includes special tokens to mark the beginning
@@ -187,7 +199,7 @@ def encode_question(question):
     else:
         if question[-1] != "?":
             question = str(question) + "?"
-        text = f"{args.prefix} Question: {question} Answer: {tokenizer.mask_token}{args.suffix}"
+        text = f"{args.prefix} Question: {question} Answer: {tokenizer.mask_token}. Subtitles: {textual_description} {args.suffix}"
 
     # Tokenize the text and encode the resulting token ids as a PyTorch tensor
     encoded = tokenizer(
@@ -203,25 +215,27 @@ def encode_question(question):
 
 # Get textual description for a scene
 def get_textual_description(scene):
+    if nlp is None:
+        build_qa_model()
     # converting datetime to string
     # start_time = scene['start_time'].strftime("%H:%M")
     # end_time = scene['end_time'].strftime("%H:%M")
     # converting datetime to string like Jan 1, 2020
-    date = scene['start_time'].strftime("%b %d, %Y")
+    date = scene['start_time'].strftime("%A, %B %d, %Y")
     
     location = ""
     location_info = ""
-    if scene["original_location"] != "None":
+    if scene["original_location"] != "---":
         location = f" in {scene['original_location']}"
         if scene["location_info"]:
             location_info = f", which is a {scene['location_info']}"
     ocr = ""
     if scene['ocr']:
-        ocr = f"Some texts that can be seen from the images are: {', '.join(scene['ocr'])}."
+        ocr = f"Some texts that can be seen from the images are: {' '.join(scene['ocr'])}."
     # textual_description = f"The event starts from {start_time} to {end_time} on {date} " + \
         # f"{location}{location_info} in {scene['country']}. {ocr}"
     textual_description = f"The event happened on {date} " + \
-        f"{location}{location_info} in {scene['country']}. {ocr}"
+        f"{location}{location_info} in {scene['country'].title()}. {ocr}"
     return textual_description
 
 # Get answers from a list of images:
@@ -289,7 +303,6 @@ def answer_topk_scenes(question, scenes, scores, k=10):
     if frozen_bilm is None:
         build_qa_model()
     # Encode the question using a helper function
-    encoded_question = encode_question(question)
     original_question = question
     
     # Iterate over each scene
@@ -297,15 +310,9 @@ def answer_topk_scenes(question, scenes, scores, k=10):
         # Extract the images from the "current" field of the scene
         images = [i[0] for i in scene["current"] if i[0]]
         
-        # Compute answer scores for the current scene using an answer function
-        ans = answer(images, encoded_question)
-        
-        # Accumulate the answer scores in the defaultdict
-        for a, s in ans.items():
-            answers[a] += float(s)
-    
         # Extract textual information from the scene
         scene["ocr"] = []
+        textual_description = ""
         for image in images:
             for text in basic_dict[image]["ocr"]:
                 if text and text not in scene["ocr"]:
@@ -319,11 +326,21 @@ def answer_topk_scenes(question, scenes, scores, k=10):
             results = nlp(QA_input)
             for res in results:
                 if res["score"] > 0.1:
-                    ans_score = res["score"] * 5 * (score ** 4)
+                    ans_score = res["score"] * (10-i) ** 2 / 5
                     print(res["answer"], score, ans_score)
                     answers[res["answer"]] = max(answers[res["answer"]], ans_score)
         except Exception as e:
             pass  
+            
+        encoded_question = encode_question(question, textual_description)
+
+        # Compute answer scores for the current scene using an answer function
+        ans = answer(images, encoded_question)
+        
+        # Accumulate the answer scores in the defaultdict
+        for a, s in ans.items():
+            answers[a] += float(s)
+    
     print(original_question)
     # Sort the answers by score and take the top 10, discarding one if zero scores
     answers = [a for a, s in sorted(answers.items(), key=lambda x: x[1], reverse=True) if s > 0][:10]

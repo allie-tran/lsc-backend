@@ -18,8 +18,20 @@ pretrained = "laion2b_s32b_b79k"
 # model_name = "ViT-L-14-336"
 # pretrained = "openai"
 
-photo_features = np.load(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/features.npy")
-photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/photo_ids.csv")["photo_id"].to_list()
+
+
+def get_embeddings(year):
+    CLIP_EMBEDDINGS = f"/mnt/DATA/duyen/highres/{year}/"
+    photo_features = np.load(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/features.npy")
+    photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/photo_ids.csv")["photo_id"].to_list()
+    photo_ids = [photo_id + '.jpg' if '.' not in photo_id else photo_id for photo_id in photo_ids]
+    return photo_features, photo_ids
+
+photo_features, photo_ids = get_embeddings('LSC20')
+new_photo_features, new_photo_ids = get_embeddings('LSC23')
+photo_features = np.concatenate((photo_features, new_photo_features))
+photo_ids = photo_ids + new_photo_ids
+new_photo_features = None
 # photo_features = np.load(f"{FILES_DIRECTORY}/embeddings/features.npy")
 # photo_ids = pd.read_csv(f"{FILES_DIRECTORY}/embeddings/photo_ids.csv")["photo_id"].to_list()
 norm_photo_features = photo_features / LA.norm(photo_features, keepdims=True, axis=-1)

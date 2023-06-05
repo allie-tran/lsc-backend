@@ -111,14 +111,42 @@ def group_scene_results(results, group_factor="group"):
     size = len(results)
     if size == 0:
         return [], []
+    
+    # group the results by group_factor
     grouped_results = defaultdict(lambda: [])
     for result in results:
+        assert group_factor in result[0], f"{group_factor} not in {result[0]}"
         group = result[0][group_factor]
         grouped_results[group].append(result)
-
+    
+    # sort the scene in each group by their scene_id
+    for group in grouped_results:
+        grouped_results[group] = sorted(grouped_results[group], key=lambda x: x[0]["scene"])
+    
+    # split the group if number of images of the children scenes is too large
+    cut_off = 60
+    new_grouped_results = []
+    current_len = 0
+    for group in grouped_results:
+        group_results = grouped_results[group]
+        new_group = []
+        for scene, score in group_results:
+            num_images = len(scene_segments[scene["scene"]])
+            if num_images + current_len > cut_off and new_group:
+                new_grouped_results.append(new_group)
+                current_len = 0
+                new_group = []
+            new_group.append((scene, score))
+            current_len += num_images
+        if new_group:
+            new_grouped_results.append(new_group)
+    
+    # sort the groups by the highest score of their scene
+    new_grouped_results = sorted(new_grouped_results, key=lambda group: max([result[1] for result in group]), reverse=True)
+    
     results_with_info = []
     scores = []
-    for scenes_with_scores in grouped_results.values():
+    for scenes_with_scores in new_grouped_results:
         score = scenes_with_scores[0][1]
         scenes = [res[0] for res in scenes_with_scores]
         new_scenes = []
@@ -139,10 +167,7 @@ def group_scene_results(results, group_factor="group"):
             "current": images,
             "start_time": scenes[0]["start_time"],
             "end_time": scenes[-1]["end_time"],
-            "location": scenes[0]["location"] + "\n" + \
-                        scenes[0]["country"].title() + "\n" + \
-                        time_info[best_scene] + ", " + \
-                        datetime.strftime(scenes[0]["start_time"], "%d/%m/%Y"),
+            "location": get_display_info(scenes, best_scene),
             "original_location": scenes[0]["location"],
             "ocr": ocr}
         for key in scenes[0].keys():
@@ -150,3 +175,9 @@ def group_scene_results(results, group_factor="group"):
                 new_scene[key] = scenes[0][key]
         results_with_info.append(new_scene)
     return results_with_info, scores
+
+def get_display_info(scenes, best_scene):
+    location = scenes[0]["country"].title()
+    if scenes[0]["location"] != "---":
+        location = scenes[0]["location"] + ", " + location
+    return [location, datetime.strftime(scenes[0]["start_time"], "%A, %d/%m/%Y"), time_info[best_scene]]
