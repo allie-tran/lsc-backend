@@ -13,12 +13,10 @@ PRETRAINED_MODELS = os.environ.get("PRETRAINED_MODELS")
 # CLIP
 device = "cuda" if torch.cuda.is_available() else "cpu"
 # device = "cpu"
-model_name = "ViT-H-14"
-pretrained = "laion2b_s32b_b79k"
-# model_name = "ViT-L-14-336"
-# pretrained = "openai"
-
-
+# model_name = "ViT-H-14"
+# pretrained = "laion2b_s32b_b79k"
+model_name = "ViT-L-14-336"
+pretrained = "openai"
 
 def get_embeddings(year):
     CLIP_EMBEDDINGS = f"/mnt/DATA/duyen/highres/{year}/"

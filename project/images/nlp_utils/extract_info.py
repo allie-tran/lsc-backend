@@ -100,8 +100,9 @@ def parse_tags(query):
 class Query:
     def __init__(self, text, shared_filters=None):
         self.disable_region = []
-        text, self.parsed = parse_tags(text)
         text = text.strip(". \n").lower()
+        text = text.replace("—disable-", "--disable-")
+        text, self.parsed = parse_tags(text)
         self.time_filters = None
         self.date_filters = None
         self.duration_filters = None
@@ -119,12 +120,13 @@ class Query:
         self.es_should = []
         self.max_score = 1.0
         self.min_score = 0.0
+        self.normalise_score = lambda x: (x - self.min_score) / (self.max_score - self.min_score)
 
     def extract_info(self, text, shared_filters=None):
         def search_words(wordset, disabled=[]):
             return search(wordset, text, disabled)
         self.original_text = text
-
+        print("Text:", text)
         self.locations = search_words(locations, self.parsed["disabled_locations"])
         print("Locations:", self.locations)
         self.place_to_visualise = [gps_not_lower[location] for location in self.locations]
@@ -140,19 +142,24 @@ class Query:
             text = rreplace(text, loc, "", 1) #TODO!
 
         self.regions = search_words(regions, self.parsed["disabled_regions"])
+        new_regions = []
         for reg in self.regions:
             self.query_visualisation["REGION"].append(reg)
             if reg in lowercase_countries:
                 country = lowercase_countries[reg]
                 self.country_to_visualise.append({"country": country, "geojson": countries[country]})
+                
             if reg in ["korea", "england"]:
                 country = reg.title()
                 if reg == "korea":
+                    new_regions.append("south korea")
                     self.country_to_visualise.append({"country": country, "geojson": countries["South Korea"]})
-
+            else:
+                new_regions.append(reg)
         for region in self.regions:
             text = rreplace(text, region, "", 1) #TODO!
-
+        self.regions = new_regions
+    
         # processed = set([w.strip(",.") for word in self.regions +
                         #  self.locations for w in word.split()])
         # if not full_match:
@@ -262,6 +269,8 @@ class Query:
             elif tag == "TIMEOFDAY":
                 if word not in ["lunch", "breakfast", "dinner", "sunrise", "sunset"]:
                     processed.add(i)
+                else:
+                    self.query_visualisation["TIMEOFDAY"].append(word)
                 timeprep = ""
                 if i > 1 and tags[i-1][1] == 'TIMEPREP':
                     timeprep = tags[i-1][0]
@@ -283,7 +292,7 @@ class Query:
                         word, f"is not a registered time of day ({timeofday})")
             elif tag == "PERIOD":
                 self.duration = parse_period_expression(word)
-                self.query_visualisation["DURATION"] = [f"{word}({self.duration}s)"]
+                self.query_visualisation["DURATION"].append(f"{word}")
                 
         if shared_filters:
             if not self.weekdays:
@@ -325,7 +334,7 @@ class Query:
             print("NO CLIP")
 
     def get_info(self):
-        return {"query_visualisation": [(hint, value) for hint, value in self.query_visualisation.items()],
+        return {"query_visualisation": self.query_visualisation,
                 "country_to_visualise": self.country_to_visualise,
                 "place_to_visualise": self.place_to_visualise}
 

@@ -27,7 +27,8 @@ options = ["frozenbilm_activitynet",
            "frozenbilm_msvd",
            "frozenbilm_tvqa"]
 
-text_qa_model_name = f"{PRETRAINED_MODELS}/models/question-answering__deepset--roberta-base-squad2"
+# text_qa_model_name = f"{PRETRAINED_MODELS}/models/question-answering__deepset--roberta-base-squad2"
+text_qa_model_name = f"{PRETRAINED_MODELS}/models/bert-large-uncased-whole-word-masking-finetuned-squad"
 # a) Get predictions
 nlp = None
 # device = "cpu"
@@ -50,11 +51,14 @@ def build_qa_model():
     global tokenizer
     global id2a
     global nlp
+    # nlp = pipeline('question-answering', 
+    #                model=text_qa_model_name, 
+    #                tokenizer=text_qa_model_name, 
+    #                topk=5, device=-1 if device=="cpu" else 0, truncation=True, padding=True)
     nlp = pipeline('question-answering', 
                    model=text_qa_model_name, 
                    tokenizer=text_qa_model_name, 
-                   topk=5, device=-1 if device=="cpu" else 0,
-                   )
+                   topk=5, device=-1, truncation=True, padding=True)
     # Build model
     print("Building QA model")
     tokenizer = get_tokenizer(args)
@@ -96,7 +100,7 @@ def build_qa_model():
             raise(e)
     frozen_bilm.set_answer_embeddings(aid2tokid.to(device), freeze_last=args.freeze_last)
 
-# build_qa_model()
+build_qa_model()
 
 def answer(images, encoded_question):
     """
@@ -214,28 +218,52 @@ def encode_question(question, textual_description=""):
     return encoded
 
 # Get textual description for a scene
-def get_textual_description(scene):
+def get_textual_description(scene, question):
     if nlp is None:
         build_qa_model()
     # converting datetime to string
-    # start_time = scene['start_time'].strftime("%H:%M")
-    # end_time = scene['end_time'].strftime("%H:%M")
+    start_time = scene['start_time'].strftime("%I:%M%p")
+    end_time = scene['end_time'].strftime("%I:%M%p")
+    
+    # calculating duration
+    time_delta = scene['end_time'] - scene['start_time']
+    if time_delta.seconds > 0:
+        hours = time_delta.seconds // 3600
+        if time_delta.days > 0:
+            if hours > 0:
+                duration = f"{time_delta.days} days and {hours} hours"
+            else:
+                duration = f"{time_delta.days} days"
+        else:
+            if hours > 0:
+                minutes = (time_delta.seconds - hours * 3600) // 60
+                duration = f"{hours} hours and {minutes} minutes"
+            elif time_delta.seconds < 60:
+                duration = f"{time_delta.seconds} seconds"
+            else:
+                minutes = time_delta.seconds // 60
+                duration = f"{minutes} minutes"
+        duration = f", lasted for about {duration}"
+        time = f"from {start_time} to {end_time}"
+    else:
+        duration = ""
+        time = f"at {start_time}"
+        
     # converting datetime to string like Jan 1, 2020
     date = scene['start_time'].strftime("%A, %B %d, %Y")
     
     location = ""
     location_info = ""
     if scene["original_location"] != "---":
-        location = f" in {scene['original_location']}"
+        location = f"in {scene['original_location']}"
         if scene["location_info"]:
             location_info = f", which is a {scene['location_info']}"
     ocr = ""
     if scene['ocr']:
         ocr = f"Some texts that can be seen from the images are: {' '.join(scene['ocr'])}."
-    # textual_description = f"The event starts from {start_time} to {end_time} on {date} " + \
-        # f"{location}{location_info} in {scene['country']}. {ocr}"
-    textual_description = f"The event happened on {date} " + \
-        f"{location}{location_info} in {scene['country'].title()}. {ocr}"
+    regions = [reg for reg in scene['region'] if reg != scene['country']]
+    textual_description = f"The event happened {time}{duration} on {date} " + \
+        f"{location}{location_info} in {', '.join(regions)} in {scene['country']}. {ocr}"
     return textual_description
 
 # Get answers from a list of images:
@@ -252,9 +280,12 @@ def get_answers_from_images(images, question):
     scene["start_time"] = datetime.strptime(scene["start_time"], "%Y/%m/%d %H:%M:%S%z")
     scene["end_time"] = datetime.strptime(scene["end_time"], "%Y/%m/%d %H:%M:%S%z")
     
-    scene["original_location"] = basic_dict[images[0]]["location"]
-    scene["location_info"] = basic_dict[images[0]]["location_info"]
-    scene["country"] = basic_dict[images[0]]["country"]
+    first_image = basic_dict[images[0]]
+    scene["original_location"] = first_image["location"]
+    scene["location_info"] = first_image["location_info"]
+    scene["country"] = first_image["country"]
+    scene["region"] = first_image["region"]
+    
     scene["ocr"] = []
     for image in images:
         for text in basic_dict[image]["ocr"]:
@@ -262,8 +293,7 @@ def get_answers_from_images(images, question):
                 scene["ocr"].append(text)
                 
     # Get textual description for a scene
-    print(question)
-    textual_description = get_textual_description(scene)
+    textual_description = get_textual_description(scene, question)
     # Get answers from textual description
     QA_input = {
                 'question': question,
@@ -271,6 +301,7 @@ def get_answers_from_images(images, question):
             }
     print(textual_description)
     results = nlp(QA_input)
+    print(results)
     for res in results:
         if res["score"] > 0.1:
             print(res["answer"], res["score"])
@@ -318,7 +349,7 @@ def answer_topk_scenes(question, scenes, scores, k=10):
                 if text and text not in scene["ocr"]:
                     scene["ocr"].append(text)
         try:
-            textual_description = get_textual_description(scene)
+            textual_description = get_textual_description(scene, question)
             QA_input = {
                 'question': original_question,
                 'context': textual_description
@@ -327,9 +358,9 @@ def answer_topk_scenes(question, scenes, scores, k=10):
             for res in results:
                 if res["score"] > 0.1:
                     ans_score = res["score"] * (10-i) ** 2 / 5
-                    print(res["answer"], score, ans_score)
                     answers[res["answer"]] = max(answers[res["answer"]], ans_score)
         except Exception as e:
+            print("NLP", e)
             pass  
             
         encoded_question = encode_question(question, textual_description)
@@ -341,7 +372,6 @@ def answer_topk_scenes(question, scenes, scores, k=10):
         for a, s in ans.items():
             answers[a] += float(s)
     
-    print(original_question)
     # Sort the answers by score and take the top 10, discarding one if zero scores
     answers = [a for a, s in sorted(answers.items(), key=lambda x: x[1], reverse=True) if s > 0][:10]
     

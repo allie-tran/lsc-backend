@@ -13,11 +13,12 @@ locations = json.load(open(f'{FILES_DIRECTORY}/backend//locations.json'))
 location_infos = json.load(open(f'{FILES_DIRECTORY}/backend//location_info.json'))
 map_visualisation = json.load(open(f'{FILES_DIRECTORY}/backend/map_visualisation.json'))
 regions = json.load(open(f'{FILES_DIRECTORY}/backend/regions.json'))
+regions.extend(["korea", "uk", "england"])
 countries = json.load(open(f'{FILES_DIRECTORY}/backend/countries.json'))
 lowercase_countries = {country.lower(): country for country in countries}
 
 def find_regex(regex, text, escape=False):
-    if "#" in regex and "\#" not in regex:
+    if "\n" in regex or ("#" in regex and "\#" not in regex):
         regex = re.compile(regex, re.IGNORECASE | re.VERBOSE)
     else:
         regex = re.compile(regex, re.IGNORECASE)

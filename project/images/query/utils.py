@@ -107,7 +107,7 @@ def post_mrequest(json_query, index):
         # f.write(json_query + '\n')
     return id_images
 
-def group_scene_results(results, group_factor="group"):
+def group_scene_results(results, group_factor="group", query_info=[]):
     size = len(results)
     if size == 0:
         return [], []
@@ -124,15 +124,14 @@ def group_scene_results(results, group_factor="group"):
         grouped_results[group] = sorted(grouped_results[group], key=lambda x: x[0]["scene"])
     
     # split the group if number of images of the children scenes is too large
-    cut_off = 60
+    cut_off = 120
     new_grouped_results = []
     current_len = 0
     for group in grouped_results:
-        group_results = grouped_results[group]
         new_group = []
-        for scene, score in group_results:
+        for scene, score in grouped_results[group]:
             num_images = len(scene_segments[scene["scene"]])
-            if num_images + current_len > cut_off and new_group:
+            if scene["location_info"] not in ["Car", "Airplane"] and num_images + current_len > cut_off and new_group:
                 new_grouped_results.append(new_group)
                 current_len = 0
                 new_group = []
@@ -142,18 +141,21 @@ def group_scene_results(results, group_factor="group"):
             new_grouped_results.append(new_group)
     
     # sort the groups by the highest score of their scene
-    new_grouped_results = sorted(new_grouped_results, key=lambda group: max([result[1] for result in group]), reverse=True)
+    new_grouped_results = sorted(new_grouped_results, 
+                                 key=lambda group: max([score for scene, score in group]), 
+                                 reverse=True)
     
     results_with_info = []
     scores = []
     for scenes_with_scores in new_grouped_results:
-        score = scenes_with_scores[0][1]
+        score = max([s for scene, s in scenes_with_scores])
         scenes = [res[0] for res in scenes_with_scores]
         new_scenes = []
         ocr = []
         for scene in scenes:
-            scene["start_time"] = datetime.strptime(scene["start_time"], "%Y/%m/%d %H:%M:%S%z")
-            scene["end_time"] = datetime.strptime(scene["end_time"], "%Y/%m/%d %H:%M:%S%z")
+            if isinstance(scene["start_time"], str):
+                scene["start_time"] = datetime.strptime(scene["start_time"], "%Y/%m/%d %H:%M:%S%z")
+                scene["end_time"] = datetime.strptime(scene["end_time"], "%Y/%m/%d %H:%M:%S%z")
             for text in scene["ocr"]:
                 if text and text not in ocr:
                     ocr.append(text)
@@ -167,7 +169,7 @@ def group_scene_results(results, group_factor="group"):
             "current": images,
             "start_time": scenes[0]["start_time"],
             "end_time": scenes[-1]["end_time"],
-            "location": get_display_info(scenes, best_scene),
+            "location": get_display_info(scenes, best_scene, query_info),
             "original_location": scenes[0]["location"],
             "ocr": ocr}
         for key in scenes[0].keys():
@@ -176,8 +178,15 @@ def group_scene_results(results, group_factor="group"):
         results_with_info.append(new_scene)
     return results_with_info, scores
 
-def get_display_info(scenes, best_scene):
-    location = scenes[0]["country"].title()
+def get_display_info(scenes, best_scene, query_info):
+    location = scenes[0]["country"]
     if scenes[0]["location"] != "---":
-        location = scenes[0]["location"] + ", " + location
+        to_show = []
+        if "regions" in query_info:
+            to_show = [region for region in scenes[0]["region"] if region.lower() in query_info["regions"] and region != scenes[0]["country"]]
+        if to_show:
+            location = scenes[0]["location"] + f", " + ", ".join(to_show) + f" ({location})"
+        else:
+            location = scenes[0]["location"] + f" ({location})"
+
     return [location, datetime.strftime(scenes[0]["start_time"], "%A, %d/%m/%Y"), time_info[best_scene]]

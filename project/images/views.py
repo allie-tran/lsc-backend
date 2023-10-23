@@ -7,7 +7,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from datetime import datetime
 from images.query import *
-
+import logging
 import requests
 
 sessionId = None
@@ -16,13 +16,15 @@ last_results = None
 # server = "https://vbs.videobrowsing.org/api/v1"
 server = "http://localhost:8003/"
 
-import logging
-# create logger with 'spam_application'
-logger = logging.getLogger('LSC_logging')
-# create file handler which logs even debug messages
-fh = logging.FileHandler('lsc23.log')
-fh.setLevel(logging.DEBUG)
-logger.addHandler(fh)
+# Get logger
+logger = logging.getLogger('lsc23')
+logger.propagate = False
+logger.setLevel(logging.DEBUG)
+# Create a handler
+f_handler = logging.FileHandler('lsc23.log')
+logger.addHandler(f_handler) # <-- THIS!
+# test
+logger.debug("Started logging")
 
 def jsonize(response):
     # JSONize
@@ -43,6 +45,7 @@ def login(request):
     if session_id and session_id != "vbs":
         server = "http://localhost:8003/"
         sessionId = session_id
+        logger.info(f"{int(time.time())}, LSCBLANK, login, {sessionId}")
         return jsonize({"description": f"Login successful: {sessionId}!"})
     else:
         server = "https://vbs.videobrowsing.org/api/v1"
@@ -52,8 +55,10 @@ def login(request):
         print(res)
         if res.status_code == 200:
             sessionId = res.json()["sessionId"]
+            logger.info(f"{int(time.time())}, LSCBLANK, login, {sessionId}")
             return jsonize({"description": f"Login successful: {sessionId}!"})
         else:
+            logger.info(f"{int(time.time())}, LSCBLANK, login, Login error!")
             return jsonize({"description": "Login error!"})
 
 @csrf_exempt
@@ -97,6 +102,17 @@ def submit_all(request):
         logger.info(f"{int(time.time())}, LSCBLANK, result-submit, {item}, {res}")
     return jsonize({"description": "\n".join(results)})
 
+def form_question(current, before, after):
+    current = current.strip(" ?\n")
+    if before and after:
+        return f"After {before} and before {after}, {current}?"
+    elif before:
+        return f"After {before}, {current}?"
+    elif after:
+        return f"Before {after}, {current}?"
+    else:
+        return f"{current}?"
+        
 @csrf_exempt
 def images(request):
     global last_scroll_id
@@ -105,11 +121,10 @@ def images(request):
     # Get message
     message = json.loads(request.body.decode('utf-8'))
     print("=" * 80)
-    with open("E-Mysceal Logs.txt", "a") as f:
-        f.write(datetime.strftime(datetime.now(), "%Y%m%d_%H%M%S") + "\n" + request.body.decode('utf-8') + "\n")
-    
-    print(message)
-    original_query = message["query"]["current"]
+    message_to_log = {"query": {key: value for key, value in message["query"].items() if key != "info"},
+                      "gps_bounds": message["gps_bounds"]}
+    question = message["query"]["current"]
+    question = form_question(message["query"]["current"], message["query"]["before"], message["query"]["after"])
     
     # Calculations
     scroll_id, queryset, scores, info = es(message['query'], 
@@ -130,18 +145,27 @@ def images(request):
     
     #LSC23!
     texts = []
-    if message["query"]["isQuestion"]:
-        texts = answer_topk_scenes(original_query, queryset, scores, k=10)
+    print("Answering question:", question)
+    start = time.time()
+    if message["query"]["isQuestion"] and "?" in message["query"]["current"]:
+        texts = answer_topk_scenes(question, queryset, scores, k=10)
+    print("Answering time:", time.time() - start)
+        
     response = {'results': queryset, 
                 'size': len(queryset), 
                 'info': info, 
                 'more': False, 
                 'scores': scores, 
                 "texts": texts}
-    message_to_log = {"query": {key: value for key, value in message["query"].items() if key != "info"},
-                      "gps_bounds": message["gps_bounds"]}
-    result_to_log = [x['images'] for x in queryset]
-    logger.info(f"{int(time.time())}, LSCBLANK, query-string, [{json.dumps(message_to_log)}], [{json.dumps(result_to_log)}]")
+    
+    def get_images(scene):
+        images = []
+        for key in ["before", "current", "after"]:
+            if key in scene:
+                images.extend([image[0] for image in scene[key]])
+        return images
+    result_to_log = {"images": [get_images(x) for x in queryset], "texts": texts}
+    logger.debug(f"{int(time.time())}, LSCBLANK, query-string, [{json.dumps(message_to_log)}], [{json.dumps(result_to_log)}]")
     return jsonize(response)
 
 @csrf_exempt
@@ -212,7 +236,6 @@ def similar(request):
     response = {"scenes": similar_images}
     return jsonize(response)
 
-
 @csrf_exempt
 def answer_scene(request):
     message = json.loads(request.body.decode('utf-8'))
@@ -229,7 +252,7 @@ def sort_by(request):
     queryset, scores = last_results
 
     sortby = str(request.GET.get('by'))
-    maximum = 50
+    maximum = 100
     if sortby == "time":
         queryset, scores = zip(*sorted(zip(queryset[:maximum], scores[:maximum]), key=lambda x: int(x[0]["scene"].split("_")[1])))
     elif sortby == "time-reverse":
