@@ -1,0 +1,40 @@
+[tool.pyright]
+include = ["src"]
+exclude = ["**/node_modules",
+    "**/__pycache__",
+    "src/experimental",
+    "src/typestubs"
+]
+defineConstant = { DEBUG = true }
+stubPath = "src/stubs"
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+
+pythonPlatform = "Linux"
+python.pythonPath="/home/allie/.conda/envs/main/bin/python"
+
+executionEnvironment = {
+    "root": "images/",
+}
+
+[project]
+name = "MyEachtra Gen"
+version = "1.1.0"
+dependencies = ["./requirements.txt"]
+authors = [
+{ name = "Allie", email = "ly.duyentran@dcu.ie" }
+]
+license = {text = "MIT License"}
+description = "A lifelog retrieval system with generative QA capabilities"
+readme = "README.md"
+keywords = ["lifelogging", "QA", "generative"]
+
+[project.optionalDependencies]
+cli = ["gitmoji-cli"]
+
+[project.scripts]
+start-cli="sh start.sh"
+
+[python]
+pythonPath = "/home/allie/.conda/envs/main/bin/python"

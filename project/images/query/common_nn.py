@@ -19,7 +19,7 @@ model_name = "ViT-L-14-336"
 pretrained = "openai"
 
 def get_embeddings(year):
-    CLIP_EMBEDDINGS = f"/mnt/DATA/duyen/highres/{year}/"
+    CLIP_EMBEDDINGS = f"{os.getenv('CLIP_EMBEDDINGS')}/{year}/"
     photo_features = np.load(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/features.npy")
     photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/{model_name}_{pretrained}_nonorm/photo_ids.csv")["photo_id"].to_list()
     photo_ids = [photo_id + '.jpg' if '.' not in photo_id else photo_id for photo_id in photo_ids]

@@ -8,6 +8,7 @@ from transformers import (
     DebertaV2Config,
     BertConfig,
     GPT2Tokenizer,
+    AutoTokenizer
 )
 
 
@@ -96,6 +97,7 @@ def get_tokenizer(args):
         tokenizer = DebertaV2Tokenizer.from_pretrained(
             args.model_name, local_files_only=False
         )
+        # tokenizer = AutoTokenizer.from_pretrained(args.model_name)
     elif "bert" in args.model_name:
         tokenizer = BertTokenizer.from_pretrained(
             args.model_name, local_files_only=True
