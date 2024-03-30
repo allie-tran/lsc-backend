@@ -3,3 +3,13 @@
 *$py.class
 **/__pycache__/*
 project/__pycache__/*
+
+# django
+*.log
+*.pot
+*.pyc
+__pycache__/
+static/
+
+logs/
+start.sh

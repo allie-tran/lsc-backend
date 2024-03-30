@@ -13,20 +13,25 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+import os
+
 from django.conf import settings
 from django.conf.urls.static import static
-from django.urls import path, include
 from django.contrib import admin
+from django.urls import include, path
+
 from . import views
-import os
 from .auth_models import CustomTokenObtainPairView
 
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('cross-server-auth', views.cross_server_auth),
-    path('auth', CustomTokenObtainPairView.as_view()),
-    path('auth/refresh', CustomTokenObtainPairView.as_view()),
-    path('', include('images.urls'))
+    path("admin/", admin.site.urls),
+    path("cross-server-auth", views.cross_server_auth),
+    path("auth", CustomTokenObtainPairView.as_view()),
+    path("auth/refresh", CustomTokenObtainPairView.as_view()),
+    path("login-from-frontend", views.login_from_frontend),
+    path("", include("images.urls")),
+    path("", include("retrieval.urls")),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
