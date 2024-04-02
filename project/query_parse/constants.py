@@ -20,3 +20,44 @@ for loc in LOCATIONS:
     for origin_doc, (lat, lon) in MAP_VISUALISATION:
         if loc == origin_doc.lower():
             GPS_NORMAL_CASE[loc] = origin_doc
+
+QUESTION_WORDS = [
+    "who",
+    "what",
+    "when",
+    "where",
+    "why",
+    "how",
+    "which",
+    "whose",
+    "whom",
+]
+
+QUESTION_TYPES = [
+    "location",
+    "time",
+    "frequency",
+    "ocr",
+    "counting",
+    "summarization",
+    "color",
+]
+
+AUXILIARY_VERBS = [
+    "do",
+    "have",
+    "can",
+    "could",
+    "shall",
+    "should",
+    "will",
+    "would",
+    "did",
+    "does",
+    "had",
+    "was",
+    "were",
+    "is",
+    "are",
+    "am",
+]

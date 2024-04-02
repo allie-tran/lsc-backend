@@ -1,0 +1,123 @@
+let SessionLoad = 1
+if &cp | set nocp | endif
+let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1
+let v:this_session=expand("<sfile>:p")
+silent only
+silent tabonly
+cd ~/MySceal/backend/project
+if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
+  let s:wipebuf = bufnr('%')
+endif
+let s:shortmess_save = &shortmess
+if &shortmess =~ 'A'
+  set shortmess=aoOA
+else
+  set shortmess=aoO
+endif
+badd +30 retrieval/routers.py
+badd +49 retrieval/search.py
+badd +94 retrieval/search_utils.py
+badd +25 query_parse/question.py
+badd +199 query_parse/extract_info.py
+argglobal
+%argdel
+$argadd retrieval/routers.py
+edit retrieval/search_utils.py
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+wincmd _ | wincmd |
+vsplit
+1wincmd h
+wincmd w
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+exe 'vert 1resize ' . ((&columns * 55 + 55) / 111)
+exe 'vert 2resize ' . ((&columns * 55 + 55) / 111)
+argglobal
+balt query_parse/extract_info.py
+setlocal fdm=manual
+setlocal fde=SimpylFold#FoldExpr(v:lnum)
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=2
+setlocal fml=1
+setlocal fdn=20
+setlocal fen
+silent! normal! zE
+1,11fold
+19,23fold
+26,33fold
+65,67fold
+64,110fold
+113,138fold
+let &fdl = &fdl
+64
+normal! zo
+let s:l = 4 - ((3 * winheight(0) + 20) / 40)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 4
+normal! 012|
+wincmd w
+argglobal
+if bufexists(fnamemodify("retrieval/routers.py", ":p")) | buffer retrieval/routers.py | else | edit retrieval/routers.py | endif
+balt retrieval/search.py
+setlocal fdm=manual
+setlocal fde=SimpylFold#FoldExpr(v:lnum)
+setlocal fmr={{{,}}}
+setlocal fdi=#
+setlocal fdl=2
+setlocal fml=1
+setlocal fdn=20
+setlocal fen
+silent! normal! zE
+1,18fold
+26,28fold
+25,65fold
+71,73fold
+70,88fold
+93,95fold
+92,116fold
+121,123fold
+120,135fold
+let &fdl = &fdl
+25
+normal! zo
+92
+normal! zo
+let s:l = 26 - ((13 * winheight(0) + 20) / 40)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 26
+normal! 05|
+wincmd w
+exe 'vert 1resize ' . ((&columns * 55 + 55) / 111)
+exe 'vert 2resize ' . ((&columns * 55 + 55) / 111)
+tabnext 1
+if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0
+  silent exe 'bwipe ' . s:wipebuf
+endif
+unlet! s:wipebuf
+set winheight=1 winwidth=20
+let &shortmess = s:shortmess_save
+let &winminheight = s:save_winminheight
+let &winminwidth = s:save_winminwidth
+let s:sx = expand("<sfile>:p:r")."x.vim"
+if filereadable(s:sx)
+  exe "source " . fnameescape(s:sx)
+endif
+let &g:so = s:so_save | let &g:siso = s:siso_save
+nohlsearch
+doautoall SessionLoadPost
+unlet SessionLoad
+" vim: set ft=vim :

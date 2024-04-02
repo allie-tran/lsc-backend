@@ -4,7 +4,7 @@ from django.contrib.auth import authenticate
 from django.http import HttpResponse, HttpResponseServerError
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
-from results.database import user_collection
+from database.utils import user_collection
 
 
 @csrf_exempt
@@ -23,7 +23,7 @@ def cross_server_auth(request):
 @csrf_exempt
 @api_view(["GET"])
 def login_from_frontend(request):
-    session_id = request.GET.get("sessionId")
+    session_id = request.GET.get("sessionID")
     if not session_id:
         return HttpResponseServerError(reason="No session ID provided")
     # Save session ID to the database to match with the user later

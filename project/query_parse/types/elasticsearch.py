@@ -1,97 +1,18 @@
+"""
+All classes and functions related to Elasticsearch
+"""
+
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
-from configs import SCENE_INDEX
+from configs import DEFAULT_SIZE, SCENE_INDEX
 from nltk import defaultdict
 from pydantic import BaseModel
-from results.models import EventResults, Results
 
-
-# ====================== #
-# REQUESTS
-# ====================== #
-class GeneralQueryRequest(BaseModel):
-    main: str
-
-    # Optional temporal queries
-    before: Optional[str] = None
-    before_time: Optional[str] = None
-
-    after: Optional[str] = None
-    after_time: Optional[str] = None
-
-    # Optional spatial queries
-    gps_bounds: Optional[List[float]] = None
-
-    # Miscs
-    # size: int = 200
-    # share_info: bool = False
-
-
-class GeneralQuestionRequest(GeneralQueryRequest):
-    pass
-
-
-# ====================== #
-# PROCESSING
-# ====================== #
-
-" POS tagging, NER, and other NLP related types "
-Tags = Tuple[str, str]
-
-
-class RegexInterval(BaseModel):
-    start: int
-    end: int
-    text: str
-    tag: Optional[str] = ""
-
-
-class DateTuple(BaseModel):
-    year: Optional[int] = None
-    month: Optional[int] = None
-    day: Optional[int] = None
-
-
-class Visualisation(BaseModel):
-    """
-    A class to represent info to visualise in the frontend for a search result
-    """
-
-    # QUERY ANALYSIS
-    locations: List[str] = []
-    suggested_locations: List[str] = []
-    regions: List[str] = []
-    time_hints: List[str] = []
-
-    # MAP VISUALISATION
-    map_locations: List[List[float]] = []
-    map_countries: List[dict] = []
-
-    # Don't know what this is
-    location_infos: List[Dict[str, Any]] = []
-
-    def update(self, other: "Visualisation"):
-        for key, value in other.dict().items():
-            if key in self.dict():
-                self.dict()[key].extend(value)
-
-    def to_dict(self) -> dict:
-        return self.dict()
-
+from .lifelog import DateTuple
 
 # ====================== #
 # ELASTICSEARCH
 # ====================== #
-
-
-class ESRequest(BaseModel):
-    """
-    A class to represent a request to Elasticsearch
-    """
-
-    index: str
-    searched: bool = False  # Whether the request has been searched
-    results: Optional[Results] = None
 
 
 class ESQuery(BaseModel):
@@ -114,10 +35,12 @@ class ESSearchRequest(ESQuery):
     A class to represent a search query in Elasticsearch
     """
 
+    test: bool = False
+    original_text: Optional[str] = None
     index: str = SCENE_INDEX
     main_field: str = "scene"
     query: Any
-    size: int = 200
+    size: int = DEFAULT_SIZE
     includes: List[str] = [main_field]
     sort_field: Optional[str] = None
     sort_order: str = "desc"
@@ -146,28 +69,6 @@ class ESSearchRequest(ESQuery):
         if self.min_score:
             query["min_score"] = self.min_score
         return query
-
-
-class ESScroll(ESQuery):
-    """
-    A class to represent a scroll in Elasticsearch
-    """
-
-    original_query: Optional[ESQuery] = None
-
-    scroll_id: str
-    scroll: str = "1m"  # For how long should the scroll be kept alive
-    results: Optional[EventResults] = None
-    aggregations: Optional[dict] = None
-
-    def to_query(self) -> dict:
-        return {"scroll": self.scroll, "scroll_id": self.scroll_id}
-
-    def add_results(self, results: EventResults):
-        if self.results is None:
-            self.results = results
-        else:
-            self.results.extend(results)
 
 
 class ESGeoDistance(ESQuery):
@@ -362,9 +263,6 @@ class ESListQuery(ESQuery):
     queries: list = []
     name: str = "Unnamed"
 
-    class Config:
-        orm_mode = True
-
     def append(self, query: Any):
         # Making sure that the query is not empty
         if not query:
@@ -482,7 +380,6 @@ class ESBoolQuery(ESQuery):
     normalize: Optional[Callable] = lambda x: x
 
     # Results
-    results: Optional[EventResults] = None
     aggregations: Optional[dict] = None
 
     def to_query(self) -> dict:
@@ -499,12 +396,6 @@ class ESBoolQuery(ESQuery):
 
         return {"bool": query}
 
-    def add_results(self, results: EventResults):
-        if self.results is None:
-            self.results = results
-        else:
-            self.results.extend(results)
-
 
 class MSearchQuery(BaseModel):
     """
@@ -512,16 +403,9 @@ class MSearchQuery(BaseModel):
     """
 
     queries: List[ESBoolQuery]
-    results: List[Optional[EventResults]] = []
 
     def to_query(self) -> List[Dict]:
         return [query.to_query() for query in self.queries]
 
     def add_query(self, query: ESBoolQuery):
         self.queries.append(query)
-
-    def add_results(self, results: EventResults):
-        self.results.append(results)
-
-    def extend_results(self, results: List[Optional[EventResults]]):
-        self.results.extend(results)

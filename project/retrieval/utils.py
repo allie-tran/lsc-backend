@@ -1,125 +1,46 @@
 import json
 from collections import defaultdict
 from datetime import datetime
+from typing import List
 
-import requests
 from configs import FILES_DIRECTORY
-from query_parse.constants import BASIC_DICT
 from query_parse.utils import cache
+from database.utils import image_collection, scene_collection
 
-all_images = list(BASIC_DICT.keys())
-groups = json.load(open(f"{FILES_DIRECTORY}/group_segments.json"))
-scene_segments = {}
-for group_name in groups:
-    for scene_name, images in groups[group_name]["scenes"]:
-        assert "S_" in scene_name, f"{scene_name} is not a valid scene id"
-        scene_segments[scene_name] = images
 time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
 
-def get_dict(image):
+def get_dict(image: str) -> dict:
     if "/" not in image:
         image = f"{image[:6]}/{image[6:8]}/{image}"
-    return BASIC_DICT[image]
+    info = image_collection.find_one({"image": image})
+    assert info, f"Image {image} not found"
+    return info
 
 
 @cache
-def get_date_info(image):
+def get_date_info(image: str) -> str:
     time = datetime.strptime(get_dict(image)["time"], "%Y/%m/%d %H:%M:%S%z")
     return time.strftime("%A, %d %B %Y")
 
 
-def get_location(image):
+def get_location(image: str) -> str:
     return get_dict(image)["location"]
 
 
-def get_gps(images):
+def get_gps(images) -> List[dict]:
     if images:
         if isinstance(images[0], tuple):  # images with weights
             images = [image[0] for image in images]
         if isinstance(images[0], str):
-            images = [get_dict(image) for image in images]
+            images = image_collection.find(
+                {"image": {"$in": images}}, {"gps": 1, "_id": 0}
+            )
         sorted_by_time = [
             image["gps"] for image in sorted(images, key=lambda x: x["time"])
         ]
         return sorted_by_time
     return []
-
-
-def delete_scroll_id(scroll_id):
-    response = requests.delete(
-        f"http://localhost:9200/_search/scroll",
-        headers={"Content-Type": "application/json"},
-        data=json.dumps({"scroll_id": scroll_id}),
-    )
-    return response.status_code == 200
-
-
-def get_scroll_request(scroll_id):
-    response = requests.post(
-        f"http://localhost:9200/_search/scroll",
-        headers={"Content-Type": "application/json"},
-        data=json.dumps({"scroll": "5m", "scroll_id": scroll_id}),
-    )
-    assert response.status_code == 200, f"Wrong request: {response.text}"
-    response_json = response.json()  # Convert to json as dict formatted
-    scene_results = [[d["_source"], d["_score"]] for d in response_json["hits"]["hits"]]
-    scroll_id = response_json["_scroll_id"]
-    return scene_results, scroll_id
-
-
-def post_request(json_query, index, scroll=False):
-    headers = {"Content-Type": "application/json"}
-    response = requests.post(
-        f"http://localhost:9200/{index}/_search{'?scroll=5m' if scroll else ''}",
-        headers=headers,
-        data=json_query,
-    )
-    aggregations = []
-    id_images = []
-    scroll_id = None
-    if response.status_code == 200:
-        # stt = "Success"
-        response_json = response.json()  # Convert to json as dict formatted
-        id_images = [[d["_source"], d["_score"]] for d in response_json["hits"]["hits"]]
-        scroll_id = response_json["_scroll_id"] if scroll else None
-        if "aggregations" in response_json:
-            aggregations = response_json["aggregations"]
-    else:
-        print(f"Response status {response.status_code}")
-        print(response.text)
-    if not id_images:
-        with open("request.log", "a") as f:
-            f.write(json_query + "\n")
-        # print(json_query)
-        print(f"Empty results. Output in request.log")
-    return id_images, scroll_id, aggregations
-
-
-def post_mrequest(json_query, index):
-    headers = {"Content-Type": "application/x-ndjson"}
-    response = requests.post(
-        f"http://localhost:9200/{index}/_msearch", headers=headers, data=json_query
-    )
-    if response.status_code == 200:
-        # stt = "Success"
-        response_json = response.json()  # Convert to json as dict formatted
-        id_images = []
-        for res in response_json["responses"]:
-            try:
-                id_images.append(
-                    [[d["_source"], d["_score"]] for d in res["hits"]["hits"]]
-                )
-            except KeyError as e:
-                print(res)
-                id_images.append([])
-    else:
-        print(f"Response status {response.status_code}")
-        id_images = []
-
-    # with open('request.log', 'w') as f:
-    # f.write(json_query + '\n')
-    return id_images
 
 
 def group_scene_results(results, group_factor="group", query_info=[]):
@@ -147,7 +68,10 @@ def group_scene_results(results, group_factor="group", query_info=[]):
     for group in grouped_results:
         new_group = []
         for scene, score in grouped_results[group]:
-            num_images = len(scene_segments[scene["scene"]])
+            num_images = 0
+            images = scene_collection.find_one({"scene": scene["scene"]})
+            if images:
+                num_images = len(images)
             if (
                 scene["location_info"] not in ["Car", "Airplane"]
                 and num_images + current_len > cut_off

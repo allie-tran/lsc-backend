@@ -31,7 +31,7 @@ urlpatterns = [
     path("cross-server-auth", views.cross_server_auth),
     path("auth", CustomTokenObtainPairView.as_view()),
     path("auth/refresh", CustomTokenObtainPairView.as_view()),
-    path("login-from-frontend", views.login_from_frontend),
-    path("", include("images.urls")),
+    path("login/", views.login_from_frontend),
+    # path("", include("images.urls")),
     path("", include("retrieval.urls")),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

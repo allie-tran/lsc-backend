@@ -5,6 +5,8 @@ Location module
 import re
 from typing import List, Tuple
 
+from results.models import Visualisation
+
 from .constants import (
     COUNTRIES,
     GPS_NORMAL_CASE,
@@ -13,7 +15,7 @@ from .constants import (
     LOWERCASE_COUNTRIES,
     REGIONS,
 )
-from .types import LocationInfo, Visualisation
+from .types import LocationInfo
 from .utils import is_enabled, remove_keywords, search_keywords
 
 

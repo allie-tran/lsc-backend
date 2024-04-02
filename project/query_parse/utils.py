@@ -1,6 +1,6 @@
 import re
 import shelve
-from typing import Generator, Iterable, List, Tuple, Union
+from typing import Counter, Generator, Iterable, List, Tuple, TypeVar, Union
 
 import nltk
 
@@ -207,3 +207,40 @@ def get_visual_text(text: str, unprocessed_words: List[Tags]):
     visual_text = visual_text.strip(", ?")
 
     return visual_text
+
+
+def merge_str(str1: str, str2: str, separator: str = "+") -> str:
+    if str1 == str2:
+        return str1
+    if not str1 or not str2:
+        return str1 or str2
+    return f"{str1}{separator}{str2}"
+
+
+def merge_list(list1: List[str], list2: List[str]) -> List[str]:
+    for item in list2:
+        if item not in list1:
+            list1.append(item)
+    return list1
+
+
+T = TypeVar("T")
+
+
+def extend_no_duplicates(list1: List[T], list2: List[T]) -> List[T]:
+    # Filter None
+    list1 = [item for item in list1 if item is not None]
+    for item in list2:
+        if item and item not in list1:
+            list1.append(item)
+    return list1
+
+
+def extend_with_count(list1: List[T], list2: List[List[T]]) -> List[T]:
+    count = Counter(list1)
+
+    for item in list2:
+        count.update(item)
+    # Take 10 most common
+    new_list = count.most_common(10)
+    return [item for item, _ in new_list]

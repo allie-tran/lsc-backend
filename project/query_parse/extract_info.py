@@ -1,5 +1,6 @@
 from typing import Optional, Sequence
 
+from results.models import Visualisation
 from retrieval.search_utils import send_search_request
 
 from query_parse.es_utils import (
@@ -16,7 +17,6 @@ from query_parse.types import (
     LocationInfo,
     TimeInfo,
     VisualInfo,
-    Visualisation,
 )
 from query_parse.utils import parse_tags
 from query_parse.visual import search_for_visual
@@ -26,8 +26,14 @@ time_tagger = TimeTagger()
 
 class Query:
     def __init__(
-        self, text, shared_filters=None, gps_bounds: Optional[Sequence] = None
+        self,
+        text,
+        is_question,
+        *,
+        shared_filters=None,
+        gps_bounds: Optional[Sequence] = None
     ):
+        self.is_question = is_question
         self.original_text = text
 
         # Time info
@@ -135,7 +141,7 @@ class Query:
             self.visual_queries = get_visual_filters(self.visualinfo)
         return self.visual_queries
 
-    def to_elasticsearch(self, ignore_limit_score: bool = False) -> ESBoolQuery:
+    async def to_elasticsearch(self, ignore_limit_score: bool = False) -> ESBoolQuery:
         """
         Convert a query to an Elasticsearch query
         """
@@ -187,15 +193,19 @@ class Query:
             # gauge the max score for normalisation
             # this is done by sending a request with size=1
             elif embedding:
-                test_request = ESSearchRequest(query=embedding.to_query(), size=1)
-                test_results = send_search_request(test_request)
+                test_request = ESSearchRequest(
+                    query=embedding.to_query(), size=1, test=True
+                )
+                test_results = await send_search_request(test_request)
                 if test_results:
                     max_score = min_score + test_results.max_score
                     min_score = min_score + test_results.min_score
 
             elif es.should:
-                test_request = ESSearchRequest(query=es.should.to_query(), size=1)
-                test_results = send_search_request(test_request)
+                test_request = ESSearchRequest(
+                    query=es.should.to_query(), size=1, test=True
+                )
+                test_results = await send_search_request(test_request)
                 if test_results and test_results.max_score > 0.0:
                     max_score = test_results.max_score
                     min_score = min(min_score, max_score / 2)

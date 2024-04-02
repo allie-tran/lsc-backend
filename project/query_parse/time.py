@@ -6,12 +6,12 @@ from typing import List, Optional, Tuple
 import dateparser
 import holidays
 import pytimeparse
-from nltk import pos_tag
-from nltk.tokenize import WordPunctTokenizer
+from nltk import MWETokenizer, pos_tag
 from parsedatetime import Constants
+from results.models import Visualisation
 
-from .types import DateTuple, RegexInterval, Tags, TimeInfo, Visualisation
-from .utils import get_visual_text
+from .types import DateTuple, RegexInterval, Tags, TimeInfo
+from .utils import find_regex, get_visual_text
 
 YEARS = ["2015", "2016", "2018", "2019", "2020"]
 MONTHS = [
@@ -204,7 +204,7 @@ class TimeTagger:
                 if current.start <= previous.end and current.tag == previous.tag:
                     if current.end > previous.end:
                         previous.end = current.end
-                        previous.label = current.tag
+                        previous.tag = current.tag
                 else:
                     merged.append(current)
             return merged
@@ -223,33 +223,27 @@ class TimeTagger:
         intervals = dict([(time.start, time.end) for time in times])
         tag_dict = dict([(time.text, time.tag) for time in times])
 
-        tokenizer = WordPunctTokenizer()
-        # for a in [time[2] for time in times]:
-        #     tokenizer.add_mwe(a.split())
+        tokenizer = MWETokenizer(separator="__")
+        for a in times:
+            if a.text:
+                tokenizer.add_mwe(a.text.split())
 
         # --- FIXED ---
-        original_tokens = tokenizer.tokenize(sent)
+        original_tokens = tokenizer.tokenize(sent.split())
         original_tags = pos_tag(original_tokens)
         # --- END FIXED ---
 
-        tokens = []
-        current = 0
-        for span in tokenizer.span_tokenize(sent):
-            if span[0] < current:
-                continue
-            if span[0] in intervals:
-                tokens.append(f"__{sent[span[0]: intervals[span[0]]]}")
-                current = intervals[span[0]]
-            else:
-                tokens.append(sent[span[0] : span[1]])
-                current = span[1]
-
+        tokens = tokenizer.tokenize(sent.split())
         tags = pos_tag(tokens)
 
         new_tags = []
         for word, tag in tags:
-            if word[:2] == "__":
-                new_tags.append((word[2:], tag_dict[word[2:]]))
+            if "__" in word:
+                word = word.replace("__", " ")
+                try:
+                    new_tags.append((word, tag_dict[word]))
+                except KeyError:
+                    new_tags.append((word, "O"))
             else:
                 tag = [t[1] for t in original_tags if t[0] == word][0]  # FIXED
                 new_tags.append((word, tag))
@@ -581,3 +575,38 @@ def add_time(timeinfo: TimeInfo, extra_timeinfo: TimeInfo):
         timeinfo.dates = extra_timeinfo.dates
 
     return timeinfo
+
+
+def calculate_duration(
+    start_time: Optional[datetime], end_time: Optional[datetime]
+) -> str:
+    """
+    Calculate the duration between two datetimes
+    and convert to a human-readable format
+    """
+    if start_time is None or end_time is None:
+        return ""
+    time_delta = end_time - start_time
+    time = ""
+    if time_delta.seconds > 0:
+        hours = time_delta.seconds // 3600
+        if time_delta.days > 0:
+            if hours > 0:
+                duration = f"{time_delta.days} days and {hours} hours"
+            else:
+                duration = f"{time_delta.days} days"
+        else:
+            if hours > 0:
+                minutes = (time_delta.seconds - hours * 3600) // 60
+                duration = f"{hours} hours and {minutes} minutes"
+            elif time_delta.seconds < 60:
+                duration = f"{time_delta.seconds} seconds"
+            else:
+                minutes = time_delta.seconds // 60
+                duration = f"{minutes} minutes"
+        duration = f", lasted for about {duration}"
+        time = f"from {start_time} to {end_time}"
+    else:
+        duration = ""
+        time = f"at {start_time}"
+    return time + duration

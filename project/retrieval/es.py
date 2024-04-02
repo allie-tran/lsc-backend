@@ -9,6 +9,8 @@ from nltk.corpus import stopwords
 from query_parse.extract_info import Query
 from sklearn.cluster import OPTICS
 
+from retrieval.search_utils import delete_scroll_id
+
 from .common_nn import *
 from .timeline import time_info
 from .utils import *
