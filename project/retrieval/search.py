@@ -2,6 +2,9 @@ import asyncio
 from collections.abc import Sequence
 import logging
 from typing import Literal, Optional, Tuple
+import json
+
+from django.core.exceptions import EmptyResultSet
 
 from configs import DERIVABLE_FIELDS, FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
 from database.utils import convert_to_events, get_relevant_fields
@@ -9,7 +12,7 @@ from query_parse.extract_info import Query
 from query_parse.question import detect_question, question_to_retrieval
 from query_parse.types import ESSearchRequest
 from question_answering.answer import answer_text_only
-from results.models import EventResults
+from results.models import EventResults, ReturnResults, TripletEvent
 from results.utils import (
     create_event_label,
     deriving_fields,
@@ -25,6 +28,46 @@ logger = logging.getLogger(__name__)
 # ============================= #
 # Easy Peasy Part: one query only
 # ============================= #
+
+async def async_query(text: str):
+    """
+    Streaming response
+    """
+    try:
+        # First yield in search single is the results
+        async for response in single_query(text):
+            # results is a dict
+            if response["type"] in ["raw", "modified"]:
+                results = response["results"]
+                if not results:
+                    raise EmptyResultSet
+
+                # Format into EventTriplets
+                triplet_results = [TripletEvent(main=main) for main in results.events]
+
+                # Return the results
+                result_repr = ReturnResults(
+                    result_list=triplet_results,
+                    scroll_id=results.scroll_id,
+                ).model_dump_json()
+
+                # yield the results
+                res = {"type": response["type"], "results": result_repr}
+                yield "data: " + json.dumps(res) + "\n\n"
+            else:
+                yield "data: " + json.dumps(response) + "\n\n"
+
+        yield "data: END\n\n"
+
+    except asyncio.CancelledError:
+        print("Client disconnected")
+
+    except Exception as e:
+        print("Error", e)
+
+    # signal the end of request
+    yield "data: END\n\n"
+
 
 
 async def simple_search(

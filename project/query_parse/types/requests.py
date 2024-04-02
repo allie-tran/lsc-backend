@@ -8,6 +8,7 @@ from pydantic import BaseModel  # noqa: E0611
 
 
 class GeneralQueryRequest(BaseModel):
+    session_id: Optional[str] = None
     main: str
 
     # Optional temporal queries
