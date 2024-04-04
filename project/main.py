@@ -9,11 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
 from configs import DEV_MODE
-from myeachtra.settings import REDIS_HOST, REDIS_PORT
-from query_parse.types.requests import GeneralQueryRequest
+from query_parse.types.requests import GeneralQueryRequest, TimelineRequest
 from results.models import TimelineResult
 from retrieval.search import async_query
 from retrieval.timeline import get_timeline
+from configs import REDIS_HOST, REDIS_PORT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -32,7 +32,7 @@ app.add_middleware(
 
 
 @app.post(
-    "/search/",
+    "/search",
     description="Send a search request. Returns a token to be used to stream the results",
 )
 async def search(request: GeneralQueryRequest):
@@ -70,20 +70,22 @@ async def get_stream_results(session_id: str, token: str):
     return StreamingResponse(async_query(request.main), media_type="text/event-stream")
 
 
-@app.get(
-    "/timeline/{session_id}/{image}",
+@app.post(
+    "/timeline",
     description="Get the timeline of an image",
     response_model=TimelineResult,
     status_code=200,
 )
-def timeline(session_id: str, image: str):
+async def timeline(request: TimelineRequest):
     """
     Timeline endpoint
     """
-    if not session_id and not DEV_MODE:
+    if not request.session_id and not DEV_MODE:
         raise HTTPException(status_code=401, detail="Please log in")
 
-    result = get_timeline(image)
+    result = get_timeline(request.image)
     if not result:
         raise HTTPException(status_code=404, detail="No results found")
     return result
+
+

@@ -25,6 +25,9 @@ class GeneralQueryRequest(BaseModel):
     # size: int = 200
     # share_info: bool = False
 
+class TimelineRequest(BaseModel):
+    session_id: Optional[str] = None
+    image: str
 
 class GeneralQuestionRequest(GeneralQueryRequest):
     pass

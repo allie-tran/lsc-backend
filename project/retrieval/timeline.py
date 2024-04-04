@@ -10,11 +10,11 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
     Return the group before that, the group after that and the group itself
     """
     # Get the group of the image (grouped by location)
-    group_id = image_collection.find_one({"images": image})
+    group_id = image_collection.find_one({"image": image})
     if not group_id:
         return None
 
-    name = group_id["start_time"].strftime("%d %b %Y")
+    name = group_id["time"].strftime("%d %b %Y")
     group_id_int = int(group_id["group"].split("G_")[-1])
 
     # Get the scenes of the group
@@ -28,8 +28,9 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
         [
             {"$match": {"group": {"$in": group_range_ids}}},
             {
-                "$_group": {
+                "$group": {
                     "_id": "$group",
+                    "group": {"$first": "$group"},
                     "scenes": {"$push": "$images"},
                     "time_info": {"$push": "$time_info"},
                     "location": {"$first": "$location"},

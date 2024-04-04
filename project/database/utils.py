@@ -5,7 +5,7 @@ from llm.gpt import llm_model
 from llm.prompts import QA_PROMPT, RELEVANT_FIELDS_PROMPT
 from pymongo import MongoClient
 from query_parse.utils import extend_no_duplicates
-from question_answering.answer import get_specific_description
+from question_answering.text import get_specific_description
 from results.models import Event
 from rich import print
 

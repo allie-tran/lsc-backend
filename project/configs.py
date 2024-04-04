@@ -34,6 +34,7 @@ CLIP_EMBEDDINGS = os.environ.get("CLIP_EMBEDDINGS")
 # ====================== #
 DATA_YEARS = ["LSC20", "LSC23"]
 FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
+IMAGE_DIRECTORY = f"{CLIP_EMBEDDINGS}/LSC23/LSC23_highres_images"
 # ====================== #
 # Elasticsearch Configurations #
 # ====================== #
@@ -129,3 +130,7 @@ TEXT_QA_MODEL = TEXT_QA_MODEL_OPTIONS[1]
 
 JSON_START_FLAG = "```json"
 JSON_END_FLAG = "```"
+
+# ====================== #
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))

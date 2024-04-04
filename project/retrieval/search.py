@@ -1,24 +1,21 @@
 import asyncio
-from collections.abc import Sequence
-import logging
-from typing import Literal, Optional, Tuple
 import json
+import logging
+from collections.abc import Sequence
+from typing import Literal, Optional, Tuple
 
-from django.core.exceptions import EmptyResultSet
-
-from configs import DERIVABLE_FIELDS, FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
+from configs import (DERIVABLE_FIELDS, FILTER_FIELDS, MAX_IMAGES_PER_EVENT,
+                     MERGE_EVENTS)
 from database.utils import convert_to_events, get_relevant_fields
+from django.core.exceptions import EmptyResultSet
 from query_parse.extract_info import Query
 from query_parse.question import detect_question, question_to_retrieval
 from query_parse.types import ESSearchRequest
-from question_answering.answer import answer_text_only
+from question_answering.text import answer_text_only
+from question_answering.video import answer_visual_only
 from results.models import EventResults, ReturnResults, TripletEvent
-from results.utils import (
-    create_event_label,
-    deriving_fields,
-    limit_images_per_event,
-    merge_events,
-)
+from results.utils import (create_event_label, deriving_fields,
+                           limit_images_per_event, merge_events)
 from rich import print
 
 from retrieval.search_utils import send_search_request
@@ -29,6 +26,7 @@ logger = logging.getLogger(__name__)
 # Easy Peasy Part: one query only
 # ============================= #
 
+
 async def async_query(text: str):
     """
     Streaming response
@@ -38,17 +36,19 @@ async def async_query(text: str):
         async for response in single_query(text):
             # results is a dict
             if response["type"] in ["raw", "modified"]:
+
                 results = response["results"]
                 if not results:
                     raise EmptyResultSet
 
+                assert not isinstance(results, str)
                 # Format into EventTriplets
                 triplet_results = [TripletEvent(main=main) for main in results.events]
 
                 # Return the results
                 result_repr = ReturnResults(
                     result_list=triplet_results,
-                    scroll_id=results.scroll_id,
+                    scroll_id=results.scroll_id
                 ).model_dump_json()
 
                 # yield the results
@@ -69,13 +69,11 @@ async def async_query(text: str):
     yield "data: END\n\n"
 
 
-
 async def simple_search(
     text_query: str, isQuestion: bool
 ) -> Tuple[Optional[EventResults], Literal["search"]]:
     """
-    Search a single query
-    without any fancy stuff
+    Search a single query without any fancy stuff
     """
     query = Query(text_query, is_question=isQuestion)
     main_query = await query.to_elasticsearch(ignore_limit_score=True)
@@ -117,7 +115,9 @@ async def single_query(
         search_text = text
 
     # Starting the async tasks
-    async_tasks: Sequence = [asyncio.create_task(simple_search(search_text, is_question))]
+    async_tasks: Sequence = [
+        asyncio.create_task(simple_search(search_text, is_question))
+    ]
 
     if FILTER_FIELDS and text:
         task = asyncio.create_task(get_relevant_fields(text))
@@ -172,15 +172,18 @@ async def single_query(
 
     # Answer the question
     print("[yellow]Answering the question...[/yellow]")
-    answers = await answer_text_only(text, results)
-    print("[green]Answers:[/green]", answers)
-    if answers in ["N/A", "VQA"]:
+    answers = []
+    text_answer = await answer_text_only(text, results)
+    if text_answer in ["N/A", "VQA"]:
         # No answers found from text
         # Try with images
         print("[orange]No answers found from text. Trying with images...[/orange]")
-        answers = []
-    yield {"type": "answers", "answers": answers}
-
+    else:
+        answers.append(text_answer)
+        yield {"type": "answers", "answers": text_answer}
+    async for answer in answer_visual_only(text, results):
+        answers.append(answer)
+        yield {"type": "answers", "answers": "\n".join(answers)}
 
 # ============================= #
 # Level 2: Multiple queries

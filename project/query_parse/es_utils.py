@@ -1,4 +1,4 @@
-from typing import Sequence, Tuple
+from typing import Literal, Sequence, Tuple
 
 from query_parse.constants import GPS_NORMAL_CASE, MAP_VISUALISATION
 from query_parse.time import MONTHS
@@ -25,7 +25,9 @@ def range_filter(start: int, end: int, field: str, boost: float = 1.0) -> ESRang
     return ESRangeFilter(field=field, start=start, end=end, boost=boost)
 
 
-def get_time_filters(timeinfo: TimeInfo) -> Tuple[ESOrFilters, dict]:
+def get_time_filters(
+    timeinfo: TimeInfo, mode: Literal["event", "image"] = "event"
+) -> Tuple[ESOrFilters, dict]:
     """
     We are using bool query to get the minimum_should_match parameter.
     Because we want an OR operation between the time filters, we use the should clause.
@@ -37,25 +39,37 @@ def get_time_filters(timeinfo: TimeInfo) -> Tuple[ESOrFilters, dict]:
         time_filters = []
     else:
         print("Time:", timeinfo.time, s, e)
-        if s <= e:
-            # OR (should queries)
-            time_filters = [
-                range_filter(s, e, "start_seconds_from_midnight"),
-                range_filter(s, e, "end_seconds_from_midnight"),
-                ESOrFilters(
-                    queries=[
-                        range_filter(0, s, "start_seconds_from_midnight"),
-                        range_filter(e, 24 * 3600, "end_seconds_from_midnight"),
-                    ]
-                ),
-            ]
-        else:  # either from midnight to end or from start to midnight
-            time_filters = [
-                range_filter(0, e, "start_seconds_from_midnight"),
-                range_filter(0, e, "end_seconds_from_midnight"),
-                range_filter(s, 24 * 3600, "start_seconds_from_midnight"),
-                range_filter(s, 24 * 3600, "end_seconds_from_midnight"),
-            ]
+        if mode == "image":
+            # for images, we only have the time
+            if s <= e:
+                time_filters = [
+                    range_filter(s, e, "seconds_from_midnight"),
+                ]
+            else:
+                time_filters = [
+                    range_filter(0, e, "seconds_from_midnight"),
+                    range_filter(s, 24 * 3600, "seconds_from_midnight"),
+                ]
+        elif mode == "event":
+            if s <= e:
+                # OR (should queries)
+                time_filters = [
+                    range_filter(s, e, "start_seconds_from_midnight"),
+                    range_filter(s, e, "end_seconds_from_midnight"),
+                    ESOrFilters(
+                        queries=[
+                            range_filter(0, s, "start_seconds_from_midnight"),
+                            range_filter(e, 24 * 3600, "end_seconds_from_midnight"),
+                        ]
+                    ),
+                ]
+            else:  # either from midnight to end or from start to midnight
+                time_filters = [
+                    range_filter(0, e, "start_seconds_from_midnight"),
+                    range_filter(0, e, "end_seconds_from_midnight"),
+                    range_filter(s, 24 * 3600, "start_seconds_from_midnight"),
+                    range_filter(s, 24 * 3600, "end_seconds_from_midnight"),
+                ]
 
         # combine the date filters using a bool should clause
     bool_time_filters = ESOrFilters(name="TIME", queries=time_filters)

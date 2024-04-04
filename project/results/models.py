@@ -37,6 +37,45 @@ class Visualisation(BaseModel):
         return self.dict()
 
 
+class Image(BaseModel):
+    # IDs
+    group: str = ""
+    scene: str = ""
+
+    # Data
+    image: str
+    time: datetime
+    location: str = ""
+    location_info: str = ""
+
+    region: List[str] = []
+    country: str = ""
+
+    ocr: List[str] = []
+    description: str = ""
+
+    @field_validator("time")
+    @classmethod
+    def check_time(cls, v: Union[str, datetime]) -> datetime:
+        if isinstance(v, str):
+            return datetime.fromisoformat(v)
+        return v
+
+    @field_validator("ocr")
+    @classmethod
+    def check_ocr(cls, v: Union[str, List[str]]) -> List[str]:
+        if isinstance(v, str):
+            return v.split(",")
+        return v
+
+    @field_validator("location")
+    @classmethod
+    def check_location(cls, v: str) -> str:
+        if v == "---":
+            return ""
+        return v
+
+
 class Event(BaseModel):
     # IDs
     group: str = ""
@@ -227,19 +266,23 @@ class ReturnResults(BaseModel):
     # info
     # scores
 
+
 class TimelineGroup(BaseModel):
     """
     A group of events
     """
+
     group: str
     scenes: List[List[str]]
     time_info: List[str]
     location: str
     location_info: str
 
+
 class TimelineResult(BaseModel):
     """
     Wrapper for the results
     """
+
     name: str
     result: List[TimelineGroup]
