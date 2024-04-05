@@ -9,6 +9,9 @@ import copy
 import pandas as pd
 import numpy as np
 from .common_nn import *
+from scipy.special import softmax
+
+
 from sklearn.cluster import OPTICS
 cluster = OPTICS(min_samples=2, max_eps=0.9, metric='cosine')
 

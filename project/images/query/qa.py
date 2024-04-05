@@ -12,7 +12,8 @@ from transformers import pipeline
 from .utils import basic_dict, datetime, scene_segments
 
 transformers.logging.set_verbosity_error()
-CLIP_EMBEDDINGS = "/mnt/DATA/duyen/highres"
+CLIP_EMBEDDINGS = os.getenv("CLIP_EMBEDDINGS")
+FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
 qa_photo_features = np.load(f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/features.npy")
 qa_photo_ids = pd.read_csv(f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/photo_ids.csv")["photo_id"].to_list()
 DIM = qa_photo_features[0].shape[-1]
