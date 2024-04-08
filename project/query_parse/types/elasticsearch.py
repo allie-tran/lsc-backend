@@ -6,8 +6,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 from configs import DEFAULT_SIZE, SCENE_INDEX
 from nltk import defaultdict
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
+from rich import print
 from .lifelog import DateTuple
 
 # ====================== #
@@ -21,13 +22,12 @@ class ESQuery(BaseModel):
     """
 
     name: str = "Unnamed"
-    is_empty: bool = False
 
     def to_query(self) -> Optional[Union[Dict, List[Dict]]]:
         raise NotImplementedError
 
     def __bool__(self):
-        return not self.is_empty
+        raise NotImplementedError
 
 
 class ESSearchRequest(ESQuery):
@@ -49,6 +49,9 @@ class ESSearchRequest(ESQuery):
     to_agg: Optional[bool] = False
     min_score: Optional[float] = 0.0
 
+    def __bool__(self):
+        return bool(self.query)
+
     def to_query(self) -> dict:
         sort = ["_score"]
         if self.sort_field:
@@ -61,7 +64,7 @@ class ESSearchRequest(ESQuery):
             "_source": {"includes": self.includes},
         }
 
-        if self.to_agg:
+        if self.test:
             query["aggs"] = {
                 "score_stats": {"extended_stats": {"script": "_score", "sigma": 1.8}}
             }
@@ -82,6 +85,9 @@ class ESGeoDistance(ESQuery):
     pivot: str = "0.5m"
     boost: float = 1.0
 
+    def __bool__(self):
+        return bool(self.lat) and bool(self.lon)
+
     def to_query(self) -> dict:
         return {
             "geo_distance": {
@@ -95,6 +101,25 @@ class ESGeoDistance(ESQuery):
 class GPS(BaseModel):
     lat: float
     lon: float
+
+    @field_validator("lat")
+    @classmethod
+    def check_lat(cls, lat):
+        if isinstance(lat, str):
+            lat = float(lat)
+        assert -90 <= lat <= 90, "Latitude should be between -90 and 90"
+        return lat
+
+    @field_validator("lon")
+    @classmethod
+    def check_lon(cls, lon):
+        if isinstance(lon, str):
+            lon = float(lon)
+        assert -180 <= lon <= 180, "Longitude should be between -180 and 180"
+        return lon
+
+    def __bool__(self):
+        return bool(self.lat) and bool(self.lon)
 
     def to_dict(self) -> dict:
         return {"lat": self.lat, "lon": self.lon}
@@ -111,6 +136,9 @@ class ESGeoBoundingBox(ESQuery):
     top_left: GPS
     bottom_right: GPS
     boost: float = 1.0
+
+    def __bool__(self):
+        return bool(self.top_left) and bool(self.bottom_right)
 
     def to_query(self) -> dict:
         return {
@@ -133,7 +161,7 @@ class ESMatch(ESQuery):
     boost: float = 1.0
 
     def to_query(self) -> dict:
-        assert self.query is not None
+        assert bool(self.query), "Query is empty"
         return {
             "match": {
                 self.field: {
@@ -143,7 +171,7 @@ class ESMatch(ESQuery):
             }
         }
 
-    def __bool_(self):
+    def __bool__(self):
         return bool(self.query)
 
 
@@ -194,6 +222,7 @@ class TimeInfo(BaseModel):
     """
 
     time: Tuple[int, int] = (0, 0)  # seconds since midnight
+    timestamps: List[Tuple[int, str]] = []
     duration: Optional[int] = None  # seconds
     weekdays: List[int] = []
     dates: List[DateTuple] = []
@@ -240,6 +269,9 @@ class ESRangeFilter(ESQuery):
             }
         }
 
+    def __bool__(self):
+        return self.start is not None and self.end is not None
+
 
 class ESFilter(ESQuery):
     """
@@ -254,28 +286,87 @@ class ESFilter(ESQuery):
     def to_query(self) -> dict:
         return {"term": {self.field: {"value": self.value, "boost": self.boost}}}
 
+    def __bool__(self):
+        return self.value is not None
+
 
 class ESListQuery(ESQuery):
     """
     A class to represent a list filter in Elasticsearch
+    It could be nested (although very complex)
+    We build the queries from the bottom up (root is the last query)
     """
 
     queries: list = []
     name: str = "Unnamed"
+    logical_operator: str = "none"
+    has_child: bool = False
 
-    def append(self, query: Any):
+    @field_validator("queries")
+    @classmethod
+    def check_queries(cls, queries):
+        # append the queries and not filter out the empty ones
+        return [query for query in queries if query]
+
+    def append(self, child: Any):
         # Making sure that the query is not empty
-        if not query:
+        if not child:
             return
-        self.queries.append(query)
-        self.is_empty = False
+
+        self.has_child = True
+        # case 1: if it's a normal query then just append
+        if not isinstance(child, ESListQuery):
+            self.queries.append(child)
+            return
+
+        # case 2: if it's a list query
+        # parent is always empty here because we are building from the bottom up
+
+        # if query is the same kind
+        if child.logical_operator == self.logical_operator:
+            self.queries.extend(child.queries)
+            return
+
+        # if query is different kind
+        self.queries.append(child)
+        return
+
 
     def to_query(self) -> Optional[Union[Dict, List[Dict]]]:
-        if len(self.queries) == 0:
-            return None
-        if len(self.queries) == 1:
-            return self.queries[0].to_query()
-        return [query.to_query() for query in self.queries]  # type: ignore
+        # case 1: it has children -> call them recursively
+        if self.has_child:
+            queries = []
+            for child in self.queries:
+                # if it's a normal query, just append
+                if not isinstance(child, ESListQuery):
+                    queries.append(child.to_query())
+                    continue
+
+                # if it's a list query (calling it recursively)
+                child_query = child.to_query()
+
+                # all queries are the same kind
+                if isinstance(child_query, list):
+                    query_list = child_query
+                    # There is no way they are the same kind
+                    # because of the way we append queries
+                    if child.logical_operator == "and":
+                        queries.append({"bool": {"must": query_list}})
+                    elif child.logical_operator == "or":
+                        queries.append({"bool": {"should": child_query}})
+
+                # the query is nested/only one query
+                elif isinstance(child_query, dict):
+                    queries.append(child_query)
+
+        # case 2: it has no children (leaf node)
+        else:
+            if len(self.queries) == 1:
+                queries = self.queries[0].to_query()
+            else:
+                queries = [query.to_query() for query in self.queries]
+
+        return queries
 
     def __bool__(self):
         return len(self.queries) > 0
@@ -285,31 +376,15 @@ class ESOrFilters(ESListQuery):
     """
     A class to represent a list of OR filters in Elasticsearch
     """
-
-    name: str = "Unnamed"
     minimum_should_match: int = 1
-
-    def to_query(self):
-        # get the query from ESListQuery
-        list_query = super().to_query()
-
-        if list_query is None:
-            return None
-
-        return {
-            "bool": {
-                "should": list_query,
-                "minimum_should_match": self.minimum_should_match,
-            }
-        }
+    logical_operator: str = "or"
 
 
 class ESAndFilters(ESListQuery):
     """
     A class to represent a list of AND filters in Elasticsearch
     """
-
-    pass
+    logical_operator: str = "and"
 
 
 class ESEmbedding(ESQuery):
@@ -361,8 +436,8 @@ class ESBoolQuery(ESQuery):
     # These are defined after processing the query
     must: ESAndFilters = ESAndFilters()
     must_not: ESAndFilters = ESAndFilters()
-    should: ESOrFilters = ESOrFilters()
     filter: ESAndFilters = ESAndFilters()
+    should: ESOrFilters = ESOrFilters()
 
     minimum_should_match: Optional[int] = 1
 
@@ -388,11 +463,11 @@ class ESBoolQuery(ESQuery):
             query["must"] = self.must.to_query()
         if self.must_not:
             query["must_not"] = self.must_not.to_query()
+        if self.filter:
+            query["filter"] = self.filter.to_query()
         if self.should:
             query["should"] = self.should.to_query()
             query["minimum_should_match"] = self.minimum_should_match
-        if self.filter:
-            query["filter"] = self.filter.to_query()
 
         return {"bool": query}
 

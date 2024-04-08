@@ -8,12 +8,12 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from configs import DEV_MODE
 from query_parse.types.requests import GeneralQueryRequest, TimelineRequest
 from results.models import TimelineResult
 from retrieval.search import async_query
 from retrieval.timeline import get_timeline
-from configs import REDIS_HOST, REDIS_PORT
+
+from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -65,9 +65,8 @@ async def get_stream_results(session_id: str, token: str):
 
     print("Starting search")
     request_body = json.loads(message.decode("utf-8"))  # type: ignore
-    print(request_body)
     request = GeneralQueryRequest(**request_body)
-    return StreamingResponse(async_query(request.main), media_type="text/event-stream")
+    return StreamingResponse(async_query(request), media_type="text/event-stream")
 
 
 @app.post(
@@ -87,5 +86,3 @@ async def timeline(request: TimelineRequest):
     if not result:
         raise HTTPException(status_code=404, detail="No results found")
     return result
-
-

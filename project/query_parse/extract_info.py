@@ -150,7 +150,7 @@ class Query:
             main_query = {}
 
             # Get the filters
-            time, date, duration, weekday = self.time_to_filters()
+            time, date, timestamp, duration, weekday = self.time_to_filters()
             place, place_type, region = self.location_to_filters()
             embedding, ocr, concepts = self.text_to_visual()
 
@@ -163,18 +163,18 @@ class Query:
             if place:
                 es.should.append(place)
                 min_score += 0.01
-            if place_type:
-                es.should.append(place_type)
-                min_score += 0.003
+            # if place_type:
+            #     es.should.append(place_type)
+            #     min_score += 0.003
             if duration:
                 es.should.append(duration)
                 min_score += 0.05
             if ocr:
                 es.should.append(ocr)
                 min_score += 0.01
-            if concepts:
-                es.should.append(concepts)
-                min_score += 0.05
+            # if concepts:
+            #     es.should.append(concepts)
+            #     min_score += 0.05
 
             if embedding:
                 es.should.append(embedding)
@@ -182,6 +182,7 @@ class Query:
             # Filter queries (no scores)
             es.filter.append(time)
             es.filter.append(date)
+            es.filter.append(timestamp)
             es.filter.append(region)
             es.filter.append(weekday)
 
@@ -197,7 +198,7 @@ class Query:
                     query=embedding.to_query(), size=1, test=True
                 )
                 test_results = await send_search_request(test_request)
-                if test_results:
+                if test_results is not None:
                     max_score = min_score + test_results.max_score
                     min_score = min_score + test_results.min_score
 
@@ -206,7 +207,7 @@ class Query:
                     query=es.should.to_query(), size=1, test=True
                 )
                 test_results = await send_search_request(test_request)
-                if test_results and test_results.max_score > 0.0:
+                if test_results is not None and test_results.max_score > 0.0:
                     max_score = test_results.max_score
                     min_score = min(min_score, max_score / 2)
 

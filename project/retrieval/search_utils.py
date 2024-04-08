@@ -108,7 +108,10 @@ async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
 
     # Get the relevant fields and form the EventResults object
     if query.test:
-        max_score = scores[0]
+        if isinstance(scores[0], float):
+            max_score = scores[0]
+        else:
+            max_score = 1.0
         min_score = 0.0
         aggs = response_json["aggregations"]
         min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]

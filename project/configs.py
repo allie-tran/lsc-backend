@@ -1,10 +1,13 @@
 """
 Configs for the project
 """
-from dotenv import load_dotenv
-load_dotenv()
 
 import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 # ====================== #
 # General Customisation  #
@@ -13,9 +16,12 @@ import os
 DEV_MODE = True
 FILTER_FIELDS = True
 MERGE_EVENTS = True
-MAX_IMAGES_PER_EVENT = 20
+MAX_IMAGES_PER_EVENT = 5
 DEFAULT_SIZE = 200
 TIMELINE_SPAN = 9  # If they want more, submit more
+TIMEOUT = 60
+BUILD_ON_STARTUP = True
+MAXIMUM_EVENT_TO_GROUP = 10
 
 # ==================== #
 # Model Configurations #
@@ -77,6 +83,7 @@ DERIVABLE_FIELDS = {
     "hour": lambda x: x.start_time.strftime("%H %p"),
     "date": lambda x: x.start_time.strftime("%d-%m-%Y"),
     "week": lambda x: x.start_time.isocalendar()[1],
+    "weekday": lambda x: x.start_time.strftime("%A"),
     "month": lambda x: x.start_time.strftime("%B %Y"),
     "year": lambda x: x.start_time.year,
     "city": lambda x: [r for r in x.region if r != x.country],
@@ -87,7 +94,7 @@ DERIVABLE_FIELDS = {
 
 ISEQUAL = {"*": lambda x, y: x == y, "city": lambda x, y: set(x).intersection(set(y))}
 # Fields in ORDER in the textual description
-TIME_FIELDS = ["minute", "hour", "weekday", "date", "week", "month", "year"]
+TIME_FIELDS = ["minute", "hour", "start_time", "end_time", "weekday", "date", "week", "month", "year"]
 LOCATION_FIELDS = ["location", "location_info", "city", "region", "country"]
 DURATION_FIELDS = ["months", "weeks", "days", "hours", "minutes"]
 VISUAl_FIELDS = ["images", "ocr"]
@@ -96,15 +103,14 @@ VISUAl_FIELDS = ["images", "ocr"]
 # QA Configurations #
 # ====================== #
 
-BUILD_ON_STARTUP = True
 PRETRAINED_MODELS = os.environ.get("PRETRAINED_MODELS")
 QA_FEATURES = [
-    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14-336_openai_nonorm/features.npy",
-    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14-336_openai_nonorm/features.npy",
+    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/features.npy",
+    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/features.npy",
 ]
 QA_IDS = [
-    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14-336_openai_nonorm/photo_ids.csv",
-    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14-336_openai_nonorm/photo_ids.csv",
+    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/photo_ids.csv",
+    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/photo_ids.csv",
 ]
 QA_DIM = 768
 

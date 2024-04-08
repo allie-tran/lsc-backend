@@ -19,7 +19,6 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "")
 
 
 class LLM:
-
     # Set up the template messages to use for the completion
     template_message: ChatCompletionMessageParam = ChatCompletionSystemMessageParam(
         role="system", content=INSTRUCTIONS

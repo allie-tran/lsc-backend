@@ -238,7 +238,7 @@ class TimeTagger:
 
         new_tags = []
         for word, tag in tags:
-            if "__" in word:
+            if "__" in word or word in tag_dict:
                 word = word.replace("__", " ")
                 try:
                     new_tags.append((word, tag_dict[word]))
@@ -367,6 +367,7 @@ def search_for_time(
 
     weekdays = []
     dates = []
+    timestamps = [] # for before, after a certain date
     times = []
     start = (0, 0)
     end = (24, 0)
@@ -439,10 +440,20 @@ def search_for_time(
                 date_tuple = DateTuple()
 
             dateprep = ""
-            if i >= 1 and tags[i - 1][1] == "DATEPREP":
+            if i >= 1 and tags[i - 1][1] in ["TIMEPREP", "DATEPREP"]:
                 dateprep = tags[i - 1][0]
 
             print("Found date", word, tags[i - 1], dateprep)
+
+            # Timestamps
+            if dateprep in ["before", "after"]:
+                if date_tuple.year and date_tuple.month and date_tuple.day:
+                    dt_object = datetime(
+                        date_tuple.year, date_tuple.month, date_tuple.day
+                    )
+                    time_stamp = dt_object.timestamp()
+                    timestamps.append([time_stamp, dateprep])
+                    continue
 
             if "first day of" in dateprep:
                 date_tuple.day = 1
@@ -491,7 +502,8 @@ def search_for_time(
                         dt_object.day,
                     )
                 date_tuple.year = original_year
-            dates.append(date_tuple)
+            else:
+                dates.append(date_tuple)
 
         # ============================================== #
         # ================= SEASONS ==================== #
@@ -547,6 +559,7 @@ def search_for_time(
         duration=duration,
         weekdays=weekdays,
         dates=dates,
+        timestamps=timestamps,
         original_texts=matches,
     )
 

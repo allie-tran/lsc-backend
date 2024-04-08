@@ -1,18 +1,22 @@
+import json
 from concurrent.futures import ThreadPoolExecutor
-from typing import List
+from typing import Dict, List
+
 import auto_gptq
-from fsspec.asyn import asyncio
 import torch
 import torchvision
 from auto_gptq.modeling._base import BaseGPTQForCausalLM
+from configs import BUILD_ON_STARTUP
+from fsspec.asyn import asyncio
 from PIL import Image
 from transformers import AutoTokenizer
 from transformers.image_processing_utils import Image
 
-from configs import BUILD_ON_STARTUP
+from llm.prompts import VISUAL_PROMPT
 
 auto_gptq.modeling._base.SUPPORTED_MODELS = ["internlm"]
 torch.set_grad_enabled(False)
+
 
 class InternLMXComposer2QForCausalLM(BaseGPTQForCausalLM):
     layers_block_name = "model.layers"
@@ -35,7 +39,6 @@ class InternLMInference:
     def __init__(self):
         self.loaded = False
 
-
     def load_model(self):
         model_name = "internlm/internlm-xcomposer2-vl-7b-4bit"
 
@@ -44,7 +47,9 @@ class InternLMInference:
             model_name, trust_remote_code=True, device="cuda:0"
         ).eval()
 
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model_name, trust_remote_code=True
+        )
         self.model.tokenizer = self.tokenizer
         self.loaded = True
 
@@ -56,7 +61,7 @@ class InternLMInference:
         bottom_padding = tar - height - top_padding
         left_padding = int((tar - width) / 2)
         right_padding = tar - width - left_padding
-        b = torchvision.transforms.functional.pad( # type: ignore
+        b = torchvision.transforms.functional.pad(  # type: ignore
             b, (left_padding, top_padding, right_padding, bottom_padding)
         )
         b = b.resize((224, 224))
@@ -79,26 +84,36 @@ class InternLMInference:
         """
         What we can do is that we can encode the images first and then pass them to the model
         """
-        processed = await asyncio.gather(*[self.process_image(image) for image in images])
+        processed = await asyncio.gather(
+            *[self.process_image(image) for image in images]
+        )
         # processed = [self.process_image(image) for image in images]
         embed_images = torch.stack(processed).mean(0).unsqueeze(0)
         return embed_images
 
-    async def answer_question(self, question: str, images: List[str]) -> str:
+    async def answer_question(
+        self, question: str, images: List[str], extra_info: str
+    ) -> Dict[str, str]:
         embed_images = await self.encode_images(images)
         # embed_images = self.encode_images(images)
-        text = f"<ImageHere> {question}"
+        text= VISUAL_PROMPT.format(
+            question=question,
+            extra_info=extra_info,
+        )
         with torch.cuda.amp.autocast():
             response, _ = self.model.chat(
                 self.tokenizer,
                 query=text,
                 image=embed_images,
-                history=[],
-                do_sample=False
+                history=[]
             )
+        try:
+            response = json.loads(response)
+        except:
+            response = {"MLLM": response}
         return response
+
 
 internlm_model = InternLMInference()
 if BUILD_ON_STARTUP:
     internlm_model.load_model()
-

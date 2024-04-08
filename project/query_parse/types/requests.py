@@ -22,7 +22,7 @@ class GeneralQueryRequest(BaseModel):
     gps_bounds: Optional[List[float]] = None
 
     # Miscs
-    # size: int = 200
+    size: int = 200
     # share_info: bool = False
 
 class TimelineRequest(BaseModel):

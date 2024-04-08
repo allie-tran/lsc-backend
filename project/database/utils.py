@@ -26,6 +26,7 @@ def convert_to_events(
     Convert a list of event ids to a list of Event objects
     """
     documents = []
+    index = {scene: i for i, scene in enumerate(event_list)}
     if relevant_fields:
         projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
         try:
@@ -37,6 +38,9 @@ def convert_to_events(
 
     if not documents:
         documents = scene_collection.find({"scene": {"$in": event_list}})
+
+    # Sort the documents based on the order of the event_list
+    documents = sorted(documents, key=lambda doc: index[doc["scene"]])
     return [Event(**doc) for doc in documents]
 
 
@@ -52,34 +56,3 @@ async def get_relevant_fields(query: str) -> Tuple[List[str], str]:
         print("[red]No list found! Including images and scene only.[/red]")
         data = []
     return data, "llm"
-
-
-async def text_qa_answer(question: str, event: Event):
-    """
-    Extract textual information from the scene
-    then answer the question using the QA model
-    """
-    if event.images:
-        ocr = image_collection.find({"image": {"$in": event.images}}, {"ocr": 1})
-        ocr = set([text for img in ocr for text in img["ocr"]])
-        if "" in ocr:
-            ocr.remove("")
-        event.ocr = list(ocr)
-
-    answers = {}
-    textual_description = ""
-    try:
-        textual_description = get_specific_description(event)
-        QA_input = {"question": question, "context": textual_description}
-        prompt = QA_PROMPT.format(question=question, events=textual_description)
-
-        print(prompt)
-
-        # Get answers from textual description
-        answers = await llm_model.generate_from_text(prompt)
-
-    except Exception as e:
-        print("Error in TextQA", e)
-        raise (e)
-
-    return textual_description, answers

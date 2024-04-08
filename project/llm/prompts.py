@@ -2,24 +2,42 @@
 Prompts for GPT-4
 """
 
+
 INSTRUCTIONS = "You are a helpful assistant to help me answer questions in a lifelog dataset. I will give you information and the system constraints and you will suggest me how to do it."
+
+# Rewrite the question into a search query
+REWRITE_QUESTION = """
+Rewrite the following question into a search query: {question}
+It should be a statement in natural language to search for the relevant information in the lifelog retrieval system. It should include all the information from the question, excluding the question phrase
+For examples, if the question is "What did I eat for breakfast on 5th May 2019?", the search query could be "I was having breakfast on 5th May 2019".
+
+Answer in this format:
+```json
+{{
+    "text": "A statement that is a search query",
+    "visual text": "Exclude this if there is no need for visual information. Otherwise, provide a search query for the images"
+}}
+```
+"""
 
 # Answer the question based on text
 QA_PROMPT = """Answer the following question based on the text provided: {question}
-There are {num_events} relevant events in the dataset. Here are the information of each event:
+There are {num_events} retrieved using the lifelog retrieval system. Here are the non-visual information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).
 {events}
-Give one or more possible answers to the question in the following format, with each answer being the key.
+Give one or more of your best guess to the question in the following format, with each answer being the key. The explantion should be brief. You don't have to give a full sentence, just list the reasons.
 ```json
 {{
-    "something": "brief explanation",
-    "one": "brief explanation",
-    "5 days": "brief explanation",
+    "something": "brief explanation for why the answer is `something`",
+    "one": "brief explanation for why the answer is `one`",
+    "5 days": "brief explanation for why the answer is `5 days`",
     ...
 }}
 ```
-If there are no possible answers, and the question needs to be answered using Visual Question Answering, say "VQA".
-Else say "N/A".
 """
+
+VISUAL_PROMPT = """<ImageHere>Answer the following question: {question}
+Some extra information (non visual): {extra_info}. But focus on the visual information more. Be brief and concise. If you can't answer the question, just say so."""
+
 
 # Filter relevant fields from the query
 RELEVANT_FIELDS_PROMPT = """My database has this schema:

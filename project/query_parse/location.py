@@ -72,16 +72,16 @@ def search_for_locations(
     """
     Search for locations in the text
     """
-
+    clean_query = text
     def search_words(wordset, disabled=[]):
         return search_keywords(wordset, text, disabled)
 
     locations = search_words(LOCATIONS, parsed["disabled_locations"])
-    clean_query = remove_keywords(text, locations)
+    # clean_query = remove_keywords(text, locations)
     location_types = search_words(LOCATION_INFOS, parsed["disabled_locations"])
 
     regions = search_words(REGIONS, parsed["disabled_regions"])
-    clean_query = remove_keywords(clean_query, regions)
+    # clean_query = remove_keywords(clean_query, regions)
     regions = postprocess_countries(regions)
 
     info = LocationInfo(

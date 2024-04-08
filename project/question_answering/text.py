@@ -1,12 +1,12 @@
 # Get general textual description for a scene
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from configs import DURATION_FIELDS, LOCATION_FIELDS, TIME_FIELDS
-from llm.prompts import QA_PROMPT
 from llm.gpt import llm_model
+from llm.prompts import QA_PROMPT
 from query_parse.time import calculate_duration
-from results.models import Event, EventResults
+from results.models import Event
 
 
 def get_general_textual_description(event: Event) -> str:
@@ -71,7 +71,12 @@ def get_specific_description(event: Event, fields: Optional[List[str]] = None) -
     # Start calculating
     for field in TIME_FIELDS:
         if field in fields:
-            time += f"at {field} {getattr(event, field)} "
+            if field == "start_time":
+                time += f" from {getattr(event, field).strftime('%H:%M')}"
+            elif field == "end_time":
+                time += f" to {getattr(event, field).strftime('%H:%M')}"
+            else:
+                time += f" at {field} {getattr(event, field)}"
 
     # Duration
     for field in DURATION_FIELDS:
@@ -79,12 +84,14 @@ def get_specific_description(event: Event, fields: Optional[List[str]] = None) -
             duration += f"{getattr(event, field)} {field}"
 
     if duration:
-        duration = "which lasted for " + duration + " "
+        duration = " which lasted for " + duration + " "
 
     # Location
     for field in LOCATION_FIELDS:
         if field in fields:
-            location += f"in {getattr(event, field)} "
+            value = getattr(event, field)
+            if value:
+                location += f" in {getattr(event, field)} "
 
     # Visual
     if event.ocr:
@@ -92,40 +99,43 @@ def get_specific_description(event: Event, fields: Optional[List[str]] = None) -
             f"Some texts that can be seen from the images are: {' '.join(event.ocr)}."
         )
 
-    textual_description = f"The event happened {time}{duration} {location}. {visual}"
+    textual_description = f"This event happened{time}{duration}{location}. {visual}"
     return textual_description
 
 
-async def answer_text_only(question: str, events: EventResults, k: int = 10) -> str:
+async def answer_text_only(
+    question: str, textual_descriptions: List[str], num_events: int
+) -> List[str]:
     """
     Given a natural language question and a list of scenes, returns the top k answers
     Note that the EventResults have already filtered the relevant fields
     """
     ## First get the textual description of the events
-    k = min(k, len(events.events))
-    textual_descriptions = []
-    if events.relevant_fields:
-        for i, event in enumerate(events.events[:k]):
-            textual_descriptions.append(
-                get_specific_description(event, events.relevant_fields)
-            )
-            # text = event.model_dump(include=set(events.relevant_fields))
-            # textual_descriptions.append(text)
-        print("[green]Textual description sample[/green]", textual_descriptions[0])
 
     formated_textual_descriptions = ""
     for i, text in enumerate(textual_descriptions):
-        formated_textual_descriptions += f"{i+1}. {text}\n"
+        formated_textual_descriptions += f"Event {i+1}. {text}\n"
 
     prompt = QA_PROMPT.format(
         question=question,
-        num_events=len(events.events),
+        num_events=num_events,
         events=formated_textual_descriptions,
     )
 
     answers = await llm_model.generate_from_text(prompt)
+    print(answers)
     if isinstance(answers, str):
-        return answers
+        return []
 
-    answers = "\n".join(f"{k}({v})" for k, v in answers.items())
-    return answers
+    return format_answer(answers)
+
+def format_answer(answers: Dict[str, str]) -> List[str]:
+    """
+    Format the answers into a string
+    """
+    formatted_answers = []
+    for k, v in answers.items():
+        formatted_answers.append(f"<b>{k}</b>\n{v}")
+
+    return formatted_answers
+

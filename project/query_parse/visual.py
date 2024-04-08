@@ -91,11 +91,11 @@ def encode_text(main_query: str) -> np.ndarray:
         text_encoded = clip_model.encode_text(tokens)
 
         if len(sentences) > 1:
-            print("multiple sentences")
-            print(sentences)
             text_encoded = text_encoded.mean(dim=0, keepdim=True)
-
+        else:
+            text_encoded = text_encoded.squeeze(0)
         # text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
+
     text_features = text_encoded.cpu().numpy()
     return text_features
 

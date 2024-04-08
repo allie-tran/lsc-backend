@@ -22,7 +22,7 @@ class Visualisation(BaseModel):
     time_hints: List[str] = []
 
     # MAP VISUALISATION
-    map_locations: List[List[float]] = []
+    map_locations: List[List[Union[float, int]]] = []
     map_countries: List[dict] = []
 
     # Don't know what this is
@@ -168,12 +168,12 @@ class Event(BaseModel):
             return self.merge_with_one(others[0], [score, scores[0]])
 
         # IDS
-        self.group = "+".join(
-            extend_no_duplicates([self.group], [x.group for x in others])
-        )
-        self.scene = "+".join(
-            extend_no_duplicates([self.scene], [x.scene for x in others])
-        )
+        # self.group = "+".join(
+        #     extend_no_duplicates([self.group], [x.group for x in others])
+        # )
+        # self.scene = "+".join(
+        #     extend_no_duplicates([self.scene], [x.scene for x in others])
+        # )
 
         # DATA
         self.name = self.name or others[0].name
@@ -201,7 +201,7 @@ class Event(BaseModel):
         self.region = extend_no_duplicates(
             self.region, [x for y in others for x in y.region]
         )
-        self.country = "+".join(
+        self.country = ", ".join(
             extend_no_duplicates([self.country], [x.country for x in others])
         )
 
