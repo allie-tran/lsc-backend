@@ -23,13 +23,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
 
-async def async_query(text: str):
+async def async_query(request: GeneralQueryRequest):
     """
     Streaming response
     """
     try:
+        text, size = request.main, request.size
+
         # First yield in search single is the results
-        async for response in single_query(text):
+        async for response in single_query(text, size):
             # results is a dict
             if response["type"] in ["raw", "modified"]:
                 results = response["results"]
@@ -122,10 +124,8 @@ def get_stream_search(request):
     """
     Get stream search endpoint
     """
-    session_id = request.GET.get("sessionID", "")
+    # session_id = request.GET.get("sessionID", "")
     token = request.GET.get("searchToken", "")
-
-    # return StreamingHttpResponse("data: END\n\n", content_type="text/event-stream")
 
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     message = r.get(token)
@@ -138,11 +138,11 @@ def get_stream_search(request):
 
     print("Starting search")
     request_body = json.loads(message.decode("utf-8"))  # type: ignore
-    request = GeneralQueryRequest(**request_body)
 
+    request = GeneralQueryRequest(**request_body)
     # Streaming response
     return StreamingHttpResponse(
-        async_to_sync(async_query(request.main)), content_type="text/event-stream"
+        async_to_sync(async_query(request)), content_type="text/event-stream"
     )
 
 

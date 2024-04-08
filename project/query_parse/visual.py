@@ -16,6 +16,8 @@ from numpy import linalg as LA
 from open_clip.model import CLIP
 from open_clip.tokenizer import _tokenizer
 
+from results.models import Image
+
 from .constants import DESCRIPTIONS
 from .types import VisualInfo
 from .utils import search_keywords
@@ -88,22 +90,23 @@ def encode_text(main_query: str) -> np.ndarray:
     with torch.no_grad():
         sentences = _split_text(main_query, 77)
         tokens = tokenizer(sentences).to(device)
-        text_encoded = clip_model.encode_text(tokens)
+        text_encoded = clip_model.encode_text(tokens)  # type: ignore
 
         if len(sentences) > 1:
-            print("multiple sentences")
-            print(sentences)
             text_encoded = text_encoded.mean(dim=0, keepdim=True)
-
+        else:
+            text_encoded = text_encoded.squeeze(0)
         # text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
+
     text_features = text_encoded.cpu().numpy()
     return text_features
 
 
-def score_images(images: List[str], encoded_query: np.ndarray) -> List[float]:
+def score_images(image_objs: List[Image], encoded_query: np.ndarray) -> List[float]:
+    images = [image.src for image in image_objs]
     try:
         encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
-    except TypeError as e:
+    except TypeError:
         return [0 for _ in images]
     if images:
         image_features = norm_photo_features[

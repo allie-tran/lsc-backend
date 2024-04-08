@@ -9,6 +9,7 @@ from query_parse.es_utils import (
     get_visual_filters,
 )
 from query_parse.location import search_for_locations
+from query_parse.question import parse_query
 from query_parse.time import TimeTagger, add_time, search_for_time
 from query_parse.types import (
     ESBoolQuery,
@@ -18,6 +19,8 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
+from query_parse.types.elasticsearch import MSearchQuery
+from query_parse.types.lifelog import TimeCondition
 from query_parse.utils import parse_tags
 from query_parse.visual import search_for_visual
 
@@ -30,8 +33,7 @@ class Query:
         text,
         is_question,
         *,
-        shared_filters=None,
-        gps_bounds: Optional[Sequence] = None
+        gps_bounds: Optional[Sequence] = None,
     ):
         self.is_question = is_question
         self.original_text = text
@@ -51,41 +53,36 @@ class Query:
         # Visualisation info
         self.query_visualisation = Visualisation()
 
-        # Extract the information from the text
-        self.extract_info(text, shared_filters)
-
         # For Elasticsearch
         self.es: Optional[ESBoolQuery] = None
-        self.cached = False
-        self.scroll_id = ""
-        self.es_filters = []
-        self.es_should = []
-        self.max_score = 1.0
-        self.min_score = 0.0
-        self.normalise_score = lambda x: (x - self.min_score) / (
-            self.max_score - self.min_score
-        )
 
-    def extract_info(self, text: str, shared_timeinfo: Optional[TimeInfo] = None):
+        # Set to True if the info has been extracted
+        self.extracted = False
+        self.query_parts = {}
 
+    async def extract_info(self, text: str, shared_timeinfo: Optional[TimeInfo] = None):
         # Preprocess the text
-        text = text.strip(". \n").lower()
-        text, parsed = parse_tags(text)
-        print("Text query:", text)
+        text, parsed = parse_tags(text.lower())
+        query_parts = await parse_query(text)
+        if query_parts:
+            self.query_parts = query_parts
+        print("Query Parts:", query_parts.items())
 
         # =================================================================== #
         # LOCATIONS
         # =================================================================== #
         clean_query, locationinfo, loc_visualisation = search_for_locations(
-            text, parsed
+            query_parts["location"], parsed
         )
 
         # =================================================================== #
         # TIME
         # =================================================================== #
-        clean_query, timeinfo, time_visualisation = search_for_time(
-            time_tagger, clean_query
-        )
+        time = f"{query_parts['time']} {query_parts['date']}".strip()
+        if not time:
+            time = clean_query
+
+        clean_query, timeinfo, time_visualisation = search_for_time(time_tagger, time)
 
         # =================================================================== #
         # VISUALISATION
@@ -99,7 +96,7 @@ class Query:
         # =================================================================== #
         # VISUAL INFO
         # =================================================================== #
-        visualinfo = search_for_visual(clean_query)
+        visualinfo = search_for_visual(query_parts["visual"])
 
         if visualinfo:
             print("Visual Text:", visualinfo.text)
@@ -113,6 +110,7 @@ class Query:
         self.timeinfo = timeinfo
         self.locationinfo = locationinfo
         self.query_visualisation = query_visualisation
+        self.extracted = True
 
     def get_info(self) -> dict:
         return {
@@ -127,7 +125,7 @@ class Query:
                 self.timeinfo
             )
             if query_visualisation:
-                for key, value in query_visualisation.items():
+                for value in query_visualisation.values():
                     self.query_visualisation.time_hints.extend(value)
         return self.temporal_queries
 
@@ -146,35 +144,33 @@ class Query:
         Convert a query to an Elasticsearch query
         """
         if not self.es:
-            scroll_id = None
-            main_query = {}
-
+            if not self.extracted:
+                await self.extract_info(self.original_text)
             # Get the filters
-            time, date, duration, weekday = self.time_to_filters()
-            place, place_type, region = self.location_to_filters()
-            embedding, ocr, concepts = self.text_to_visual()
+            time, date, timestamp, duration, weekday = self.time_to_filters()
+            place, place_type, region = self.location_to_filters()  # type: ignore
+            embedding, ocr, concepts = self.text_to_visual()  # type: ignore
 
             min_score = 0.0
             max_score = 1.0
-            test_query = None  # This is for gauging the max score
             es = ESBoolQuery()
 
             # Should queries:
             if place:
                 es.should.append(place)
                 min_score += 0.01
-            if place_type:
-                es.should.append(place_type)
-                min_score += 0.003
+            # if place_type:
+            #     es.should.append(place_type)
+            #     min_score += 0.003
             if duration:
                 es.should.append(duration)
                 min_score += 0.05
             if ocr:
                 es.should.append(ocr)
                 min_score += 0.01
-            if concepts:
-                es.should.append(concepts)
-                min_score += 0.05
+            # if concepts:
+            #     es.should.append(concepts)
+            #     min_score += 0.05
 
             if embedding:
                 es.should.append(embedding)
@@ -182,12 +178,11 @@ class Query:
             # Filter queries (no scores)
             es.filter.append(time)
             es.filter.append(date)
+            es.filter.append(timestamp)
             es.filter.append(region)
             es.filter.append(weekday)
 
             if ignore_limit_score:
-                # if embedding:
-                #     min_score += CLIP_MIN_SCORE - 0.15
                 max_score = 1.0
 
             # gauge the max score for normalisation
@@ -197,7 +192,7 @@ class Query:
                     query=embedding.to_query(), size=1, test=True
                 )
                 test_results = await send_search_request(test_request)
-                if test_results:
+                if test_results is not None:
                     max_score = min_score + test_results.max_score
                     min_score = min_score + test_results.min_score
 
@@ -206,7 +201,7 @@ class Query:
                     query=es.should.to_query(), size=1, test=True
                 )
                 test_results = await send_search_request(test_request)
-                if test_results and test_results.max_score > 0.0:
+                if test_results is not None and test_results.max_score > 0.0:
                     max_score = test_results.max_score
                     min_score = min(min_score, max_score / 2)
 
@@ -215,3 +210,42 @@ class Query:
             self.es = es
 
         return self.es
+
+
+class TemporalQueries:
+    """
+    This class is used for searching for two related queries
+    For example: "I went to the beach and then the park"
+    """
+
+    def __init__(self, queries: Sequence[Query], conditions: Sequence[TimeCondition]):
+        self.queries = queries
+        self.conditions = conditions
+
+    async def extract_info(self):
+        for query in self.queries:
+            await query.extract_info(query.original_text)
+
+    def get_info(self) -> dict:
+        return {}
+
+    async def to_elasticsearch(self):
+        """
+        Convert a query to an Elasticsearch query
+        """
+        msearch_queries = []
+        for query in self.queries:
+            es_query = await query.to_elasticsearch()
+            msearch_queries.append(es_query)
+
+        return MSearchQuery(queries=msearch_queries)
+
+
+def create_query(search_text: str, is_question: bool) -> Query:
+    return Query(search_text, is_question)
+
+
+async def create_es_query(
+    query: Query, ignore_limit_score: bool = False
+) -> ESBoolQuery:
+    return await query.to_elasticsearch(ignore_limit_score)

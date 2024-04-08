@@ -1,4 +1,7 @@
-from typing import Literal, Sequence, Tuple
+from datetime import timedelta
+from typing import List, Literal, Sequence, Tuple
+
+from results.models import EventResults
 
 from query_parse.constants import GPS_NORMAL_CASE, MAP_VISUALISATION
 from query_parse.time import MONTHS
@@ -18,10 +21,13 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
+from query_parse.types.lifelog import TimeCondition
 from query_parse.visual import encode_text
 
 
-def range_filter(start: int, end: int, field: str, boost: float = 1.0) -> ESRangeFilter:
+def range_filter(
+    start: int | str | float, end: int | str | float, field: str, boost: float = 1.0
+) -> ESRangeFilter:
     return ESRangeFilter(field=field, start=start, end=end, boost=boost)
 
 
@@ -34,11 +40,11 @@ def get_time_filters(
     """
 
     s, e = timeinfo.time
+    has_child = False
     if s == 0 and e == 24 * 3600:
         # no time filter
         time_filters = []
     else:
-        print("Time:", timeinfo.time, s, e)
         if mode == "image":
             # for images, we only have the time
             if s <= e:
@@ -56,13 +62,14 @@ def get_time_filters(
                 time_filters = [
                     range_filter(s, e, "start_seconds_from_midnight"),
                     range_filter(s, e, "end_seconds_from_midnight"),
-                    ESOrFilters(
+                    ESAndFilters(
                         queries=[
                             range_filter(0, s, "start_seconds_from_midnight"),
                             range_filter(e, 24 * 3600, "end_seconds_from_midnight"),
-                        ]
+                        ],
                     ),
                 ]
+                has_child = True
             else:  # either from midnight to end or from start to midnight
                 time_filters = [
                     range_filter(0, e, "start_seconds_from_midnight"),
@@ -72,7 +79,9 @@ def get_time_filters(
                 ]
 
         # combine the date filters using a bool should clause
-    bool_time_filters = ESOrFilters(name="TIME", queries=time_filters)
+    bool_time_filters = ESOrFilters(
+        name="TIME", queries=time_filters, has_child=has_child
+    )
     query_visualisation = {}
     if s != 0 or e != 24 * 3600:
         # format the time for visualisation
@@ -112,6 +121,34 @@ def get_weekday_filters(timeinfo: TimeInfo) -> ESOrFilters:
             ESFilter(field="weekday", value=weekday) for weekday in timeinfo.weekdays
         ]
     return ESOrFilters(name="WEEKDAY", queries=weekday_filters)
+
+
+def get_timestamp_filters(timeinfo: TimeInfo) -> ESOrFilters:
+    """
+    Get the timestamp filters
+    (usually before/after a certain date)
+    """
+    timestamp_filters = []
+    if timeinfo.timestamps:
+        for timestamp, condition in timeinfo.timestamps:
+            if condition == "before":
+                timestamp_filters.append(
+                    range_filter(0, timestamp, "end_timestamp", 0.1)
+                )
+            elif condition == "after":
+                timestamp_filters.append(
+                    range_filter(timestamp, 24 * 3600, "start_timestamp", 0.1)
+                )
+            elif condition == "around":
+                timestamp_filters.append(
+                    range_filter(
+                        timestamp - 2 * 3600,
+                        timestamp + 2 * 3600,
+                        "start_timestamp",
+                        0.1,
+                    )
+                )
+    return ESOrFilters(name="TIMESTAMP", queries=timestamp_filters)
 
 
 def get_date_filters(timeinfo: TimeInfo) -> Tuple[ESOrFilters, dict]:
@@ -194,6 +231,7 @@ def get_temporal_filters(timeinfo: TimeInfo) -> Tuple[Sequence[ESCombineFilters]
     """
     time_filters, time_visualisation = get_time_filters(timeinfo)
     date_filters, date_visualisation = get_date_filters(timeinfo)
+    timestamp_filters = get_timestamp_filters(timeinfo)
     duration_filters = get_duration_filters(timeinfo)
     weekday_filters = get_weekday_filters(timeinfo)
 
@@ -205,7 +243,13 @@ def get_temporal_filters(timeinfo: TimeInfo) -> Tuple[Sequence[ESCombineFilters]
         query_visualisation["WEEKDAY"] = timeinfo.weekdays
 
     # combine the time filters using a bool should clause
-    temporal_filters = [time_filters, date_filters, duration_filters, weekday_filters]
+    temporal_filters = [
+        time_filters,
+        date_filters,
+        timestamp_filters,
+        duration_filters,
+        weekday_filters,
+    ]
 
     return temporal_filters, query_visualisation
 
@@ -244,17 +288,20 @@ def get_location_filters(locationinfo: LocationInfo) -> Sequence[ESCombineFilter
                 )
 
         # Match query
-        queries.append(ESMatch(field="location", query=loc, boost=0.01))
+        queries.append(ESMatch(field="location", query=loc, boost=0.0005))
 
     place_filters = ESOrFilters(name="PLACE", queries=queries)
     place_type_filters = ESMatch(
-        name="LOCATION_TYPE", field="location_type", query=" ".join(location_types)
+        name="LOCATION_TYPE",
+        field="location_type",
+        query=" ".join(location_types),
+        boost=0.001,
     )
 
     queries = []
     for region in regions:
-        queries.append(ESFilter(field="region", value=region, boost=0.01))
-    region_filters = ESAndFilters(name="REGION", queries=queries)
+        queries.append(ESFilter(field="region", value=region))
+    region_filters = ESOrFilters(name="REGION", queries=queries)
 
     if gps_bounds:
         lon1, lat2, lon2, lat1 = gps_bounds
@@ -269,11 +316,49 @@ def get_location_filters(locationinfo: LocationInfo) -> Sequence[ESCombineFilter
 
 def get_visual_filters(visual_info: VisualInfo) -> Sequence[ESCombineFilters]:
     embedding = ESEmbedding()
-    ocr = ESFuzzyMatch(field="ocr")
-    concepts = ESMatch(field="descriptions")
+    ocr = ESFuzzyMatch(field="ocr", boost=0.001)
+    concepts = ESMatch(field="descriptions", boost=0.01)
     if visual_info.text:
-        encoded_query = encode_text(visual_info.text).tolist()[0]
+        encoded_query = encode_text(visual_info.text).tolist()
         embedding.embedding = encoded_query
         ocr.query = visual_info.text
         concepts.query = " ".join(visual_info.concepts)
     return [embedding, ocr, concepts]
+
+
+# =================================================================== #
+# TEMPORAL QUERIES
+# =================================================================== #
+def get_conditional_time_filters(
+    results: EventResults, condition: TimeCondition
+) -> List[ESRangeFilter]:
+    """
+    Get the time filters based on the events
+    condition: TimeCondition (before, after)
+    time_limit: float (in hours)
+    """
+    filters: List[ESRangeFilter] = []
+    time_limit = condition.time_limit_float
+    leeway = timedelta(hours=min(time_limit - 1, time_limit / 2))
+    upper_limit = timedelta(hours=max(time_limit + 0.5, time_limit * 1.5))
+    for event in results.events:
+        match condition.condition:
+            case "before":
+                filters.append(
+                    range_filter(
+                        (event.start_time - upper_limit).timestamp(),
+                        (event.start_time - leeway).timestamp(),
+                        "end_timestamp",
+                    )
+                )
+            case "after":
+                filters.append(
+                    range_filter(
+                        (event.end_time + leeway).timestamp(),
+                        (event.end_time + upper_limit).timestamp(),
+                        "start_timestamp",
+                    )
+                )
+            case _:
+                raise ValueError("Invalid time condition")
+    return filters

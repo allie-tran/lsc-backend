@@ -12,7 +12,6 @@ from sklearn.cluster import OPTICS
 from retrieval.search_utils import delete_scroll_id
 
 from .common_nn import *
-from .timeline import time_info
 from .utils import *
 
 cluster = OPTICS(min_samples=2, max_eps=0.9, metric="cosine")

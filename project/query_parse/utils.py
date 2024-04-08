@@ -156,7 +156,6 @@ def parse_tags(query: str) -> Tuple[str, dict]:
         "disabled_times": tags["--disable-time"],
         "negative": tags["--negative"],
     }
-    print(result)
     return modified_query, result
 
 

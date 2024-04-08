@@ -1,4 +1,5 @@
 from typing import List
+import functools
 
 import numpy as np
 import open_clip
@@ -53,7 +54,6 @@ clip_model, *_ = open_clip.create_model_and_transforms(
 )
 tokenizer = open_clip.get_tokenizer(MODEL_NAME)
 
-
 # Detect if the tokenized text is longer than the context length
 def _check_context_length(text: str, context_length: int) -> bool:
     tokens = _tokenizer.encode(text)
@@ -76,15 +76,15 @@ def _split_text(text: str, context_length: int) -> List[str]:
     return result
 
 
+@functools.lru_cache()
 def encode_query(main_query: str) -> np.ndarray:
     with torch.no_grad():
         sentences = _split_text(main_query, 77)
-        main_query = tokenizer(sentences).to(device)
-        text_encoded = clip_model.encode_text(main_query)
+        tokenized_text = tokenizer(sentences).to(device)
+        text_encoded = clip_model.encode_text(tokenized_text)  # type: ignore
 
         if len(sentences) > 1:
             print("multiple sentences")
-            print(sentences)
             text_encoded = text_encoded.mean(dim=0, keepdim=True)
 
         # text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
@@ -95,7 +95,7 @@ def encode_query(main_query: str) -> np.ndarray:
 def score_images(images: List[str], encoded_query: np.ndarray) -> List[float]:
     try:
         encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
-    except TypeError as e:
+    except TypeError:
         return [0 for _ in images]
     if images:
         image_features = norm_photo_features[

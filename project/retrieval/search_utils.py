@@ -1,17 +1,16 @@
-import asyncio
 import json
 import logging
-from time import time
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional, Sequence, Union
 
 import requests
-from configs import ES_URL
+from configs import DERIVABLE_FIELDS, ES_URL
 from database.utils import convert_to_events
 from elastic_transport import ObjectApiResponse
-from elasticsearch import AsyncElasticsearch
 from query_parse.types.elasticsearch import ESSearchRequest, MSearchQuery
+from query_parse.types.lifelog import TimeCondition
 from requests import Response
-from results.models import EventResults
+from results.models import DoubletEvent, DoubletEventResults, EventResults
+from results.utils import create_event_label, deriving_fields
 from rich import print
 
 logger = logging.getLogger(__name__)
@@ -23,6 +22,7 @@ def handle_failed_request(
     response: Union[Response, ObjectApiResponse], query: Any
 ) -> None:
     logger.error(f"There was an error with the request: ({response.status_code})")
+    logger.error(response.text)
     with open("request.log", "a") as f:
         f.write(response.text + "\n")
         f.write(json.dumps(query) + "\n")
@@ -78,6 +78,7 @@ def delete_scroll_id(scroll_id) -> None:
 #     print("Time taken", time() - start)
 #     return response_json
 
+
 async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
     """
     Send a new search request
@@ -108,7 +109,10 @@ async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
 
     # Get the relevant fields and form the EventResults object
     if query.test:
-        max_score = scores[0]
+        if isinstance(scores[0], float):
+            max_score = scores[0]
+        else:
+            max_score = 1.0
         min_score = 0.0
         aggs = response_json["aggregations"]
         min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]
@@ -126,29 +130,114 @@ async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
     return result
 
 
-def send_multiple_search_request(queries: MSearchQuery) -> Optional[MSearchQuery]:
-    response = requests.post(
+async def send_multiple_search_request(
+    queries: MSearchQuery,
+) -> Sequence[Optional[EventResults]]:
+
+    response = requests.get(
         f"{ES_URL}/_msearch",
-        data=json.dumps(queries.to_query()),
-        headers=json_headers,
+        data=queries.to_query(),
+        headers={"Content-Type": "application/x-ndjson"},
     )
+
     if response.status_code != 200:
-        handle_failed_request(response, queries)
-        return None
+        handle_failed_request(response, queries.to_query())
+        return []
 
     response_json = response.json()  # Convert to json as dict formatted
-
     list_events: List[Optional[EventResults]] = []
     for res in response_json["responses"]:
         try:
+            event_ids = [d["_source"]["scene"] for d in res["hits"]["hits"]]
+            if len(event_ids) == 0:
+                list_events.append(None)
+                continue
             events = EventResults(
-                events=[d["_source"] for d in res["hits"]["hits"]],
+                events=convert_to_events(event_ids),
                 scores=[d["_score"] for d in res["hits"]["hits"]],
             )
+            events = create_event_label(events)
             list_events.append(events)
-        except KeyError as e:
+        except KeyError:
             print("KeyError", res)
             list_events.append(None)
 
-    # queries.extend_results(list_events)
-    return queries
+    return list_events
+
+
+def merge_msearch_with_main_results(
+    main_results: EventResults,
+    msearch_results: Sequence[EventResults | None],
+    time_condition: TimeCondition,
+    merge_msearch: bool = False,
+) -> DoubletEventResults:
+    """
+    Merge the msearch results with the main results
+    Strategy:
+    - For each event in the main results, get the first event in the msearch results
+    - Create a doublet event with the main event as the main and the msearch event as the conditional
+    - Sort the doublets by the score
+
+    If merge_msearch is True, then any main event that has the same msearch event will be merged
+    Strategy:
+    - Keep track of the msearch events that have been used using a dictionary
+    - For each event in the main results, get the first event in the msearch results
+    - If the msearch event has been used, then find the event that has the same msearch event
+    - Create a doublet event with the main event as the main and the msearch event as the conditional
+    """
+    events = main_results.events
+    scores = main_results.scores
+
+    doublets = []
+    doublet_scores = []
+    used_msearch = {}
+
+    assert len(events) == len(msearch_results)
+
+
+    for i, msearch_result in enumerate(msearch_results):
+        if (
+            msearch_result is None
+            or not msearch_result.events
+            or not msearch_result.events[0].images
+        ):
+            continue
+
+        if merge_msearch:
+            scene = msearch_result.events[0].scene
+            # Check if the msearch event has been used
+            if scene in used_msearch:
+                # Find the event that has the same msearch event
+                j = used_msearch[scene]
+                doublets[j].main.merge_with_one(
+                    events[i], [doublet_scores[j], scores[i]]
+                )
+                continue
+            used_msearch[scene] = i
+
+        doublets.append(
+            DoubletEvent(
+                main=events[i],
+                conditional=msearch_result.events[0],
+                condition=time_condition,
+            )
+        )
+        doublet_scores.append(scores[i] + msearch_result.scores[0])
+
+    # Sort the doublets by the score
+    doublets, doublet_scores = zip(
+        *sorted(zip(doublets, doublet_scores), key=lambda x: x[1], reverse=True)
+    )
+
+    return DoubletEventResults(events=doublets, scores=doublet_scores)
+
+
+def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
+    scene_ids = [event.scene for event in results.events]
+    results.relevant_fields = relevant_fields
+    results.events = convert_to_events(scene_ids, relevant_fields)
+    derivable_fields = set(relevant_fields) & set(DERIVABLE_FIELDS)
+    if derivable_fields:
+        new_events = deriving_fields(results.events, list(derivable_fields))
+        results.events = new_events
+    return results

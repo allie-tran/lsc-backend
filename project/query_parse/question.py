@@ -2,7 +2,14 @@
 All utilities related to question answering
 """
 
-from .constants import AUXILIARY_VERBS, QUESTION_TYPES, QUESTION_WORDS
+from collections import defaultdict
+from typing import Dict
+
+from configs import QUERY_PARSER
+from llm import llm_model
+from llm.prompts import PARSE_QUERY, REWRITE_QUESTION
+
+from .constants import QUESTION_TYPES, QUESTION_WORDS, STOP_WORDS
 
 
 def detect_question(query: str) -> bool:
@@ -10,34 +17,60 @@ def detect_question(query: str) -> bool:
     Check if the query is a question or not
     This is useful in case the user forgets to toogle question mode
     """
+    if "?" in query:
+        return True
 
-    if query.endswith("?"):
-        return True
-    words = query.split()
-    if words[0].lower() in QUESTION_WORDS:
-        return True
+    # detect mutli-sentence questions
+    seperators = [".", "!", ";", "\n"]
+    for sep in seperators:
+        if sep in query:
+            parts = query.lower().split(sep)
+            if parts[0].strip() in QUESTION_WORDS:
+                return True
+
     return False
 
 
-def question_to_retrieval(query: str) -> str:
+async def question_to_retrieval(query: str, is_question: bool) -> str:
     """
     Convert a question to a retrieval query
     """
-    # TODO: Implement this function
-    # For now, we just return the query as it is
+    if not is_question:
+        return query
 
-    # Remove the question word
+    prompt = REWRITE_QUESTION.format(question=query)
+    search_text = await llm_model.generate_from_text(prompt)
+    if isinstance(search_text, dict):
+        search_text = search_text["text"]
+    return search_text
+
+
+def detect_simple_query(query: str) -> bool:
+    """
+    Check if the query is a simple query or not
+    if it's too short, or full of stop words, it's a simple query
+    """
     words = query.split()
-    if words[0].lower() in QUESTION_WORDS:
-        words = words[1:]
+    words = [word for word in words if word not in STOP_WORDS]
+    return len(words) < 3
 
-    # remove the second word if it is a auxiliary verb
-    if words[0].lower() in AUXILIARY_VERBS:
-        words = words[1:]
 
-    query = " ".join(words)
-    print("Converted query:", query)
-    return query
+async def parse_query(text: str) -> Dict[str, str]:
+    """
+    Get the relevant fields from the query
+    """
+    template = defaultdict(lambda: text)
+    if QUERY_PARSER:
+        # in some cases, it's inefficient to parse the query
+        if detect_simple_query(text):
+            return template
+
+        prompt = PARSE_QUERY.format(query=text)
+        feat = await llm_model.generate_from_text(prompt)
+        if isinstance(feat, dict):
+            for key, value in feat.items():
+                template[key] = value
+    return template
 
 
 def question_classification(query: str) -> str:

@@ -5,6 +5,7 @@ Location module
 import re
 from typing import List, Tuple
 
+from query_parse.types.elasticsearch import GPS
 from results.models import Visualisation
 
 from .constants import (
@@ -16,7 +17,7 @@ from .constants import (
     REGIONS,
 )
 from .types import LocationInfo
-from .utils import is_enabled, remove_keywords, search_keywords
+from .utils import is_enabled, search_keywords
 
 
 def postprocess_countries(countries: List[str]) -> List[str]:
@@ -57,7 +58,7 @@ def search_possible_location(text: str, disabled: List[str] = []) -> List[str]:
     results = []
     for location in LOCATIONS:
         if is_enabled(location, disabled):
-            for i, extra in enumerate(LOCATIONS[location]):
+            for extra in LOCATIONS[location]:
                 if is_enabled(extra, disabled):
                     if re.search(r"\b" + re.escape(extra) + r"\b", text, re.IGNORECASE):
                         if location not in results:
@@ -72,16 +73,17 @@ def search_for_locations(
     """
     Search for locations in the text
     """
+    clean_query = text
 
     def search_words(wordset, disabled=[]):
         return search_keywords(wordset, text, disabled)
 
     locations = search_words(LOCATIONS, parsed["disabled_locations"])
-    clean_query = remove_keywords(text, locations)
+    # clean_query = remove_keywords(text, locations)
     location_types = search_words(LOCATION_INFOS, parsed["disabled_locations"])
 
     regions = search_words(REGIONS, parsed["disabled_regions"])
-    clean_query = remove_keywords(clean_query, regions)
+    # clean_query = remove_keywords(clean_query, regions)
     regions = postprocess_countries(regions)
 
     info = LocationInfo(
@@ -105,3 +107,4 @@ def search_for_locations(
         query_visualisation.map_countries = choose_countries_for_map(regions)
 
     return clean_query, info, query_visualisation
+

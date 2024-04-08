@@ -124,7 +124,7 @@ class TimeTagger:
                 "DATE",
                 r"(?:\bthe )?\d{1,2}(?:st|nd|rd|th)?(?: of)? ("
                 + "|".join(MONTHS)
-                + r")\b((?: in)?( \d{4}\b)?)?",
+                + r")\b((?: in|,)?( \d{4}\b)?)?",
             )
         )  # 5th Aust 20gu19
 
@@ -193,7 +193,7 @@ class TimeTagger:
             )
         )
         self.all_regexes.append(("DATE", r"\b(2015|2016|2018|2019|2020)\b"))
-        self.tags = [t for t, r in self.all_regexes]
+        self.tags = [t for t, _ in self.all_regexes]
 
     def merge_interval(self, intervals: List[RegexInterval]) -> List[RegexInterval]:
         if intervals:
@@ -220,7 +220,6 @@ class TimeTagger:
 
     def tag(self, sent: str) -> List[Tags]:
         times = self.find_time(sent)
-        intervals = dict([(time.start, time.end) for time in times])
         tag_dict = dict([(time.text, time.tag) for time in times])
 
         tokenizer = MWETokenizer(separator="__")
@@ -238,7 +237,7 @@ class TimeTagger:
 
         new_tags = []
         for word, tag in tags:
-            if "__" in word:
+            if "__" in word or word in tag_dict:
                 word = word.replace("__", " ")
                 try:
                     new_tags.append((word, tag_dict[word]))
@@ -292,9 +291,7 @@ def get_day_month(
 def am_pm_to_num(hour_string: str) -> Tuple[int, int]:
     minute = 0
     if ":" in hour_string:
-        minute = re.compile(r"\d+(:\d+).*").findall(hour_string)[0]
-        hour = hour_string.replace(minute, "")
-        minute = int(minute[1:])
+        hour, minute = map(int, hour_string.split(":"))
     if "am" in hour_string:
         hour = int(hour_string.replace("am", ""))
         if hour == 12:
@@ -367,7 +364,7 @@ def search_for_time(
 
     weekdays = []
     dates = []
-    times = []
+    timestamps = [] # for before, after a certain date
     start = (0, 0)
     end = (24, 0)
     duration = None
@@ -439,10 +436,20 @@ def search_for_time(
                 date_tuple = DateTuple()
 
             dateprep = ""
-            if i >= 1 and tags[i - 1][1] == "DATEPREP":
+            if i >= 1 and tags[i - 1][1] in ["TIMEPREP", "DATEPREP"]:
                 dateprep = tags[i - 1][0]
 
             print("Found date", word, tags[i - 1], dateprep)
+
+            # Timestamps
+            if dateprep in ["before", "after"]:
+                if date_tuple.year and date_tuple.month and date_tuple.day:
+                    dt_object = datetime(
+                        date_tuple.year, date_tuple.month, date_tuple.day
+                    )
+                    time_stamp = dt_object.timestamp()
+                    timestamps.append([time_stamp, dateprep])
+                    continue
 
             if "first day of" in dateprep:
                 date_tuple.day = 1
@@ -491,7 +498,8 @@ def search_for_time(
                         dt_object.day,
                     )
                 date_tuple.year = original_year
-            dates.append(date_tuple)
+            else:
+                dates.append(date_tuple)
 
         # ============================================== #
         # ================= SEASONS ==================== #
@@ -547,6 +555,7 @@ def search_for_time(
         duration=duration,
         weekdays=weekdays,
         dates=dates,
+        timestamps=timestamps,
         original_texts=matches,
     )
 

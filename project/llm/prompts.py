@@ -2,29 +2,222 @@
 Prompts for GPT-4
 """
 
-INSTRUCTIONS = "You are a helpful assistant to help me answer questions in a lifelog dataset. I will give you information and the system constraints and you will suggest me how to do it."
+INSTRUCTIONS = "You are a helpful assistant. Always include a valid JSON response."
+
+# Rewrite the question into a search query
+REWRITE_QUESTION = """
+Rewrite the following question into a statement as a retrieval query: {question}
+It should be a statement in natural language to search for the relevant information in the lifelog retrieval system. It should include all the information from the question, excluding the question phrase
+
+Some examples:
+Question: "How many times did I go to the gym last month?"
+Rewrite: "I went to the gym last month."
+
+Question: "What did I eat for breakfast on Monday?"
+Rewrite: "I ate breakfast on Monday."
+
+Question: "When was the last time I went to the park, assuming today is 2022-03-01?"
+Rewrite: "I went to the park, before 2022-03-01."
+
+Question: "Where did I buy the MacBook Pro in summer 2021?"
+Rewrite: "I bought the MacBook Pro in summer 2021."
+
+Answer in this format:
+
+```json
+{{
+    "text": "A statement that is a search query",
+}}
+```
+"""
+
+# Automatically parse the query into a different format
+PARSE_QUERY = """
+I need to parse information from a text query to find relevant information from the lifelog retrieval system. As my parser is rule-based, I need you to provide me with the relevant fields that I should consider. Be as specific as possible, because the parser is not very smart.
+
+The fields are: location, time, date, visual, after-query (same fields with after-when), before-query (same fields with before-when).
+
+Some examples:
+
+Query: "I was biking in the park near my house in the early morning."
+Response:
+```json
+{{
+    "visual": "biking in the park",
+    "time": "from 5am to 8am",
+    "location": "about 2km from home",
+}}
+```
+
+Query: "I was having an Irish beer on St. Patrick's Day last year. Assuming this year is 2022."
+Response:
+```json
+{{
+    "visual": "having an Irish beer",
+    "date": "17th March 2021"
+}}
+```
+
+Query: "Waiting for a flight to Paris at the airport."
+Response:
+```json
+{{
+    "visual": "waiting for a flight",
+    "location": "airport",
+    "after-query": {{
+        "after-when": "3 hours",
+        "location": "Paris"
+    }}
+}}
+```
+
+Query: "It was a very cold winter day in New York City. I walked to the bus at sunrise."
+Response:
+```json
+{{
+    "visual": "very cold winter day, walking at sunrise",
+    "location": "New York City",
+    "date": "January, February, December"
+    "time": "from 9am to 10am" // because it is at winter so sunrise is late
+    "after-query": {{
+        "after-when": "1 hour",
+        "visual": "walking to the bus",
+    }}
+}}
+```
+
+Now it's your turn. Use no comments.
+Provide the relevant fields for the following query:
+Query:{query}
+Response:
+"""
+
+# Parse before and after information
+PARSE_BEFORE_AFTER = """
+I need to find the relevant information from the lifelog retrieval system based on the before and after information. The system will retrieve the information based on the before and after information. The system will consider the before information as the query and the after information as the answer.
+How many hours before and after each event should I consider to find the relevant information? The time unit is in hours. If you don't need to consider before or after, just put 0.
+
+For example, for the events "I am going to the airport to catch a flight to Paris". The before and after information could be:
+```json
+{{
+    "main_query": "Going to the airport",
+    "after": 3-4, # 3-4 hours after the event
+    "after_query": "I am at Paris"
+}}
+```
+
+Example 2: "I was working at a cafe to wait for my friend. After that, we went to the cinema."
+```json
+{{
+    "before_query": "working at a cafe",
+    "before": 0-1, # waited for 0-1 hour
+    "main_query": "meeting my friend at the cafe",
+    "after": 1-2, # went to the cinema 1-2 hours after
+    "after_query": "went to the cinema"
+}}
+```
+
+Example 3: "I had a long walk in the park in the morning because I stayed out late the night before."
+```json
+{{
+    "before": 5-7, # it was the morning so, 7-8am, so last night was 10pm-2am, so 5-10 hours before
+    "before_query": "stayed out late at night",
+    "main_query": "long walk in the park",
+}}
+```
+
+These are rational guesses. Now, provide the before and after information for the following query:
+Query: {query}
+"""
 
 # Answer the question based on text
 QA_PROMPT = """Answer the following question based on the text provided: {question}
-There are {num_events} relevant events in the dataset. Here are the information of each event:
+There are {num_events} retrieved using the lifelog retrieval system. Here are the non-visual information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).
 {events}
-Give one or more possible answers to the question in the following format, with each answer being the key.
+Give one or more of your best guess to the question in the following format, with each answer being the key. The explantion should be brief. You don't have to give a full sentence, just list the reasons.
+
+Use the following schema in a valid JSON format:
+Answers: List[Answer]
+Answer:
+- answer: str
+- explanation: str
+- evidence: List[EventLink]
+EventLink:
+- event_id: int # the event id, starting from 1
+
+
 ```json
 {{
-    "something": "brief explanation",
-    "one": "brief explanation",
-    "5 days": "brief explanation",
-    ...
+    answers: [
+        {{
+            "answer": "something",
+            "explanation": "brief explanation for why the answer is `something`",
+            "evidence": [1, 2, 3]
+        }},
+        {{
+            "answer": "one",
+            "explanation": "brief explanation for why the answer is `one`",
+            "evidence": [4, 5, 6]
+        }},
+        {{
+            "answer": "5 days",
+            "explanation": "brief explanation for why the answer is `5 days`",
+            "evidence": [1, 7, 8]
+        }}
+    ]
 }}
 ```
-If there are no possible answers, and the question needs to be answered using Visual Question Answering, say "VQA".
-Else say "N/A".
 """
+
+MIXED_PROMPTS = [
+    """Answer the following question based on the text and images provided: {question}
+There are {num_events} retrieved using the lifelog retrieval system. Here are some information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).""",
+    """
+Reminder of the question: {question}.
+Give one or more of your best guess to the question in the following format, with each answer being the key. The explantion should be brief. You don't have to give a full sentence, just list the reasons.
+
+Use the following schema in a valid JSON format:
+Answers: List[Answer]
+Answer:
+- answer: str
+- explanation: str
+- evidence: List[EventLink]
+EventLink:
+- event_id: int # the event id, starting from 1
+
+```json
+{{
+    answers: [
+        {{
+            "answer": "something",
+            "explanation": "brief explanation for why the answer is `something`",
+            "evidence": [1, 2, 3]
+        }},
+        {{
+            "answer": "one",
+            "explanation": "brief explanation for why the answer is `one`",
+            "evidence": [4, 5, 6]
+        }},
+        {{
+            "answer": "5 days",
+            "explanation": "brief explanation for why the answer is `5 days`",
+            "evidence": [1, 7, 8]
+        }}
+    ]
+}}
+```
+""",
+]
+
+
+VISUAL_PROMPT = """<ImageHere>Answer the following question: {question}
+Some extra information (non visual): {extra_info}. But focus on the visual information more. Be brief and concise. If you can't answer the question, just say so."""
+
 
 # Filter relevant fields from the query
 RELEVANT_FIELDS_PROMPT = """My database has this schema:
 ```
-location: str # home, work, a restaurant's name, etc.
+location: str # home, work, a restaurant's name, etc. This is the most specific location
 location_info: str # type of the semantic_location (restaurant, university, etc.)
 region: str # cities, states
 country: str
@@ -32,11 +225,19 @@ country: str
 start_time: datetime
 end_time: datetime
 date: datetime
+month: str
 weekday: str
+year: int
 duration: int
 duration_unit: str # minute, hour, day, week, month, year
 
-sortby_time: bool # sort by time
+ocr: List[str] # text extracted from images
+```
+
+And these options to post-process the results:
+```
+sortby_time_desc: bool # sort by time (latest first)
+sortby_time_asc: bool # sort by time (earliest first)
 
 groupby_hour: bool # group by hour
 groupby_date: bool # group by day
@@ -46,14 +247,12 @@ groupby_month: bool # group by month
 groupby_location: bool # group by location
 groupby_city: bool # group by city
 groupby_country: bool # group by country
-
-ocr: List[str] # text extracted from images
 ```
 
 Given this query: "{query}", what are the relevant fields that I should consider? Try to choose the most important ones. If two fields are similar, choose the one that is more specific.
-For groupby criteria, consider how far apart two events should be split into two different occasions.
+For groupby criteria, consider how far apart two events should be split into two different occasions. For example, if two events are in the same city but 1 week apart, should they be grouped together or not? How about if they are 5 hours apart but in different cities?
 
-Answer in this format. Don't comment.
+Answer in this format.
 ```json
 ["field1", "field2", "field3", "field4", "field5", ...]
 ```

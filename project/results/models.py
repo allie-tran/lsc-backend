@@ -1,7 +1,18 @@
+from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    InstanceOf,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+from query_parse.types.elasticsearch import GPS
+from query_parse.types.lifelog import TimeCondition
 from query_parse.utils import (
     extend_no_duplicates,
     extend_with_count,
@@ -22,58 +33,82 @@ class Visualisation(BaseModel):
     time_hints: List[str] = []
 
     # MAP VISUALISATION
-    map_locations: List[List[float]] = []
+    map_locations: List[List[Union[float, int]]] = []
     map_countries: List[dict] = []
 
     # Don't know what this is
     location_infos: List[Dict[str, Any]] = []
 
     def update(self, other: "Visualisation"):
-        for key, value in other.dict().items():
-            if key in self.dict():
-                self.dict()[key].extend(value)
+        for key, value in other.model_dump().items():
+            if key in self.model_dump():
+                self.model_dump()[key].extend(value)
 
     def to_dict(self) -> dict:
-        return self.dict()
+        return self.model_dump()
+
+
+class Icon(BaseModel):
+    """
+    An icon for the map
+    """
+
+    type: Literal["foursquare", "material"]
+    name: str
+    prefix: str = ""
+    suffix: str = ""
+
+    @model_validator(mode="after")
+    def check_consistency(self):
+        if self.type == "foursquare":
+            if not self.prefix or not self.suffix:
+                raise ValueError("Foursquare icons need a prefix and suffix")
+        return self
+
+
+GeneralIcon = Icon(type="material", name="place")
+
+
+class Marker(BaseModel):
+    """
+    A marker for the map
+    """
+
+    location: str
+    location_info: str
+    points: List[GPS] = Field(default_factory=list, exclude=True)
+    icon: Optional[Icon] = GeneralIcon
+
+    @field_validator("location", "location_info")
+    @classmethod
+    def check_location(cls, v: str | float) -> str:
+        if isinstance(v, float):
+            return str(v)
+        return str(v)
+
+    @field_validator("points")
+    @classmethod
+    def check_points(cls, v: Sequence[GPS | None]) -> List[GPS]:
+        return [x for x in v if x]
+
+    @computed_field
+    def center(self) -> Optional[GPS]:
+        """
+        Get the center of the GPS
+        """
+        lats = [x.lat for x in self.points]
+        lons = [x.lon for x in self.points]
+        if lats and lons:
+            return GPS(lat=sum(lats) / len(lats), lon=sum(lons) / len(lons))
+
+    def __bool__(self):
+        return bool(self.points)
 
 
 class Image(BaseModel):
-    # IDs
-    group: str = ""
-    scene: str = ""
-
-    # Data
-    image: str
-    time: datetime
-    location: str = ""
-    location_info: str = ""
-
-    region: List[str] = []
-    country: str = ""
-
-    ocr: List[str] = []
-    description: str = ""
-
-    @field_validator("time")
-    @classmethod
-    def check_time(cls, v: Union[str, datetime]) -> datetime:
-        if isinstance(v, str):
-            return datetime.fromisoformat(v)
-        return v
-
-    @field_validator("ocr")
-    @classmethod
-    def check_ocr(cls, v: Union[str, List[str]]) -> List[str]:
-        if isinstance(v, str):
-            return v.split(",")
-        return v
-
-    @field_validator("location")
-    @classmethod
-    def check_location(cls, v: str) -> str:
-        if v == "---":
-            return ""
-        return v
+    src: str
+    aspect_ratio: float = 16 / 9
+    hash_code: str = ""
 
 
 class Event(BaseModel):
@@ -83,21 +118,30 @@ class Event(BaseModel):
 
     # Data
     name: str = ""
-    images: List[str] = []
+    images: List[Image] = []
 
-    start_time: datetime
-    end_time: datetime
+    start_time: datetime = Field(..., exclude=True)
+    end_time: datetime = Field(..., exclude=True)
 
     location: str = ""
     location_info: str = ""
 
+    # For map visualisation
+    gps: List[GPS] = Field(default_factory=list, exclude=True)
+    markers: List[Marker] = []
+    orphans: List[GPS] = []
+
     region: List[str] = []
     country: str = ""
 
-    ocr: List[str] = []
+    ocr: List[str] = Field(default_factory=list, exclude=True)
     description: str = ""
 
-    image_scores: List[float] = []
+    image_scores: List[float] = Field(default_factory=list, exclude=True)
+    icon: Optional[Icon] = Icon(type="material", name="place")
+
+    def custom_iter(self):
+        return iter([self])
 
     @field_validator("start_time", "end_time")
     @classmethod
@@ -124,10 +168,23 @@ class Event(BaseModel):
         return bool(self.images)
 
     def dict(self, *args, **kwargs):
-        data = super().dict(*args, **kwargs)
+        data = super().model_dump(*args, **kwargs)
         data["start_time"] = data["start_time"].isoformat()
         data["end_time"] = data["end_time"].isoformat()
         return data
+
+    @computed_field
+    def center(self) -> Optional[GPS]:
+        """
+        Get the center of the GPS
+        """
+        if not self.markers:
+            return None
+
+        lats = [x.lat for marker in self.markers for x in marker.points]
+        lons = [x.lon for marker in self.markers for x in marker.points]
+        if lats and lons:
+            return GPS(lat=sum(lats) / len(lats), lon=sum(lons) / len(lons))
 
     def merge_with_one(self, other: "Event", scores: List[float]):
         score, other_score = scores
@@ -154,6 +211,9 @@ class Event(BaseModel):
         self.location = merge_str(self.location, other.location, " and ")
         self.location_info = merge_str(self.location_info, other.location_info, " and ")
 
+        # Map
+        self.markers.extend(other.markers)
+
         # Region
         self.region = merge_list(self.region, other.region)
         self.country = merge_str(self.country, other.country)
@@ -166,14 +226,6 @@ class Event(BaseModel):
         # So we can just take the first one
         if len(others) == 1:
             return self.merge_with_one(others[0], [score, scores[0]])
-
-        # IDS
-        self.group = "+".join(
-            extend_no_duplicates([self.group], [x.group for x in others])
-        )
-        self.scene = "+".join(
-            extend_no_duplicates([self.scene], [x.scene for x in others])
-        )
 
         # DATA
         self.name = self.name or others[0].name
@@ -197,16 +249,29 @@ class Event(BaseModel):
             )
         )
 
+        # Map
+        for other in others:
+            self.markers.extend(other.markers)
+
         # Region
         self.region = extend_no_duplicates(
             self.region, [x for y in others for x in y.region]
         )
-        self.country = "+".join(
+        self.country = ", ".join(
             extend_no_duplicates([self.country], [x.country for x in others])
         )
 
         # OCR
         self.ocr = extend_with_count(self.ocr, [x.ocr for x in others])
+
+    def copy_to_derived_event(self) -> "DerivedEvent":
+        data = self.model_dump()
+        # add all the excluded fields
+        for name, field in self.model_fields.items():
+            if field.exclude:
+                data[name] = getattr(self, name)
+
+        return DerivedEvent(**data)
 
 
 class DerivedEvent(Event):
@@ -223,11 +288,33 @@ class Results(BaseModel):
 
 class ImageResults(Results):
     images: List[str]
-    scores: List[float]
+    scores: List[float] = Field(default_factory=list, exclude=True)
 
 
-class EventResults(Results):
-    events: Union[List[Event], List[DerivedEvent]]
+EventT = TypeVar("EventT")
+
+
+class DoubletEvent(BaseModel):
+    main: Event
+    conditional: Event
+    condition: TimeCondition
+
+    def custom_iter(self):
+        return iter([self.main, self.conditional])
+
+
+class TripletEvent(BaseModel):
+    main: Event
+    before: Optional[Event] = None
+    after: Optional[Event] = None
+
+    def custom_iter(self):
+        # return only the ones that are not None
+        return iter([x for x in [self.main, self.before, self.after] if x])
+
+
+class GenericEventResults(Results, Generic[EventT]):
+    events: List[EventT]
     scores: List[float]
     scroll_id: str = ""
     min_score: float = 0.0
@@ -243,10 +330,13 @@ class EventResults(Results):
         return len(self.events)
 
 
-class TripletEvent(BaseModel):
-    main: Event
-    before: Optional[Event] = None
-    after: Optional[Event] = None
+OriginalEventResults = GenericEventResults[Event]
+DerivedEventResults = GenericEventResults[DerivedEvent]
+
+EventResults = GenericEventResults[InstanceOf[Event]]
+
+DoubletEventResults = GenericEventResults[DoubletEvent]
+TripletEventResults = GenericEventResults[TripletEvent]
 
 
 class ReturnResults(BaseModel):
@@ -267,16 +357,35 @@ class ReturnResults(BaseModel):
     # scores
 
 
+class AnswerResults(BaseModel):
+    """
+    Wrapper for the results
+    """
+
+    type: Literal["answers"]
+    answers: List[str]
+
+
 class TimelineGroup(BaseModel):
     """
     A group of events
     """
 
     group: str
-    scenes: List[List[str]]
+    scenes: List[List[Image]]
     time_info: List[str]
     location: str
     location_info: str
+
+
+class HighlightItem(BaseModel):
+    """
+    A highlight item
+    """
+
+    group: str
+    scene: str
+    image: str
 
 
 class TimelineResult(BaseModel):
@@ -284,5 +393,13 @@ class TimelineResult(BaseModel):
     Wrapper for the results
     """
 
-    name: str
+    date: datetime
     result: List[TimelineGroup]
+    highlight: Optional[HighlightItem] = None
+
+
+class AsyncioTaskResult(BaseModel):
+    results: Optional[EventResults | list]
+    tag: str = ""
+    task_type: Literal["search"] | Literal["llm"]
+    query: Optional[Any] = None

@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import List
 
 from configs import FILES_DIRECTORY
+from database.main import image_collection, scene_collection
 from query_parse.utils import cache
-from database.utils import image_collection, scene_collection
 
 time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
@@ -88,14 +88,14 @@ def group_scene_results(results, group_factor="group", query_info=[]):
     # sort the groups by the highest score of their scene
     new_grouped_results = sorted(
         new_grouped_results,
-        key=lambda group: max([score for scene, score in group]),
+        key=lambda group: max([score for _, score in group]),
         reverse=True,
     )
 
     results_with_info = []
     scores = []
     for scenes_with_scores in new_grouped_results:
-        score = max([s for scene, s in scenes_with_scores])
+        score = max([s for _, s in scenes_with_scores])
         scenes = [res[0] for res in scenes_with_scores]
         new_scenes = []
         ocr = []

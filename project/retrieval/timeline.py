@@ -1,29 +1,44 @@
-from typing import Any, Dict, Optional
+from datetime import datetime
+from typing import List, Optional
 
-from database.utils import image_collection, scene_collection
-from results.models import TimelineGroup, TimelineResult
+from database.main import group_collection, image_collection, scene_collection
+from results.models import HighlightItem, TimelineGroup, TimelineResult
 
 
 def get_timeline(image: str) -> Optional[TimelineResult]:
     """
     For a given image, get the timeline of the group it belongs to
-    Return the group before that, the group after that and the group itself
+    The start of timeline is the start of the first group of the day,
+    or the last group of the previous day if it lasts over midnight
+
+    The end of timeline is the end of the last group of the day,
+    or the first group of the next day if it lasts over midnight
     """
-    # Get the group of the image (grouped by location)
-    group_id = image_collection.find_one({"image": image})
-    if not group_id:
+    image_info = image_collection.find_one({"image": image})
+    if not image_info:
         return None
 
-    name = group_id["time"].strftime("%d %b %Y")
-    group_id_int = int(group_id["group"].split("G_")[-1])
+    highlight = HighlightItem(**image_info)
+    image_date = image_info["time"]
+    start_time = image_date.replace(hour=0, minute=0, second=0)
+    end_time = image_date.replace(hour=23, minute=59, second=59)
 
-    # Get the scenes of the group
-    group_range_ids = [
-        f"G_{group_id_int-1}",
-        f"G_{group_id_int}",
-        f"G_{group_id_int+1}",
-    ]
+    # Get all groups of the same day
+    group_ids = group_collection.find(
+        {
+            "$or": [
+                {"start_time": {"$gte": start_time, "$lte": end_time}},
+                {"end_time": {"$gte": start_time, "$lte": end_time}},
+            ]
+        },
+        {"group": 1},
+    )
+    group_range_ids = [group["group"] for group in group_ids]
+    results = get_scene_for_group_ids(group_range_ids)
+    return TimelineResult(date=start_time, result=results, highlight=highlight)
 
+
+def get_scene_for_group_ids(group_range_ids: List[str]) -> List[TimelineGroup]:
     grouped_results = scene_collection.aggregate(
         [
             {"$match": {"group": {"$in": group_range_ids}}},
@@ -37,6 +52,7 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
                     "location_info": {"$first": "$location_info"},
                 }
             },
+            {"$sort": {"group": 1}},
         ]
     )
 
@@ -45,35 +61,52 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
         group_obj = TimelineGroup(**group)
         results.append(group_obj)
 
-    return TimelineResult(result=results, name=name)
+    return results
 
 
-# def get_more_scenes(group_id, direction="top"):
-#     group_id = int(group_id.split("G_")[-1])
-#     group_results = []
-#     if direction == "bottom":
-#         group_range = range(group_id + 1, group_id + 3)
-#     else:
-#         group_range = range(group_id - 2, group_id)
-#     line = 0
-#     space = 0
-#     group_range = [f"G_{index}" for index in group_range]
-#     for group in group_range:
-#         if group in groups:
-#             scenes = []
-#             for scene_name, images in groups[group]["scenes"]:
-#                 scenes.append((scene_name, images, time_info[scene_name]))
-#             if scenes:
-#                 space += 1
-#                 line += (len(scenes) - 1) // 4 + 1
-#                 group_results.append(
-#                     (
-#                         group,
-#                         [
-#                             groups[group]["location"],
-#                             str(groups[group]["location_info"]),
-#                         ],
-#                         scenes,
-#                     )
-#                 )
-#     return group_results, line, space
+def get_timeline_for_date(str_date: str) -> Optional[TimelineResult]:
+    """
+    Get all scenes for a given date
+    """
+    date = datetime.strptime(str_date, "%d-%m-%Y")
+    start_time = date.replace(hour=0, minute=0, second=0)
+    end_time = date.replace(hour=23, minute=59, second=59)
+
+    # Get all groups of the same day
+    group_ids = group_collection.find(
+        {
+            "$or": [
+                {"start_time": {"$gte": start_time, "$lte": end_time}},
+                {"end_time": {"$gte": start_time, "$lte": end_time}},
+            ]
+        },
+        {"group": 1},
+    )
+    group_range_ids = [group["group"] for group in group_ids]
+    results = get_scene_for_group_ids(group_range_ids)
+    return TimelineResult(date=start_time, result=results)
+
+
+def get_more_scenes(
+    group_id: str, direction: str = "before"
+) -> Optional[TimelineResult]:
+    """
+    Get more scenes before or after the given group id
+    """
+    group_info = group_collection.find_one({"group": group_id})
+    if not group_info:
+        return None
+
+    group_date = group_info["start_time"]
+    if direction == "before":
+        group_ids = group_collection.find(
+            {"end_time": {"$lt": group_date}}, {"group": 1}
+        )
+    else:
+        group_ids = group_collection.find(
+            {"start_time": {"$gt": group_date}}, {"group": 1}
+        )
+
+    group_range_ids = [group["group"] for group in group_ids]
+    results = get_scene_for_group_ids(group_range_ids)
+    return TimelineResult(date=group_date, result=results)

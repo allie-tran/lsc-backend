@@ -1,21 +1,51 @@
 """
 Configs for the project
 """
-from dotenv import load_dotenv
-load_dotenv()
 
 import os
+
+from dotenv import load_dotenv
+
+load_dotenv()
+from joblib import Memory
+
+memory = Memory(location="cache", verbose=0)
 
 # ====================== #
 # General Customisation  #
 # ====================== #
 # These could be adjusted in the frontend with settings
-DEV_MODE = True
-FILTER_FIELDS = True
-MERGE_EVENTS = True
-MAX_IMAGES_PER_EVENT = 20
+DEV_MODE = False
+
+# Search Configurations
+# ------------------- #
+# Default search size
 DEFAULT_SIZE = 200
+
+# LLM Configurations
+# ---------------- #
+ALL_OFF = False
+# Whether to parse the query or not with the LLM model
+QUERY_PARSER = True
+
+# Whether to use the LLM for relevant fields or not
+FILTER_FIELDS = (not ALL_OFF) and True
+
+# Maximum number of images per event (0 for no limit)
+MAX_IMAGES_PER_EVENT = (not ALL_OFF) and 5
+
+# Whether to merge events based on the relevant fields
+MERGE_EVENTS = (not ALL_OFF) and True
+MAXIMUM_EVENT_TO_GROUP = (not ALL_OFF) and 5
+
+# Timeout for the MLMM model in seconds
+TIMEOUT = 60
+
+# Timeline Configurations
 TIMELINE_SPAN = 9  # If they want more, submit more
+
+# QA Configurations
+BUILD_ON_STARTUP = False
 
 # ==================== #
 # Model Configurations #
@@ -71,12 +101,13 @@ INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 # ========================== #
 # Functions to derive fields #
 # ========================== #
-ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time"]
+ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps"]
 DERIVABLE_FIELDS = {
     "minute": lambda x: x.start_time.strftime("%H:%M"),
     "hour": lambda x: x.start_time.strftime("%H %p"),
     "date": lambda x: x.start_time.strftime("%d-%m-%Y"),
     "week": lambda x: x.start_time.isocalendar()[1],
+    "weekday": lambda x: x.start_time.strftime("%A"),
     "month": lambda x: x.start_time.strftime("%B %Y"),
     "year": lambda x: x.start_time.year,
     "city": lambda x: [r for r in x.region if r != x.country],
@@ -87,7 +118,17 @@ DERIVABLE_FIELDS = {
 
 ISEQUAL = {"*": lambda x, y: x == y, "city": lambda x, y: set(x).intersection(set(y))}
 # Fields in ORDER in the textual description
-TIME_FIELDS = ["minute", "hour", "weekday", "date", "week", "month", "year"]
+TIME_FIELDS = [
+    "minute",
+    "hour",
+    "start_time",
+    "end_time",
+    "weekday",
+    "date",
+    "week",
+    "month",
+    "year",
+]
 LOCATION_FIELDS = ["location", "location_info", "city", "region", "country"]
 DURATION_FIELDS = ["months", "weeks", "days", "hours", "minutes"]
 VISUAl_FIELDS = ["images", "ocr"]
@@ -96,15 +137,14 @@ VISUAl_FIELDS = ["images", "ocr"]
 # QA Configurations #
 # ====================== #
 
-BUILD_ON_STARTUP = True
 PRETRAINED_MODELS = os.environ.get("PRETRAINED_MODELS")
 QA_FEATURES = [
-    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14-336_openai_nonorm/features.npy",
-    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14-336_openai_nonorm/features.npy",
+    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/features.npy",
+    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/features.npy",
 ]
 QA_IDS = [
-    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14-336_openai_nonorm/photo_ids.csv",
-    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14-336_openai_nonorm/photo_ids.csv",
+    f"{CLIP_EMBEDDINGS}/LSC23/ViT-L-14_openai_nonorm/photo_ids.csv",
+    f"{CLIP_EMBEDDINGS}/LSC20/ViT-L-14_openai_nonorm/photo_ids.csv",
 ]
 QA_DIM = 768
 
@@ -134,3 +174,17 @@ JSON_END_FLAG = "```"
 # ====================== #
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+
+# ====================== #
+# MongoDB Configurations #
+# ====================== #
+# EXPIRE_TIME = 60 * 60 * 24 * 7  # 1 week
+EXPIRE_TIME = 60 * 5  # 5 minutes
+
+# ====================== #
+# Submitting to DRES
+# ====================== #
+DRES_URL = "https://vbs.videobrowsing.org/api/v2"
+LOGIN_URL = f"{DRES_URL}/login"
+LOGOUT_URL = f"{DRES_URL}/logout"
+SUBMIT_URL = f"{DRES_URL}/submit"
