@@ -209,12 +209,15 @@ class SearchPipeline(BaseModel):
     only changed part will be re-executed
     """
 
+    # Miscs
+    exclude: List[str] = Field(default_factory=lambda: [], exclude=True)
+
     # Simple parameters
     size: int = DEFAULT_SIZE
     top_k: int = 10
 
     # Configurable pipes
-    query_parser: Pipe = Pipe(exclude_output=["query", "es_query", "search_text"])
+    query_parser: Pipe = Pipe(exclude_output=["query", "es_query"])
     field_extractor: Pipe = Pipe(skippable=True)
     field_organizer: Pipe = Pipe(skippable=True, exclude_output=["results"])
     event_merger: Pipe = Pipe(skippable=True, exclude_output=["results"])

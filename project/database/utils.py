@@ -69,11 +69,10 @@ async def get_relevant_fields(query: str, tag: str) -> AsyncioTaskResult:
     """
     prompt = RELEVANT_FIELDS_PROMPT.format(query=query)
     data = await llm_model.generate_from_text(prompt)
-    if isinstance(data, list):
-        print(f"[green]Found list![/green] {data}")
+    if isinstance(data, dict):
+        print(f"[green]Found fields![/green] {data}")
     else:
-        print("[red]No list found! Including images and scene only.[/red]")
-        data = []
+        data = {}
     return AsyncioTaskResult(results=data, tag=tag, task_type="llm")
 
 

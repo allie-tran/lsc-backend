@@ -1,17 +1,37 @@
 from datetime import datetime
-from typing import (Annotated, Any, Dict, ForwardRef, Generic, List, Optional,
-                    Self, TypeVar)
+from typing import (
+    Annotated,
+    Any,
+    Dict,
+    ForwardRef,
+    Generic,
+    List,
+    Optional,
+    Self,
+    TypeVar,
+)
 
 from bson import ObjectId as _ObjectId
 from fastapi.responses import StreamingResponse
-from pydantic import (AfterValidator, BaseModel, Field, SkipValidation,
-                      computed_field, field_validator, model_validator)
+from pydantic import (
+    AfterValidator,
+    BaseModel,
+    Field,
+    SkipValidation,
+    computed_field,
+    field_validator,
+    model_validator,
+)
+from query_parse.types.requests import (
+    AnyRequest,
+    GeneralQueryRequest,
+    TimelineDateRequest,
+    TimelineRequest,
+)
+from results.models import ReturnResults, TimelineResult
 
 from database.main import request_collection
 from database.requests import find_request
-from query_parse.types.requests import (AnyRequest, GeneralQueryRequest,
-                                        TimelineDateRequest, TimelineRequest)
-from results.models import AnswerResults, ReturnResults, TimelineResult
 
 
 def check_object_id(value: str) -> str:
@@ -39,17 +59,21 @@ RequestT = TypeVar("RequestT", bound=AnyRequest)
 ResponseT = TypeVar("ResponseT")
 
 
-class ResponseOrError(BaseModel, Generic[ResponseT]):
-    success: bool = True
-    status_code: int = 200
-    response: ResponseT
+class Response(BaseModel):
+    progress: Optional[int] = None
     type: str = ""
+    response: Any
+
+    def model_dump_json(self, **kwargs) -> str:
+        return super().model_dump_json(
+            exclude_unset=True, exclude_defaults=True, exclude_none=True, **kwargs
+        )
 
 
 class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
     finished: bool = False
-    responses: List[ResponseOrError[ResponseT]] = []
     request: RequestT
+    responses: List[Response] = []
     oid: Optional[SkipValidation[ObjectId]] = None
 
     @computed_field
@@ -64,7 +88,7 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
             if existing_request:
                 print("Found cached request")
                 self.responses = [
-                    ResponseOrError(**res) for res in existing_request["responses"]
+                    Response(**res) for res in existing_request["responses"]
                 ]
                 self.oid = existing_request["_id"]
                 self.finished = existing_request["finished"]
@@ -75,7 +99,7 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
                 self.oid = inserted.inserted_id
         return self
 
-    def add(self, response: ResponseOrError):
+    def add(self, response: Response):
         self.responses.append(response)
         request_collection.update_one(
             {"_id": self.oid},
@@ -93,17 +117,9 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
         raise NotImplementedError
 
 
-async def streaming_helper(responses: List[ResponseOrError]):
+async def streaming_helper(responses: List[Response]):
     for response in responses:
-        if response.success:
-            if response.type == "answers":
-                answers = AnswerResults.model_validate(response.response)
-                yield "data: " + answers.model_dump_json() + "\n\n"
-            else:
-                res = response.model_dump_json()
-                yield "data: " + res + "\n\n"
-        else:
-            yield "data: ERROR\n\n"
+        yield f"data: {response.model_dump_json()}\n\n"
     yield "data: END\n\n"
 
 
@@ -120,8 +136,7 @@ class TimelineRequestModel(
 ):
     def get_full_response(self) -> Optional[TimelineResult]:
         res = self.responses[-1]
-        if res.success:
-            return TimelineResult.model_validate(res.response)
+        return TimelineResult.model_validate(res.response)
 
 
 # ====================== #

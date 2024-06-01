@@ -427,6 +427,15 @@ ESCombineFilters = Union[
 ]
 
 
+# For LSC24, exclude the year 2015, 2016 and 2018
+MUST_NOT = ESAndFilters(
+    queries=[
+        ESFilter(field="year", value=2015),
+        ESFilter(field="year", value=2016),
+        ESFilter(field="year", value=2018),
+    ]
+)
+
 class ESBoolQuery(ESQuery):
     """
     A class to represent a boolean query in Elasticsearch
@@ -436,7 +445,7 @@ class ESBoolQuery(ESQuery):
 
     # These are defined after processing the query
     must: ESAndFilters = ESAndFilters()
-    must_not: ESAndFilters = ESAndFilters()
+    must_not: ESAndFilters = MUST_NOT
     filter: ESAndFilters = ESAndFilters()
     should: ESOrFilters = ESOrFilters()
 

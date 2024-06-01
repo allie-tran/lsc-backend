@@ -1,15 +1,24 @@
 import json
 import logging
-from typing import Any, List, Optional, Sequence, Union
+from collections.abc import AsyncGenerator
+from typing import Any, Callable, List, Optional, Sequence, Union
 
 import requests
 from configs import DERIVABLE_FIELDS, ES_URL
 from database.utils import convert_to_events
 from elastic_transport import ObjectApiResponse
+from fastapi import HTTPException
 from query_parse.types.elasticsearch import ESSearchRequest, MSearchQuery
 from query_parse.types.lifelog import TimeCondition
+from query_parse.types.requests import GeneralQueryRequest
 from requests import Response
-from results.models import DoubletEvent, DoubletEventResults, EventResults
+from results.models import (
+    DoubletEvent,
+    DoubletEventResults,
+    EventResults,
+    GenericEventResults,
+    TripletEvent,
+)
 from results.utils import create_event_label, deriving_fields
 from rich import print
 
@@ -194,7 +203,6 @@ def merge_msearch_with_main_results(
 
     assert len(events) == len(msearch_results)
 
-
     for i, msearch_result in enumerate(msearch_results):
         if (
             msearch_result is None
@@ -241,3 +249,55 @@ def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
         new_events = deriving_fields(results.events, list(derivable_fields))
         results.events = new_events
     return results
+
+
+def process_search_results(results: GenericEventResults) -> List[TripletEvent]:
+    # This is the search results
+    if not results:
+        raise HTTPException(status_code=404, detail="No results found")
+    assert not isinstance(results, str)
+
+    # Format into EventTriplets
+    triplet_results = []
+    for main in results.events:
+        triplet = TripletEvent(main=main)
+
+        if isinstance(main, DoubletEvent):
+            if main.condition.condition == "before":
+                triplet.before = main.conditional
+            else:
+                triplet.after = main.conditional
+
+        triplet_results.append(triplet)
+    # Yield the results
+    return triplet_results
+
+
+def get_search_function(
+    request: GeneralQueryRequest, single_query: Callable, two_queries: Callable
+) -> AsyncGenerator:
+    search_function = None
+    before, main, after = request.before, request.main, request.after
+    size = request.pipeline.size if request.pipeline else 200
+    match (before, main, after):
+        case ("", main, ""):
+            search_function = single_query(request.main, request.pipeline)
+        case (before, main, ""):
+            search_function = two_queries(
+                main,
+                before or "",
+                TimeCondition(condition="before", time_limit_str=request.before_time),
+                size=size,
+            )
+        case ("", main, after):
+            search_function = two_queries(
+                main,
+                after or "",
+                TimeCondition(condition="after", time_limit_str=request.after_time),
+                size=size,
+            )
+        case (before, main, after):
+            raise NotImplementedError("Triplet is not implemented yet")
+        case _:
+            raise ValueError("Invalid query")
+    return search_function

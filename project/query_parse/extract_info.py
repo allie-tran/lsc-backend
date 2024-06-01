@@ -148,8 +148,8 @@ class Query:
                 await self.extract_info(self.original_text)
             # Get the filters
             time, date, timestamp, duration, weekday = self.time_to_filters()
-            place, place_type, region = self.location_to_filters()  # type: ignore
-            embedding, ocr, concepts = self.text_to_visual()  # type: ignore
+            place, _, region = self.location_to_filters()  # type: ignore
+            embedding, ocr, _ = self.text_to_visual()  # type: ignore
 
             min_score = 0.0
             max_score = 1.0

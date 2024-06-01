@@ -103,8 +103,10 @@ INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 # ========================== #
 ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps"]
 DERIVABLE_FIELDS = {
+    "time": lambda x: x.start_time,
     "minute": lambda x: x.start_time.strftime("%H:%M"),
     "hour": lambda x: x.start_time.strftime("%H %p"),
+    "day": lambda x: x.start_time.strftime("%d"),
     "date": lambda x: x.start_time.strftime("%d-%m-%Y"),
     "week": lambda x: x.start_time.isocalendar()[1],
     "weekday": lambda x: x.start_time.strftime("%A"),
@@ -132,6 +134,7 @@ TIME_FIELDS = [
 LOCATION_FIELDS = ["location", "location_info", "city", "region", "country"]
 DURATION_FIELDS = ["months", "weeks", "days", "hours", "minutes"]
 VISUAl_FIELDS = ["images", "ocr"]
+EXCLUDE_FIELDS = ["images", "gps", "scene", "group", "start_time", "end_time", "timestamp", "ocr"]
 
 # ====================== #
 # QA Configurations #

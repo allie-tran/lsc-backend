@@ -31,14 +31,14 @@ def detect_question(query: str) -> bool:
     return False
 
 
-async def question_to_retrieval(query: str, is_question: bool) -> str:
+async def question_to_retrieval(text: str, is_question: bool) -> str:
     """
     Convert a question to a retrieval query
     """
     if not is_question:
-        return query
+        return text
 
-    prompt = REWRITE_QUESTION.format(question=query)
+    prompt = REWRITE_QUESTION.format(question=text)
     search_text = await llm_model.generate_from_text(prompt)
     if isinstance(search_text, dict):
         search_text = search_text["text"]
@@ -70,6 +70,8 @@ async def parse_query(text: str) -> Dict[str, str]:
         if isinstance(feat, dict):
             for key, value in feat.items():
                 template[key] = value
+        # add location into visual
+        template["visual"] = template["visual"] + " " + template["location"]
     return template
 
 

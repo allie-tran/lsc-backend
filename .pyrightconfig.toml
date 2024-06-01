@@ -5,9 +5,14 @@ stubPath = "src/stubs"
 
 reportMissingImports = true
 reportMissingTypeStubs = false
+reportUnnecessaryTypeIgnoreComments = "information"
+reportImportCycles = "warning"
+reportMatchNotExhaustive = "warning"
+reportShadowedImports = "warning"
 
+pythonVersion = "3.10"
 pythonPlatform = "Linux"
-python.pythonPath="/home/allie/.conda/envs/main/bin/python"
+python.pythonPath="/opt/anaconda3/envs/myeachtra/bin/python"
 
 executionEnvironment = [{
     "root": "project/"
@@ -16,9 +21,9 @@ executionEnvironment = [{
 verboseOutput = true
 
 [project]
-name = "MyEachtra Gen"
-version = "1.1.0"
-dependencies = ["./requirements.txt"]
+name = "MyEachtraX"
+version = "0.1.0"
+dependencies = ["./environment.yml"]
 authors = [
 { name = "Allie", email = "ly.duyentran@dcu.ie" }
 ]
@@ -34,4 +39,4 @@ cli = ["gitmoji-cli"]
 start-cli="sh start.sh"
 
 [python]
-pythonPath = "/home/allie/.conda/envs/main/bin/python"
+pythonPath = "/opt/anaconda3/envs/myeachtra/bin/python"

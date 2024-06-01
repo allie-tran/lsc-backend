@@ -1,14 +1,13 @@
 from functools import cmp_to_key
-from typing import Iterable, List, Set
+from typing import Iterable, List, Literal, Optional, Set
 
-from pydantic import InstanceOf
+from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
+from pydantic import BaseModel, InstanceOf, field_validator, validate_call
+from query_parse.visual import score_images
+from retrieval.common_nn import encode_query
 from rich import print
 
-from configs import DERIVABLE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
-from query_parse.visual import score_images
-from results.models import (DerivedEvent, Event, EventResults,
-                            GenericEventResults, Image)
-from retrieval.common_nn import encode_query
+from results.models import Event, EventResults, GenericEventResults, Image
 
 
 def deriving_fields(
@@ -26,7 +25,38 @@ def deriving_fields(
     return derived_events
 
 
-def custom_compare_function(event1: Event, event2: Event, fields: Iterable[str]) -> int:
+class TimeGap(BaseModel):
+    unit: str
+    value: int
+
+
+class LocationGap(BaseModel):
+    unit: str
+    value: int
+
+
+class MaxGap(BaseModel):
+    time_gap: Optional[TimeGap] = None
+    gps_gap: Optional[LocationGap] = None
+
+    @field_validator("time_gap")
+    def validate_time_gap(cls, v):
+        if v is not None:
+            if v.unit not in ["none", "hour", "minute", "day", "week", "month", "year"]:
+                return None
+        return v
+
+    @field_validator("gps_gap")
+    def validate_gps_gap(cls, v):
+        if v is not None:
+            if v.unit not in ["none", "meter", "km"]:
+                return None
+        return v
+
+
+def custom_compare_function(
+    event1: Event, event2: Event, fields: Iterable[str], max_gap: MaxGap
+) -> int:
     """
     Custom compare function
     """
@@ -40,6 +70,51 @@ def custom_compare_function(event1: Event, event2: Event, fields: Iterable[str])
         if not ISEQUAL[cmp_field](getattr(event1, field), getattr(event2, field)):
             equal = False
             break
+
+    # Check the time gap
+    if max_gap.time_gap is not None and max_gap.time_gap.unit == "none":
+        time_gap = max_gap.time_gap
+        match time_gap.unit:
+            case "hour":
+                if (
+                    abs((event1.start_time - event2.start_time).seconds)
+                    > time_gap.value * 3600
+                ):
+                    equal = False
+            case "minute":
+                if (
+                    abs((event1.start_time - event2.start_time).seconds)
+                    > time_gap.value * 60
+                ):
+                    equal = False
+            case "day":
+                if abs((event1.start_time - event2.start_time).days) > time_gap.value:
+                    equal = False
+            case "week":
+                if (
+                    abs((event1.start_time - event2.start_time).days)
+                    > time_gap.value * 7
+                ):
+                    equal = False
+            case "month":
+                if (
+                    abs((event1.start_time - event2.start_time).days)
+                    > time_gap.value * 30
+                ):
+                    equal = False
+            case "year":
+                if (
+                    abs((event1.start_time - event2.start_time).days)
+                    > time_gap.value * 365
+                ):
+                    equal = False
+            case _:
+                pass
+
+    # Check the location gap
+    if max_gap.gps_gap is not None and max_gap.gps_gap.unit == "none":
+        pass
+
     if equal:
         return 0
 
@@ -47,7 +122,15 @@ def custom_compare_function(event1: Event, event2: Event, fields: Iterable[str])
     return 1 if event1.scene > event2.scene else -1
 
 
-def merge_events(results: EventResults, groupby: Set[str]) -> EventResults:
+class SortBy(BaseModel):
+    field: str
+    order: Literal["asc", "desc"]
+
+
+@validate_call
+def merge_events(
+    results: EventResults, groupby: Set[str], sortby: List[SortBy], max_gap: MaxGap
+) -> EventResults:
     """
     Merge the events
     """
@@ -60,7 +143,6 @@ def merge_events(results: EventResults, groupby: Set[str]) -> EventResults:
             # Two cases here:
             # 1. the field is derivable from the schema
             if criteria in DERIVABLE_FIELDS:
-                print("[blue]Deriving field[/blue]", criteria)
                 derive_fields.append(criteria)
             # 2. the field is not derivable from the schema
             else:
@@ -81,7 +163,7 @@ def merge_events(results: EventResults, groupby: Set[str]) -> EventResults:
     if not groupby:
         groupby = set(["group"])
 
-    cmp = lambda x, y: custom_compare_function(x, y, groupby)
+    cmp = lambda x, y: custom_compare_function(x, y, groupby, max_gap)
 
     # Group the events using the ISEQUAL criteria from configs
     temp = results.events
@@ -131,6 +213,26 @@ def merge_events(results: EventResults, groupby: Set[str]) -> EventResults:
         new_results.append(new_event)
         new_scores.append(grouped_scores[group][0])
 
+    if sortby:
+        for sort in sortby:
+            field = sort.field
+            order = sort.order
+            if order == "asc":
+                new_results, new_scores = zip(
+                    *sorted(
+                        zip(new_results, new_scores),
+                        key=lambda x: getattr(x[0], field),
+                    )
+                )
+            else:
+                new_results, new_scores = zip(
+                    *sorted(
+                        zip(new_results, new_scores),
+                        key=lambda x: getattr(x[0], field),
+                        reverse=True,
+                    )
+                )
+
     print("[green]Merged into[/green]", len(new_results), "events")
     return EventResults(
         events=new_results,
@@ -177,6 +279,7 @@ def limit_images_per_event(
             new_scores = [scores[i] for i in indices]
 
             # Update the event
+            assert len(images) > 0, "No images"
             event.images = new_images
             event.image_scores = new_scores
 
@@ -194,73 +297,67 @@ def basic_label(event: Event) -> str:
     return f"<strong>{location}</strong>\n{date}, {start_time} - {end_time}"
 
 
-def create_event_label(results: GenericEventResults) -> GenericEventResults:
+def create_event_label(
+    results: GenericEventResults, relevant_fields: List[str] = []
+) -> GenericEventResults:
     """
     Create a label for the event
     """
-    if_empty_fields = not results.relevant_fields
-    no_groupby = not any(
-        [field.startswith("groupby_") for field in results.relevant_fields]
-    )
-
-    if if_empty_fields or no_groupby:
+    if not relevant_fields:
         # Get the basic fields: location, time, date
         for generic_event in results.events:
             for event in generic_event.custom_iter():
                 event.name = basic_label(event)
     else:
-        important_fields: List[str] = []
-        normal_fields = set()
-        for field in results.relevant_fields:
-            if field.startswith("groupby_"):
-                field = field.split("_")[-1]
-                if field not in important_fields:
-                    important_fields.append(field)
-                continue
-            if field.startswith("sortby_"):
-                continue
-            if field in ["group", "gps", "timestamp", "scene", "images", "ocr"]:
-                continue
-            if field in DERIVABLE_FIELDS:
-                if field not in important_fields:
-                    important_fields.append(field)
-                continue
-            if field in Event.model_fields:
-                normal_fields.add(field)
-
-        all_fields = important_fields
-        for field in normal_fields:
-            if field not in all_fields:
-                all_fields.append(field)
-
-        print("[blue]Important fields[/blue]", all_fields)
+        all_fields = set(relevant_fields)
+        done = set()
         for generic_event in results.events:
             for event in generic_event.custom_iter():
-                label = []
-
+                label = {}
                 # if both start_time and end_time are in the important fields
                 if "start_time" in all_fields and "end_time" in all_fields:
                     start_time = event.start_time.strftime("%H:%M")
                     end_time = event.end_time.strftime("%H:%M")
-                    label.append(f"Time: {start_time} - {end_time}")
+                    label["time"] = f"{start_time} - {end_time}"
+                    done.update(["start_time", "end_time", "hour", "minute", "time"])
                 elif "start_time" in all_fields:
                     start_time = event.start_time.strftime("%H:%M")
-                    label.append(f"Time: {start_time}")
+                    label["time"] = f"{start_time}"
+                    done.update(["start_time", "hour", "minute", "time"])
                 elif "end_time" in all_fields:
                     end_time = event.end_time.strftime("%H:%M")
-                    label.append(f"Time: {end_time}")
+                    label["time"] = f"{end_time}"
+                    done.update(["end_time", "hour", "minute", "time"])
+                elif "time" in all_fields:
+                    time = event.time.strftime("%H:%M")
+                    label["time"] = f"{time}"
+                    done.update(["hour", "minute", "time"])
+
+                if "city" in all_fields and "country" in all_fields:
+                    label["city"] = f"{event.city.title()}, {event.country.title()}"
+                    done.update(["city", "country"])
+                elif "city" in all_fields and "region" in all_fields:
+                    label["city"] = event.region.title()
+                    done.update(["city", "region"])
+                elif "region" in all_fields and "country" in all_fields:
+                    label["city"] = event.region.title()
+                    done.update(["region", "country"])
 
                 # The rest of the fields
                 for field in all_fields:
-                    if field in ["start_time", "end_time"]:
+                    if field in EXCLUDE_FIELDS or field in done:
                         continue
-                    else:
-                        value = getattr(event, field)
+                    value = getattr(event, field, None)
                     if isinstance(value, list):
                         value = ", ".join(value)
-                    value = str(value)
-                    if len(value) > 50:
-                        value = value[:50] + "..."
-                    label.append(f"{field.capitalize()}: {value.capitalize()}")
+                    if value:
+                        value = str(value)
+                        label[field] = value.title()
+
+                # Make time and date on the same line
+                if "time" in label and "date" in label:
+                    label["time"] += f", {label['date']}"
+                    del label["date"]
+
                 event.name = "\n".join(label)
     return results

@@ -8,7 +8,7 @@ from query_parse.constants import STOP_WORDS
 from query_parse.types import RegexInterval, Tags
 
 
-def find_regex(regex, text, escape=False) -> Generator[RegexInterval, None, None]:
+def find_regex(regex, text) -> Generator[RegexInterval, None, None]:
     if "\n" in regex or ("#" in regex and "\\#" not in regex):
         regex = re.compile(regex, re.IGNORECASE | re.VERBOSE)
     else:
@@ -209,8 +209,25 @@ def get_visual_text(text: str, unprocessed_words: List[Tags]):
 
 
 def merge_str(str1: str, str2: str, separator: str = "+") -> str:
+    str1 = str1.strip()
+    str2 = str2.strip()
+
+    # Remove walking, car, public transport
+    if str1.lower() in ["walking", "car", "public transport"]:
+        str1 = ""
+    if str2.lower() in ["walking", "car", "public transport"]:
+        str2 = ""
+
+    # Check if they are the same
     if str1 == str2:
         return str1
+
+    # Check if they are substrings
+    if str1 in str2:
+        return str2
+    if str2 in str1:
+        return str1
+
     if not str1 or not str2:
         return str1 or str2
     return f"{str1}{separator}{str2}"

@@ -11,7 +11,7 @@ from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from database.models import LocationInfoResult, ResponseOrError, SearchRequestModel, TimelineRequestModel
+from database.models import LocationInfoResult, Response, TimelineRequestModel
 from database.requests import find_request
 from database.utils import get_location_info
 from query_parse.types.requests import (
@@ -111,22 +111,10 @@ async def timeline(request: TimelineRequest):
 
     cached_request = TimelineRequestModel(request=request)
     result = get_timeline(request.image)
-
-    if not result:
-        cached_request.add(
-            ResponseOrError(
-                success=False,
-                status_code=404,
-                response="No results found",
-                type="timeline",
-            )
-        )
-        raise HTTPException(status_code=404, detail="No results found")
     cached_request.add(
-        ResponseOrError[TimelineResult](
-            success=True, status_code=200, response=result, type="timeline"
-        )
+        Response(response=result, type="timeline")
     )
+    cached_request.mark_finished()
     return result
 
 
@@ -165,21 +153,8 @@ async def timeline_date(request: TimelineDateRequest):
     cached_request = TimelineRequestModel(request=request)
     date = request.date
     result = get_timeline_for_date(date)
-    if not result:
-        cached_request.add(
-            ResponseOrError(
-                success=False,
-                status_code=404,
-                response="No results found",
-                type="timeline",
-            )
-        )
-        raise HTTPException(status_code=404, detail="No results found")
     cached_request.add(
-        ResponseOrError[TimelineResult](
-            success=True, status_code=200, response=result, type="timeline"
-        )
-    )
+        Response(response=result, type="timeline"))
     return result
 
 
@@ -231,4 +206,3 @@ async def encode():
     """
     batch_encode()
     return {"message": "ok"}
-

@@ -1,6 +1,5 @@
-from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar, Union
+from typing import Any, Dict, Generic, List, Literal, Optional, Sequence, TypeVar, Union
 
 from pydantic import (
     BaseModel,
@@ -357,13 +356,41 @@ class ReturnResults(BaseModel):
     # scores
 
 
-class AnswerResults(BaseModel):
-    """
-    Wrapper for the results
-    """
+class AnswerResult(BaseModel, revalidate_instances="always"):
+    text: str
+    evidence: List[int] = []
+    explanation: List[str] = []
 
-    type: Literal["answers"]
-    answers: List[str]
+    @field_validator("evidence")
+    def sort_evidence(cls, v: List[int]) -> List[int]:
+        # Sort and remove duplicates
+        return list(set(sorted(v)))
+
+    @field_validator("explanation")
+    def sort_explanation(cls, v: List[str]) -> List[str]:
+        # remove explanations that are substrings of others
+        new_v = []
+        for i in range(len(v)):
+            if not any(v[i] in x for x in v[i + 1 :]):
+                new_v.append(v[i])
+        return new_v
+
+
+class AnswerListResult(BaseModel, revalidate_instances="always"):
+
+    answers: Dict[str, AnswerResult] = {}
+
+    def add_answer(self, answer: AnswerResult):
+        if answer.text not in self.answers:
+            self.answers[answer.text] = answer
+            return
+
+        current_answer = self.answers[answer.text]
+        current_answer.evidence.extend(answer.evidence)
+        current_answer.explanation.extend(answer.explanation)
+
+        current_answer = AnswerResult.model_validate(current_answer)
+        self.answers[answer.text] = current_answer
 
 
 class TimelineGroup(BaseModel):
@@ -399,7 +426,7 @@ class TimelineResult(BaseModel):
 
 
 class AsyncioTaskResult(BaseModel):
-    results: Optional[EventResults | list]
+    results: Optional[EventResults | Dict]
     tag: str = ""
     task_type: Literal["search"] | Literal["llm"]
     query: Optional[Any] = None

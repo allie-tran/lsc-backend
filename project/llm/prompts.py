@@ -2,12 +2,14 @@
 Prompts for GPT-4
 """
 
-INSTRUCTIONS = "You are a helpful assistant. Always include a valid JSON response."
+INSTRUCTIONS = "You are a helpful assistant. Always include one single valid JSON object. Do not return multiple JSON objects."
 
 # Rewrite the question into a search query
 REWRITE_QUESTION = """
 Rewrite the following question into a statement as a retrieval query: {question}
 It should be a statement in natural language to search for the relevant information in the lifelog retrieval system. It should include all the information from the question, excluding the question phrase
+
+Avoid using "search for", "find", or "retrieve" in the query. Keep it descriptive.
 
 Some examples:
 Question: "How many times did I go to the gym last month?"
@@ -37,15 +39,17 @@ I need to parse information from a text query to find relevant information from 
 
 The fields are: location, time, date, visual, after-query (same fields with after-when), before-query (same fields with before-when).
 
+If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.
+
 Some examples:
 
 Query: "I was biking in the park near my house in the early morning."
 Response:
 ```json
 {{
-    "visual": "biking in the park",
+    "visual": "biking in the park", // notice that the location is not specific
     "time": "from 5am to 8am",
-    "location": "about 2km from home",
+    "location": "in the park near my house"
 }}
 ```
 
@@ -62,7 +66,7 @@ Query: "Waiting for a flight to Paris at the airport."
 Response:
 ```json
 {{
-    "visual": "waiting for a flight",
+    "visual": "waiting for a flight at the airport",
     "location": "airport",
     "after-query": {{
         "after-when": "3 hours",
@@ -134,7 +138,9 @@ Query: {query}
 QA_PROMPT = """Answer the following question based on the text provided: {question}
 There are {num_events} retrieved using the lifelog retrieval system. Here are the non-visual information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).
 {events}
-Give one or more of your best guess to the question in the following format, with each answer being the key. The explantion should be brief. You don't have to give a full sentence, just list the reasons.
+Give one or more of your best, educated guesses to the question in the following format, with each answer being the key. The explanation should be brief. You don't have to give a full sentence, just list the reasons.
+
+Reminder of the question: {question}
 
 Use the following schema in a valid JSON format:
 Answers: List[Answer]
@@ -145,10 +151,9 @@ Answer:
 EventLink:
 - event_id: int # the event id, starting from 1
 
-
 ```json
 {{
-    answers: [
+    "answers": [
         {{
             "answer": "something",
             "explanation": "brief explanation for why the answer is `something`",
@@ -228,33 +233,24 @@ date: datetime
 month: str
 weekday: str
 year: int
-duration: int
-duration_unit: str # minute, hour, day, week, month, year
+duration: str # duration of the event
 
 ocr: List[str] # text extracted from images
 ```
 
-And these options to post-process the results:
-```
-sortby_time_desc: bool # sort by time (latest first)
-sortby_time_asc: bool # sort by time (earliest first)
-
-groupby_hour: bool # group by hour
-groupby_date: bool # group by day
-groupby_week: bool # group by week
-groupby_month: bool # group by month
-
-groupby_location: bool # group by location
-groupby_city: bool # group by city
-groupby_country: bool # group by country
-```
-
 Given this query: "{query}", what are the relevant fields that I should consider? Try to choose the most important ones. If two fields are similar, choose the one that is more specific.
-For groupby criteria, consider how far apart two events should be split into two different occasions. For example, if two events are in the same city but 1 week apart, should they be grouped together or not? How about if they are 5 hours apart but in different cities?
+For merge_by criteria, consider how far apart two events should be split into two different occasions  For example, if two events are in the same city but 1 week apart, should they be grouped together or not? How about if they are 5 hours apart but in different cities?
+
+The relevant fields should include all the fields mentioned in the other fields.
 
 Answer in this format.
 ```json
-["field1", "field2", "field3", "field4", "field5", ...]
+{{
+    "merge_by": ["hour", "city"],
+    "max_gap": {{ "time_gap": {{"unit": "hour", "value": 5}}, "gps_gap": {{"unit": "km", "value": 1}} }}
+    "sort_by": [{{"field": "time", "order": "desc"}}],
+    "relevant_fields": ["location", "start_time", "end_time", "date", "ocr"],
+}}
 ```
 """
 

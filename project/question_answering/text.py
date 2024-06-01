@@ -1,13 +1,13 @@
 # Get general textual description for a scene
 
 from collections.abc import AsyncGenerator
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from configs import DURATION_FIELDS, LOCATION_FIELDS, TIME_FIELDS
 from llm import llm_model
 from llm.prompts import QA_PROMPT
 from query_parse.time import calculate_duration
-from results.models import Event
+from results.models import AnswerListResult, AnswerResult, Event
 
 
 def get_general_textual_description(event: Event) -> str:
@@ -105,7 +105,7 @@ def get_specific_description(event: Event, fields: Optional[List[str]] = None) -
 
 async def answer_text_only(
     question: str, textual_descriptions: List[str], num_events: int
-) -> AsyncGenerator[List[str], None]:
+) -> AsyncGenerator[List[AnswerResult], None]:
     """
     Given a natural language question and a list of scenes, returns the top k answers
     Note that the EventResults have already filtered the relevant fields
@@ -123,33 +123,42 @@ async def answer_text_only(
     )
 
     async for llm_response in llm_model.stream_from_text(prompt):
-        if not isinstance(llm_response, str) and "answers" in llm_response:
-            if llm_response["answers"]:
-                yield format_answer(llm_response["answers"])
+        try:
+            answers = [
+                AnswerResult(
+                    text=answer["answer"],
+                    explanation=[answer["explanation"]],
+                    evidence=[int(ev) for ev in answer["evidence"]],
+                )
+                for answer in llm_response["answers"]
+            ]
+            yield answers
+        except Exception as e:
+            raise (e)
 
 
-def format_answer(answers: List[Dict]) -> List[str]:
+def format_answer(answers: AnswerListResult) -> List[str]:
     """
     Format the answers into a string
     """
     formatted_answers = []
-
-    for answer_dict in answers:
+    for answer, data in answers.answers.items():
         try:
-            answer = answer_dict["answer"]
-            explanation = answer_dict["explanation"]
-            evidence = answer_dict["evidence"]
+            explanation = "\n".join(data.explanation)
+            evidence = data.evidence
 
             formatted = f"<strong class='answer'>{answer}</strong>\n{explanation}\n"
 
-            evidence_str = ""
+            evidence_str = []
             for ev in evidence:
-                evidence_str += f"<span class='evidence' data={ev}>Event {ev}</span>\n"
+                evidence_str.append(
+                    f"<span class='evidence' data={ev}>Event {ev}</span>"
+                )
+            evidence_str = ", ".join(evidence_str)
 
             formatted += evidence_str
             formatted_answers.append(formatted)
-        except Exception:
-            pass
+        except Exception as e:
+            print(e)
 
     return formatted_answers
-

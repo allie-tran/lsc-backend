@@ -3,11 +3,12 @@
 # ====================== #
 
 from datetime import datetime
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
+
 from pydantic import BaseModel, field_validator
 from pydantic.alias_generators import to_camel
-
 from query_parse.types.elasticsearch import GPS
+from query_parse.types.options import SearchPipeline
 
 
 class TemplateRequest(BaseModel):
@@ -20,15 +21,14 @@ class TemplateRequest(BaseModel):
 
     def find_one(self):
         self_dict = self.model_dump(
-            exclude_defaults=True, exclude_none=True, exclude_unset=True,
-            exclude={"session_id", "_id"}
+            exclude_defaults=True,
+            exclude_none=True,
+            exclude_unset=True,
+            exclude={"session_id", "_id"},
         )
 
         # Turn dict in to "request.name", "request.finished", etc
-        criteria = {
-            "finished": True,
-            "name": self.__class__.__name__
-        }
+        criteria = {"finished": True, "name": self.__class__.__name__}
         for key, value in self_dict.items():
             criteria[f"request.{key}"] = value
 
@@ -50,9 +50,8 @@ class GeneralQueryRequest(TemplateRequest):
     gps_bounds: Optional[List[float]] = None
 
     # Miscs
-    size: int = 200
-    pipeline: Any = None
-    # share_info: bool = False
+    pipeline: Optional["SearchPipeline"] = None
+    exclude_images: Optional[List[str]] = None
 
 
 class TimelineRequest(TemplateRequest):
@@ -78,12 +77,14 @@ class TimelineDateRequest(TemplateRequest):
             return value
         raise ValueError("Invalid date format, should be 'dd-mm-yyyy'")
 
+
 # ====================== #
 # MAP REQUESTS
 # ====================== #
 class MapRequest(TemplateRequest):
     location: str
     center: GPS
+
 
 # ====================== #
 # USER OPTIONS & RESPONSES

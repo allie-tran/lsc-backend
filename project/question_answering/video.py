@@ -132,7 +132,7 @@ def to_base64(image_path: str) -> str:
 async def answert_visual_with_text(
     question: str,
     textual_descriptions: List[str],
-    events: GenericEventResults,
+    results: GenericEventResults,
     k: int = 10,
 ) -> AsyncGenerator[List[str], None]:
     """
@@ -147,7 +147,7 @@ async def answert_visual_with_text(
         )
     ]
     for i, text in enumerate(textual_descriptions):
-        image_paths = events.events[i].images
+        image_paths = results.events[i].images
         images = [os.path.join(IMAGE_DIRECTORY, img.src) for img in image_paths][:3]
         bs64_images = [to_base64(image) for image in images if os.path.exists(image)]
         description = f"Event {i+1}. {text}"
