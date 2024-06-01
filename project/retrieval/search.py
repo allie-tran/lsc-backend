@@ -5,10 +5,14 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any, AsyncGenerator, Callable, List, Optional
 
-from configs import FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
-from database.models import Response, SearchRequestModel
-from database.utils import get_relevant_fields
+from fastapi import HTTPException
 from pydantic import BaseModel, PositiveInt, model_validator
+from rich import print
+
+from configs import FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
+from database.models import GeneralRequestModel, Response
+from database.requests import get_request
+from database.utils import get_relevant_fields
 from query_parse.es_utils import get_conditional_time_filters
 from query_parse.extract_info import Query, create_es_query, create_query
 from query_parse.question import detect_question, question_to_retrieval
@@ -16,32 +20,18 @@ from query_parse.types import ESSearchRequest
 from query_parse.types.elasticsearch import ESBoolQuery, MSearchQuery
 from query_parse.types.lifelog import TimeCondition
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
-from query_parse.types.requests import GeneralQueryRequest
-from question_answering.text import answer_text_only, format_answer, get_specific_description
-from results.models import (
-    AnswerListResult,
-    AnswerResult,
-    AsyncioTaskResult,
-    EventResults,
-    GenericEventResults,
-    Marker,
-)
-from results.utils import (
-    MaxGap,
-    create_event_label,
-    limit_images_per_event,
-    merge_events,
-)
-from rich import print
-
-from retrieval.search_utils import (
-    get_search_function,
-    merge_msearch_with_main_results,
-    organize_by_relevant_fields,
-    process_search_results,
-    send_multiple_search_request,
-    send_search_request,
-)
+from query_parse.types.requests import GeneralQueryRequest, MapRequest
+from question_answering.text import answer_text_only, get_specific_description
+from results.models import (AnswerListResult, AnswerResult, AsyncioTaskResult, DerivedEvent,
+                            EventResults, GenericEventResults, TripletEvent)
+from results.utils import (RelevantFields, create_event_label,
+                           limit_images_per_event, merge_events)
+from retrieval.search_utils import (get_search_function,
+                                    merge_msearch_with_main_results,
+                                    organize_by_relevant_fields,
+                                    process_search_results,
+                                    send_multiple_search_request,
+                                    send_search_request)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +40,20 @@ async def streaming_manager(request: GeneralQueryRequest):
     """
     Managing the streaming of the search results
     """
-    cached_responses = SearchRequestModel(request=request)
+    cached_responses = GeneralRequestModel(request=request)
+    if cached_responses.finished:
+        print("Cached responses found")
+        req = GeneralRequestModel.model_validate(cached_responses)
+        for response in req.responses:
+            response.oid = req.oid
+            data = response.model_dump_json()
+            yield f"data: {data}\n\n"
+        print("[blue]ALl Done[/blue]")
+        print("-" * 50)
+        cached_responses.mark_finished()
+        yield "data: END\n\n"
+        return
+
     try:
         search_function = get_search_function(request, single_query, two_queries)
         async for response in search_function:
@@ -198,7 +201,7 @@ async def single_query(
     # ----------------------------- #
     # b. Start the async tasks
     results = None
-    relevant_fields = None
+    relevant_fields = RelevantFields()
 
     for future in asyncio.as_completed(async_tasks):
         res = await future
@@ -221,44 +224,14 @@ async def single_query(
     # ============================= #
     # 3. Processing the results
     # ============================= #
-    # a. Split the fields into readable format
-    split_outputs = {
-        "relevant_fields": [],
-        "merge_by": [],
-        "sort_by": [],
-        "max_gap": MaxGap(),
-    }
-
-    if relevant_fields:
-        fields = relevant_fields.get("relevant_fields", [])
-        merge_by = relevant_fields.get("merge_by", [])
-        merge_by = [m for m in merge_by if isinstance(m, str)]
-        sort_by = relevant_fields.get("sort_by", [])
-        max_gap = relevant_fields.get("max_gap", MaxGap())
-
-        fields += merge_by + [s["field"] for s in sort_by]
-        if "time_gap" in max_gap:
-            fields.append("start_time")
-        if "gps_gap" in max_gap:
-            fields.append("gps")
-
-        split_outputs = {
-            "relevant_fields": fields,
-            "merge_by": merge_by,
-            "sort_by": sort_by,
-            "max_gap": max_gap,
-        }
-
-        field_extractor.add_output(split_outputs)
-
     # a. Organize the results by relevant fields
     pipeline.field_organizer.default_output = {"results": results}
-    print("Relevant fields", split_outputs["relevant_fields"])
+    print("Relevant fields", relevant_fields)
     results = pipeline.field_organizer.execute(
         [
             FunctionWithArgs(
                 function=organize_by_relevant_fields,
-                args=[results, split_outputs["relevant_fields"]],
+                args=[results, relevant_fields.relevant_fields],
                 output_name="results",
             )
         ]
@@ -271,12 +244,7 @@ async def single_query(
         [
             FunctionWithArgs(
                 function=merge_events,
-                args=[
-                    results,
-                    set(split_outputs["merge_by"]),
-                    split_outputs["sort_by"],
-                    split_outputs["max_gap"],
-                ],
+                args=[results, relevant_fields],
                 output_name="results",
             )
         ]
@@ -308,7 +276,7 @@ async def single_query(
     )
     if not unchanged:
         print("[blue]Some changes detected[/blue]")
-        results = create_event_label(results, split_outputs["relevant_fields"])
+        results = create_event_label(results, relevant_fields.relevant_fields)
 
     step.step += 1
     yield Response(
@@ -330,7 +298,7 @@ async def single_query(
     print(f"[yellow]Answering the question for {k} events...[/yellow]")
     all_answers = AnswerListResult()
     async for answers in get_answer_tasks(
-        text, results, split_outputs["relevant_fields"], k
+        text, results, relevant_fields.relevant_fields, k
     ):
         for answer in answers:
             all_answers.add_answer(answer)
@@ -339,9 +307,7 @@ async def single_query(
         step.total += 1
 
         yield Response(
-            progress=step.progress(),
-            type="answers",
-            response=all_answers.answers
+            progress=step.progress(), type="answers", response=all_answers.answers
         )
 
     if not all_answers:
@@ -532,9 +498,7 @@ async def two_queries(
         changed = True
 
     if MERGE_EVENTS:
-        main_results = merge_events(
-            main_results, set(), [], MaxGap()
-        )  # TODO! add the relevant fields
+        main_results = merge_events(main_results)  # TODO! add the relevant fields
         # conditional_results = merge_events(conditional_results)
         msearch_results = apply_msearch(merge_events)
         changed = True
@@ -592,11 +556,33 @@ async def two_queries(
         yield {"type": "answers", "answers": all_answers}
 
 
-def search_from_location(marker: Marker, pipeline: SearchPipeline):
+def search_from_location(request: MapRequest) -> Optional[List[dict]]:
     """
     Search from the location
     """
-    pass
+    # Find main cached request with oid
+    main_request = get_request(request.oid)
+    if not main_request:
+        print("[red]Main request not found[/red]")
+        raise HTTPException(status_code=404, detail="I don't know how you got here")
+
+    # Filter the results based on the location
+    location = request.location
+    results = main_request["responses"][0]["response"]
+
+    assert results, "Results should not be empty"
+    location = location.lower()
+    new_results = []
+    for event in results:
+        loc = event["main"]["location"].lower()
+        if location in loc:
+            new_results.append(event["main"])
+
+    if not new_results:
+        print(f"[red]No results found for location {location}[/red]")
+        return None
+
+    return new_results
 
 
 def search_from_time(time: date, pipeline: SearchPipeline):

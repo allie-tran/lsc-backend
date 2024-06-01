@@ -301,3 +301,4 @@ def get_search_function(
         case _:
             raise ValueError("Invalid query")
     return search_function
+

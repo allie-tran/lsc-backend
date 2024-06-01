@@ -1,8 +1,9 @@
 from functools import cmp_to_key
-from typing import Iterable, List, Literal, Optional, Set
+from typing import Iterable, List
 
 from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
-from pydantic import BaseModel, InstanceOf, field_validator, validate_call
+from pydantic import InstanceOf, validate_call
+from query_parse.types.lifelog import MaxGap, RelevantFields
 from query_parse.visual import score_images
 from retrieval.common_nn import encode_query
 from rich import print
@@ -23,35 +24,6 @@ def deriving_fields(
             setattr(derived_event, field, DERIVABLE_FIELDS[field](event))
         derived_events.append(derived_event)
     return derived_events
-
-
-class TimeGap(BaseModel):
-    unit: str
-    value: int
-
-
-class LocationGap(BaseModel):
-    unit: str
-    value: int
-
-
-class MaxGap(BaseModel):
-    time_gap: Optional[TimeGap] = None
-    gps_gap: Optional[LocationGap] = None
-
-    @field_validator("time_gap")
-    def validate_time_gap(cls, v):
-        if v is not None:
-            if v.unit not in ["none", "hour", "minute", "day", "week", "month", "year"]:
-                return None
-        return v
-
-    @field_validator("gps_gap")
-    def validate_gps_gap(cls, v):
-        if v is not None:
-            if v.unit not in ["none", "meter", "km"]:
-                return None
-        return v
 
 
 def custom_compare_function(
@@ -122,14 +94,9 @@ def custom_compare_function(
     return 1 if event1.scene > event2.scene else -1
 
 
-class SortBy(BaseModel):
-    field: str
-    order: Literal["asc", "desc"]
-
-
 @validate_call
 def merge_events(
-    results: EventResults, groupby: Set[str], sortby: List[SortBy], max_gap: MaxGap
+    results: EventResults, relevant_fields: RelevantFields = RelevantFields()
 ) -> EventResults:
     """
     Merge the events
@@ -138,7 +105,7 @@ def merge_events(
     available_fields = set(type(results.events[0]).model_fields)
     derive_fields = []
     to_remove = set()
-    for criteria in groupby:
+    for criteria in relevant_fields.merge_by:
         if criteria not in available_fields:
             # Two cases here:
             # 1. the field is derivable from the schema
@@ -150,6 +117,7 @@ def merge_events(
                 to_remove.add(criteria)
 
     # Remove the fields that cannot be derived
+    groupby = set(relevant_fields.merge_by)
     groupby = groupby.difference(to_remove)
 
     # Derive the fields
@@ -163,7 +131,7 @@ def merge_events(
     if not groupby:
         groupby = set(["group"])
 
-    cmp = lambda x, y: custom_compare_function(x, y, groupby, max_gap)
+    cmp = lambda x, y: custom_compare_function(x, y, groupby, relevant_fields.max_gap)
 
     # Group the events using the ISEQUAL criteria from configs
     temp = results.events
@@ -213,25 +181,16 @@ def merge_events(
         new_results.append(new_event)
         new_scores.append(grouped_scores[group][0])
 
-    if sortby:
-        for sort in sortby:
-            field = sort.field
-            order = sort.order
-            if order == "asc":
-                new_results, new_scores = zip(
-                    *sorted(
-                        zip(new_results, new_scores),
-                        key=lambda x: getattr(x[0], field),
-                    )
+    if relevant_fields.sort_by:
+        for sort in relevant_fields.sort_by[::-1]:
+            new_results, new_scores = zip(
+                *sorted(
+                    zip(new_results, new_scores),
+                    key=lambda x: getattr(x[0], sort.field),
+                    reverse=sort.order == "desc",
                 )
-            else:
-                new_results, new_scores = zip(
-                    *sorted(
-                        zip(new_results, new_scores),
-                        key=lambda x: getattr(x[0], field),
-                        reverse=True,
-                    )
-                )
+            )
+
 
     print("[green]Merged into[/green]", len(new_results), "events")
     return EventResults(
@@ -351,13 +310,18 @@ def create_event_label(
                     if isinstance(value, list):
                         value = ", ".join(value)
                     if value:
-                        value = str(value)
-                        label[field] = value.title()
+                        value = str(value).strip()
+                        if value:
+                            label[field] = value.title()
 
                 # Make time and date on the same line
                 if "time" in label and "date" in label:
                     label["time"] += f", {label['date']}"
                     del label["date"]
 
+                # Create the label
+                label = [
+                    f"<strong>{k.capitalize()}</strong>: {v}" for k, v in label.items()
+                ]
                 event.name = "\n".join(label)
     return results

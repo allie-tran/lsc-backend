@@ -5,8 +5,9 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, SkipValidation, field_serializer, field_validator
 from pydantic.alias_generators import to_camel
+from myeachtra.dependencies import ObjectId
 from query_parse.types.elasticsearch import GPS
 from query_parse.types.options import SearchPipeline
 
@@ -84,7 +85,12 @@ class TimelineDateRequest(TemplateRequest):
 class MapRequest(TemplateRequest):
     location: str
     center: GPS
+    oid: Optional[SkipValidation[ObjectId]] = None
 
+    @field_serializer("oid")
+    @classmethod
+    def serialize_oid(cls, v):
+        return str(v)
 
 # ====================== #
 # USER OPTIONS & RESPONSES
@@ -97,5 +103,6 @@ class SortRequest(TemplateRequest):
 
 
 AnyRequest = Union[
-    GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest
+    GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest,
+    MapRequest
 ]

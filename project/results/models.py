@@ -11,13 +11,14 @@ from pydantic import (
     model_validator,
 )
 from query_parse.types.elasticsearch import GPS
-from query_parse.types.lifelog import TimeCondition
+from query_parse.types.lifelog import RelevantFields, TimeCondition
 from query_parse.utils import (
     extend_no_duplicates,
     extend_with_count,
     merge_list,
     merge_str,
 )
+
 
 
 class Visualisation(BaseModel):
@@ -348,13 +349,6 @@ class ReturnResults(BaseModel):
     visualisation: Optional[Visualisation] = None
     answers: Optional[List[str]] = None
 
-    # =========================================== #
-    # These are old variables that I don't remember
-    # what they are for anymore
-
-    # info
-    # scores
-
 
 class AnswerResult(BaseModel, revalidate_instances="always"):
     text: str
@@ -426,7 +420,7 @@ class TimelineResult(BaseModel):
 
 
 class AsyncioTaskResult(BaseModel):
-    results: Optional[EventResults | Dict]
+    results: Optional[EventResults | RelevantFields]
     tag: str = ""
     task_type: Literal["search"] | Literal["llm"]
     query: Optional[Any] = None

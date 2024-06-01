@@ -11,8 +11,7 @@ from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from database.models import LocationInfoResult, Response, TimelineRequestModel
-from database.requests import find_request
+from database.models import GeneralRequestModel, LocationInfoResult, Response
 from database.utils import get_location_info
 from query_parse.types.requests import (
     GeneralQueryRequest,
@@ -21,7 +20,7 @@ from query_parse.types.requests import (
     TimelineRequest,
 )
 from results.models import TimelineResult
-from retrieval.search import streaming_manager
+from retrieval.search import search_from_location, streaming_manager
 from retrieval.timeline import get_more_scenes, get_timeline, get_timeline_for_date
 from submit.router import submit_router
 
@@ -81,12 +80,6 @@ async def get_stream_results(session_id: str, token: str):
     request_body = json.loads(message.decode("utf-8"))  # type: ignore
     request = GeneralQueryRequest(**request_body)
 
-    # cached_request = find_request(request)
-    # if cached_request:
-    #     print("Found cached request")
-    #     req = SearchRequestModel.model_validate(cached_request)
-    #     return await req.get_full_response()
-
     return StreamingResponse(streaming_manager(request), media_type="text/event-stream")
 
 
@@ -103,17 +96,12 @@ async def timeline(request: TimelineRequest):
     if not request.session_id and not DEV_MODE:
         raise HTTPException(status_code=401, detail="Please log in")
 
-    cached_request = find_request(request)
-    if cached_request:
-        print("Found cached request")
-        req = TimelineRequestModel(**cached_request)
-        return req.get_full_response()
+    cached_request = GeneralRequestModel(request=request)
+    if cached_request.finished:
+        return cached_request.responses[-1]
 
-    cached_request = TimelineRequestModel(request=request)
     result = get_timeline(request.image)
-    cached_request.add(
-        Response(response=result, type="timeline")
-    )
+    cached_request.add(Response(response=result, type="timeline"))
     cached_request.mark_finished()
     return result
 
@@ -144,17 +132,16 @@ async def timeline_date(request: TimelineDateRequest):
     """
     Get the timeline of a date
     """
-    cached_request = find_request(request)
-    if cached_request:
-        print("Found cached request")
-        req = TimelineRequestModel(**cached_request)
-        return req.get_full_response()
+    if not request.session_id and not DEV_MODE:
+        raise HTTPException(status_code=401, detail="Please log in")
 
-    cached_request = TimelineRequestModel(request=request)
+    cached_request = GeneralRequestModel(request=request)
+    if cached_request.finished:
+        return cached_request.responses[-1]
+
     date = request.date
     result = get_timeline_for_date(date)
-    cached_request.add(
-        Response(response=result, type="timeline"))
+    cached_request.add(Response(response=result, type="timeline"))
     return result
 
 
@@ -190,8 +177,16 @@ async def location(request: MapRequest):  # type: ignore
     """
     info = get_location_info(request.location, request.center)
     if not info:
+        print(f"Location not found: {request.location}")
         raise HTTPException(status_code=404, detail="No results found")
-    return LocationInfoResult.model_validate(info)
+
+    related_events = search_from_location(request)
+    if related_events:
+        info["related_events"] = related_events
+
+    res = LocationInfoResult.model_validate(info)
+    print(res)
+    return res
 
 
 @app.get(

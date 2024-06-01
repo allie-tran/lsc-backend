@@ -1,50 +1,20 @@
 from datetime import datetime
-from typing import (
-    Annotated,
-    Any,
-    Dict,
-    ForwardRef,
-    Generic,
-    List,
-    Optional,
-    Self,
-    TypeVar,
-)
+from typing import Any, Dict, ForwardRef, Generic, List, Optional, Self, TypeVar
 
-from bson import ObjectId as _ObjectId
-from fastapi.responses import StreamingResponse
+from myeachtra.dependencies import ObjectId
 from pydantic import (
-    AfterValidator,
     BaseModel,
     Field,
     SkipValidation,
     computed_field,
+    field_serializer,
     field_validator,
     model_validator,
 )
-from query_parse.types.requests import (
-    AnyRequest,
-    GeneralQueryRequest,
-    TimelineDateRequest,
-    TimelineRequest,
-)
-from results.models import ReturnResults, TimelineResult
+from query_parse.types.requests import AnyRequest
 
 from database.main import request_collection
 from database.requests import find_request
-
-
-def check_object_id(value: str) -> str:
-    if not _ObjectId.is_valid(value):
-        raise ValueError("Invalid ObjectId")
-    return value
-
-
-ObjectId = Annotated[
-    str,
-    Field(..., alias="_id", description="MongoDB ObjectId"),
-    AfterValidator(check_object_id),
-]
 
 
 class TimeStampModel(BaseModel):
@@ -64,6 +34,14 @@ class Response(BaseModel):
     type: str = ""
     response: Any
 
+    # For caching
+    oid: Optional[SkipValidation[ObjectId]] = None
+    index: Optional[int] = None
+
+    @field_serializer("oid")
+    def serialize_oid(self, v: ObjectId) -> str:
+        return str(v)
+
     def model_dump_json(self, **kwargs) -> str:
         return super().model_dump_json(
             exclude_unset=True, exclude_defaults=True, exclude_none=True, **kwargs
@@ -75,6 +53,10 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
     request: RequestT
     responses: List[Response] = []
     oid: Optional[SkipValidation[ObjectId]] = None
+
+    @field_serializer("oid")
+    def serialize_oid(self, v: ObjectId) -> str:
+        return str(v)
 
     @computed_field
     def name(self) -> str:
@@ -99,13 +81,16 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
                 self.oid = inserted.inserted_id
         return self
 
-    def add(self, response: Response):
-        self.responses.append(response)
+    def add(self, response: Response) -> Response:
+        response.oid = self.oid
+        response.index = len(self.responses) - 1
         request_collection.update_one(
             {"_id": self.oid},
-            {"$push": {"responses": response.model_dump()}},
+            {"$push": {"responses": response.model_dump(exclude={"oid"})}},
             upsert=True,
         )
+        self.responses.append(response)
+        return response
 
     def mark_finished(self):
         self.finished = True
@@ -113,37 +98,10 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
             {"_id": self.oid}, {"$set": {"finished": True}}, upsert=True
         )
 
-    def get_full_response(self):
-        raise NotImplementedError
-
-
-async def streaming_helper(responses: List[Response]):
-    for response in responses:
-        yield f"data: {response.model_dump_json()}\n\n"
-    yield "data: END\n\n"
-
-
-class SearchRequestModel(GeneralRequestModel[GeneralQueryRequest, str | ReturnResults]):
-    async def get_full_response(self) -> StreamingResponse:
-        return StreamingResponse(
-            streaming_helper(self.responses),
-            media_type="text/event-stream",
-        )
-
-
-class TimelineRequestModel(
-    GeneralRequestModel[TimelineRequest | TimelineDateRequest, TimelineResult]
-):
-    def get_full_response(self) -> Optional[TimelineResult]:
-        res = self.responses[-1]
-        return TimelineResult.model_validate(res.response)
-
 
 # ====================== #
 # FOURSQUARE
 # ====================== #
-
-
 class TranslatedName(BaseModel):
     name: str
     language: str
@@ -190,6 +148,7 @@ class LocationInfoResult(BaseModel):
     location_info: str = ""
     fsq_info: FourSquarePlace | Dict = {}
     icon: Any = None
+    related_events: List[Any] = []
 
     @field_validator("location", "location_info", mode="before")
     @classmethod

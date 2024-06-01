@@ -221,12 +221,15 @@ Some extra information (non visual): {extra_info}. But focus on the visual infor
 
 # Filter relevant fields from the query
 RELEVANT_FIELDS_PROMPT = """My database has this schema:
+
 ```
-location: str # home, work, a restaurant's name, etc. This is the most specific location
-location_info: str # type of the semantic_location (restaurant, university, etc.)
+# Valid location fields
+place: str # home, work, a restaurant's name, etc. This is the most specific location
+place_info: str # type of the semantic_location (restaurant, university, etc.)
 region: str # cities, states
 country: str
 
+# Valid time fields
 start_time: datetime
 end_time: datetime
 date: datetime
@@ -235,8 +238,13 @@ weekday: str
 year: int
 duration: str # duration of the event
 
+# Visual information
 ocr: List[str] # text extracted from images
 ```
+
+And these are valid gap units:
+- time_gap: hour, day, week, month, year
+- gps_gap: km, meter
 
 Given this query: "{query}", what are the relevant fields that I should consider? Try to choose the most important ones. If two fields are similar, choose the one that is more specific.
 For merge_by criteria, consider how far apart two events should be split into two different occasions  For example, if two events are in the same city but 1 week apart, should they be grouped together or not? How about if they are 5 hours apart but in different cities?
@@ -246,16 +254,17 @@ The relevant fields should include all the fields mentioned in the other fields.
 Answer in this format.
 ```json
 {{
-    "merge_by": ["hour", "city"],
-    "max_gap": {{ "time_gap": {{"unit": "hour", "value": 5}}, "gps_gap": {{"unit": "km", "value": 1}} }}
+    "merge_by": ["hour", "place"],
+    "max_gap": {{
+                    "time_gap": {{"unit": "hour", "value": 5}},
+                    "gps_gap": {{"unit": "km", "value": 1}}
+                }},
     "sort_by": [{{"field": "time", "order": "desc"}}],
-    "relevant_fields": ["location", "start_time", "end_time", "date", "ocr"],
+    "relevant_fields": ["place", "start_time", "end_time", "date", "ocr"],
 }}
 ```
 """
 
-
-#  This is still very long!!! TODO!
 PARSING_QUERY = """I need to find the answer for this question using my lifelog retrieval system. In my system, a flow of processes is needed:
 1. Segmentation: this function takes two parameters: max_time, time_gap, and loc_change, where max_time is the maximum time for each segment, time_gap is the maximum time gap between two segments, and loc_change is the type of location change (semantic_location, city, country, continent). The function returns a list of segments, where each segment is a list of events.
 2. Retrieval: this function takes a list of segments and a question. It returns a list of events that are relevant to the question. The function takes the top-K events that are relevant to the question.

@@ -8,6 +8,7 @@ from llm.prompts import RELEVANT_FIELDS_PROMPT
 from query_parse.types.elasticsearch import GPS
 from query_parse.utils import extend_no_duplicates
 from results.models import AsyncioTaskResult, Event, Icon, Marker
+from results.utils import RelevantFields
 from rich import print
 
 import requests
@@ -56,7 +57,7 @@ def calculate_markers(event: Event) -> Tuple[List[Marker], List[GPS]]:
                 location=event.location,
                 points=event.gps,
                 location_info=event.location_info,
-                icon=event.icon
+                icon=event.icon,
             )
         ]
         return markers, []
@@ -69,11 +70,11 @@ async def get_relevant_fields(query: str, tag: str) -> AsyncioTaskResult:
     """
     prompt = RELEVANT_FIELDS_PROMPT.format(query=query)
     data = await llm_model.generate_from_text(prompt)
-    if isinstance(data, dict):
-        print(f"[green]Found fields![/green] {data}")
-    else:
+    if not isinstance(data, dict):
         data = {}
-    return AsyncioTaskResult(results=data, tag=tag, task_type="llm")
+
+    relevant_fields = RelevantFields.model_validate(data)
+    return AsyncioTaskResult(results=relevant_fields, tag=tag, task_type="llm")
 
 
 headers = {
@@ -173,6 +174,7 @@ def get_location_info(location: str, center: GPS) -> Optional[dict]:
     )
     return data
 
+
 def get_icon_from_fsq(info: dict) -> Optional[Icon]:
     if info and info["categories"]:
         return Icon(
@@ -181,6 +183,7 @@ def get_icon_from_fsq(info: dict) -> Optional[Icon]:
             name=info["categories"][0]["name"],
         )
     return None
+
 
 def get_icon_from_location_name(location: str, location_info: str) -> Optional[Icon]:
     match (location.lower(), location_info.lower()):
@@ -223,7 +226,9 @@ def get_icon_from_location_name(location: str, location_info: str) -> Optional[I
         case (_, x) if "bus" in x:
             return Icon(type="material", prefix="directions_bus", name="Bus station")
         case (_, x) if "subway" in x:
-            return Icon(type="material", prefix="directions_subway", name="Subway station")
+            return Icon(
+                type="material", prefix="directions_subway", name="Subway station"
+            )
         case (_, x) if "taxi" in x:
             return Icon(type="material", prefix="local_taxi", name="Taxi stand")
         case (_, x) if "car" in x:
@@ -272,3 +277,4 @@ def get_icon(marker: Marker) -> Optional[Icon]:
     if fsq_info and fsq_info["fsq_info"]:
         return get_icon_from_fsq(fsq_info["fsq_info"])
     return get_icon_from_location_name(marker.location, marker.location_info)
+
