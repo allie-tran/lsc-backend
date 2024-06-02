@@ -16,6 +16,8 @@ memory = Memory(location="cache", verbose=0)
 # ====================== #
 # These could be adjusted in the frontend with settings
 DEV_MODE = False
+USE_GROQ = True
+DEBUG = False
 
 # Search Configurations
 # ------------------- #
@@ -96,12 +98,19 @@ INCLUDE_FULL_SCENE = [
     "region",
     "date",
 ]
+
 INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 
 # ========================== #
 # Functions to derive fields #
 # ========================== #
 ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps"]
+
+DEPENDENCIES = {
+    "place": ["location"],
+    "place_info": ["location"]
+}
+
 DERIVABLE_FIELDS = {
     "time": lambda x: x.start_time,
     "minute": lambda x: x.start_time.strftime("%H:%M"),
@@ -116,6 +125,8 @@ DERIVABLE_FIELDS = {
     "days": lambda x: (x.end_time - x.start_time).days,
     "hours": lambda x: (x.end_time - x.start_time).seconds // 3600,
     "weeks": lambda x: (x.end_time - x.start_time).days // 7,
+    "place": lambda x: x.location,
+    "place_info": lambda x: x.location_info,
 }
 
 ISEQUAL = {"*": lambda x, y: x == y, "city": lambda x, y: set(x).intersection(set(y))}

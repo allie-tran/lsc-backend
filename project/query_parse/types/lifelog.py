@@ -22,14 +22,28 @@ class DateTuple(BaseModel):
     month: Optional[int] = None
     day: Optional[int] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_date(cls, v):
+        if isinstance(v, tuple or list) and len(v) == 3:
+            return {"year": v[0], "month": v[1], "day": v[2]}
+        return v
+
     @field_validator("year", "month", "day")
-    def year_validator(cls, v):
-        if v is None:
+    def year_validator(cls, v) -> Optional[int]:
+        if v is None or isinstance(v, int):
             return v
         if isinstance(v, str) and v.isdigit():
             v = int(v)
-        return v
+        raise ValueError(f"Invalid date value: {v}")
 
+    def export(self):
+        """
+        Export the date tuple to a string
+        Format: DD/MM/YYYY, DD/MM, YYYY
+        """
+        date = "/".join([str(v) for v in [self.day, self.month, self.year] if v is not None])
+        return date
 
 class TimeCondition(BaseModel):
     condition: Literal["before", "after"]
@@ -48,12 +62,12 @@ class TimeCondition(BaseModel):
 
 class TimeGap(BaseModel):
     unit: str
-    value: int
+    value: float
 
 
 class LocationGap(BaseModel):
     unit: str
-    value: int
+    value: float
 
 
 class MaxGap(BaseModel):
@@ -95,8 +109,20 @@ class RelevantFields(BaseModel):
         values = set(values)
         return list(values)
 
+
+    @field_validator("relevant_fields", "merge_by")
+    @classmethod
+    def change_place_to_location(cls, v) -> List[str]:
+        if "place" in v:
+            v.remove("place")
+            v.append("location")
+        if "place_info" in v:
+            v.remove("place_info")
+            v.append("location_info")
+        return v
+
     @model_validator(mode="after")
-    def add_to_fields(self) -> Self:
+    def change_fields(self) -> Self:
         self.relevant_fields += self.merge_by
         self.relevant_fields += [sort.field for sort in self.sort_by]
         if self.max_gap.time_gap is not None:

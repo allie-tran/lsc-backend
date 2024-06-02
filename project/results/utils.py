@@ -35,17 +35,12 @@ def custom_compare_function(
     # Assert if the two events are the same group first
     # if not then just compare the scene ids
     equal = True
-    for field in fields:
-        cmp_field = field
-        if field not in ISEQUAL:
-            cmp_field = "*"
-        if not ISEQUAL[cmp_field](getattr(event1, field), getattr(event2, field)):
-            equal = False
-            break
+    ignore_fields = []
 
     # Check the time gap
     if max_gap.time_gap is not None and max_gap.time_gap.unit == "none":
         time_gap = max_gap.time_gap
+        ignore_fields.append(time_gap.unit)
         match time_gap.unit:
             case "hour":
                 if (
@@ -86,6 +81,16 @@ def custom_compare_function(
     # Check the location gap
     if max_gap.gps_gap is not None and max_gap.gps_gap.unit == "none":
         pass
+
+    for field in fields:
+        if field in ignore_fields:
+            continue
+        cmp_field = field
+        if field not in ISEQUAL:
+            cmp_field = "*"
+        if not ISEQUAL[cmp_field](getattr(event1, field), getattr(event2, field)):
+            equal = False
+            break
 
     if equal:
         return 0

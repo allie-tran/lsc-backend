@@ -24,10 +24,15 @@ def detect_question(query: str) -> bool:
     seperators = [".", "!", ";", "\n"]
     for sep in seperators:
         if sep in query:
-            parts = query.lower().split(sep)
-            if parts[0].strip() in QUESTION_WORDS:
-                return True
-
+            sentences = query.split(sep)
+            for sentence in sentences:
+                first_word = sentence.split()[0]
+                if first_word in QUESTION_WORDS:
+                    return True
+                if len(sentence.split()) > 1:
+                    second_word = sentence.split()[1]
+                    if second_word in QUESTION_WORDS:
+                        return True
     return False
 
 
@@ -42,7 +47,9 @@ async def question_to_retrieval(text: str, is_question: bool) -> str:
     search_text = await llm_model.generate_from_text(prompt)
     if isinstance(search_text, dict):
         search_text = search_text["text"]
-    return search_text
+    if search_text and isinstance(search_text, str):
+        return search_text
+    return text
 
 
 def detect_simple_query(query: str) -> bool:
@@ -67,11 +74,19 @@ async def parse_query(text: str) -> Dict[str, str]:
 
         prompt = PARSE_QUERY.format(query=text)
         feat = await llm_model.generate_from_text(prompt)
+
         if isinstance(feat, dict):
+            print(feat)
             for key, value in feat.items():
                 template[key] = value
-        # add location into visual
-        template["visual"] = template["visual"] + " " + template["location"]
+            # add location into visual
+            if "location" in template and "visual" in template:
+                if template["location"] != template["visual"]:
+                    template["visual"] = template["visual"] + " " + template["location"]
+        else:
+            print("Failed to parse query")
+            print(feat)
+
     return template
 
 

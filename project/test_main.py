@@ -32,7 +32,6 @@ def test_request_search():
                 print("End of stream")
                 break
             else:
-                print(text)
                 data = json.loads(text)
                 print("OK")
                 if data["type"] == "raw":

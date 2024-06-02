@@ -156,3 +156,5 @@ class LocationInfoResult(BaseModel):
         if isinstance(v, float):
             return ""
         return str(v)
+
+# ====================== #

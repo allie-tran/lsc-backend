@@ -1,4 +1,5 @@
 from typing import List
+from PIL import Image as PILImage
 
 import numpy as np
 import open_clip
@@ -9,6 +10,7 @@ from configs import (
     DATA_YEARS,
     EMBEDDING_DIM,
     FORCE_CPU,
+    IMAGE_DIRECTORY,
     MODEL_NAME,
     PRETRAINED_DATASET,
 )
@@ -57,7 +59,7 @@ norm_photo_features = photo_features / LA.norm(photo_features, keepdims=True, ax
 image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
 # Load CLIP model
-clip_model, *_ = open_clip.create_model_and_transforms(
+clip_model, _, preprocess = open_clip.create_model_and_transforms(
     MODEL_NAME, pretrained=PRETRAINED_DATASET, device=device
 )
 assert isinstance(clip_model, CLIP), "Model is not CLIP"
@@ -101,6 +103,14 @@ def encode_text(main_query: str) -> np.ndarray:
     text_features = text_encoded.cpu().numpy()
     return text_features
 
+
+def encode_image(image_path: str) -> np.ndarray:
+    image_read = PILImage.open(f"{IMAGE_DIRECTORY}/{image_path}")
+    image_tensor = preprocess(image_read).unsqueeze(0).to(device)  # type: ignore
+    with torch.no_grad():
+        image_feat = clip_model.encode_image(image_tensor.unsqueeze(0).to(device))  # type: ignore
+        image_feat /= image_feat.norm(dim=-1, keepdim=True)
+    return image_feat.cpu().numpy()
 
 def score_images(image_objs: List[Image], encoded_query: np.ndarray) -> List[float]:
     images = [image.src for image in image_objs]

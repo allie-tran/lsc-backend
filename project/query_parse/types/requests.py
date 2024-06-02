@@ -58,11 +58,19 @@ class GeneralQueryRequest(TemplateRequest):
 class TimelineRequest(TemplateRequest):
     session_id: Optional[str] = None
     image: str
+    # requestid
+    oid: Optional[SkipValidation[ObjectId]] = None
+    # esid
+    es_id: Optional[SkipValidation[ObjectId]] = None
 
 
 class TimelineDateRequest(TemplateRequest):
     session_id: Optional[str] = None
     date: str
+    # requestid
+    oid: Optional[SkipValidation[ObjectId]] = None
+    # esid
+    es_id: Optional[SkipValidation[ObjectId]] = None
 
     @field_validator("date")
     def check_date(cls, value):
@@ -85,7 +93,10 @@ class TimelineDateRequest(TemplateRequest):
 class MapRequest(TemplateRequest):
     location: str
     center: GPS
+    # requestid
     oid: Optional[SkipValidation[ObjectId]] = None
+    # esid
+    es_id: Optional[SkipValidation[ObjectId]] = None
 
     @field_serializer("oid")
     @classmethod
@@ -95,12 +106,14 @@ class MapRequest(TemplateRequest):
 # ====================== #
 # USER OPTIONS & RESPONSES
 # ====================== #
+class VisualSimilarityRequest(TemplateRequest):
+    image: str
+
 class SortRequest(TemplateRequest):
     session_id: Optional[str] = None
     sort: str
     order: str = "asc"
     size: int = 10
-
 
 AnyRequest = Union[
     GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest,

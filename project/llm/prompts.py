@@ -2,27 +2,36 @@
 Prompts for GPT-4
 """
 
-INSTRUCTIONS = "You are a helpful assistant. Always include one single valid JSON object. Do not return multiple JSON objects."
+INSTRUCTIONS = """You are a helpful assistant for a lifelogger who records their daily activities in photos, time and places. Something to help you make the best guess:
+- The dataset only contains dates from 01/01/2019 to 01/07/2020 (for reasoning about dates only). If it is not specified, assume today is 01/07/2020.
+ - Assume the lifelogger is Irish and use Irish/British English for dates, times, and word usage.
+ - Use self-referential pronouns like "I" and "my" to refer to the lifelogger.
+ - When answering questions, call the lifelogger "you".
+
+Always include one single valid JSON object. Do not return multiple JSON objects.
+"""
 
 # Rewrite the question into a search query
 REWRITE_QUESTION = """
 Rewrite the following question into a statement as a retrieval query: {question}
-It should be a statement in natural language to search for the relevant information in the lifelog retrieval system. It should include all the information from the question, excluding the question phrase
+It should be a statement in natural language to search for the relevant information in the lifelog retrieval system. It should include all the information from the question, excluding the question phrase.
 
-Avoid using "search for", "find", or "retrieve" in the query. Keep it descriptive.
+Avoid using "search for", "find", or "retrieve" in the query. Keep it descriptive. Don't replace question words with placeholders like somewhere, something (except for someones). Use the active voice, preferable in the past/past continuous tense. Write it in the first person, as if you are telling a story.
 
 Some examples:
 Question: "How many times did I go to the gym last month?"
-Rewrite: "I went to the gym last month."
+Rewrite: "I was in the gym last month."
 
 Question: "What did I eat for breakfast on Monday?"
-Rewrite: "I ate breakfast on Monday."
+Rewrite: "I was eating breakfast on Monday."
 
 Question: "When was the last time I went to the park, assuming today is 2022-03-01?"
-Rewrite: "I went to the park, before 2022-03-01."
+Rewrite: "I was in the park, before 2022-03-01."
 
 Question: "Where did I buy the MacBook Pro in summer 2021?"
-Rewrite: "I bought the MacBook Pro in summer 2021."
+Rewrite: "I was buying my MacBook Pro in summer 2021."
+
+
 
 Answer in this format:
 
@@ -37,12 +46,19 @@ Answer in this format:
 PARSE_QUERY = """
 I need to parse information from a text query to find relevant information from the lifelog retrieval system. As my parser is rule-based, I need you to provide me with the relevant fields that I should consider. Be as specific as possible, because the parser is not very smart.
 
-The fields are: location, time, date, visual, after-query (same fields with after-when), before-query (same fields with before-when).
+The fields are:
+```
+visual: str # what the lifelogger was doing visually
+time: str # time hints, like "morning", "after 3pm", "at sunset"
+date: str # date hints, like "last year", "on Christmas", "in 2020", "June 2019"
+location: str # place's name, like "at home", "in France", "at the Guinness Storehouse", "in Barcelona"
+```
 
 If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.
 
-Some examples:
+Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the information is not available. Each field should be SHORT and CONCISE. Avoid saying "within the time range of 01/01/2019 and 01/07/2020" or "in the past" if the date is not specified.
 
+Some examples:
 Query: "I was biking in the park near my house in the early morning."
 Response:
 ```json
@@ -59,6 +75,7 @@ Response:
 {{
     "visual": "having an Irish beer",
     "date": "17th March 2021"
+    "location": ""
 }}
 ```
 
@@ -67,6 +84,7 @@ Response:
 ```json
 {{
     "visual": "waiting for a flight at the airport",
+    "time": "",
     "location": "airport",
     "after-query": {{
         "after-when": "3 hours",
@@ -192,7 +210,7 @@ EventLink:
 
 ```json
 {{
-    answers: [
+    "answers": [
         {{
             "answer": "something",
             "explanation": "brief explanation for why the answer is `something`",

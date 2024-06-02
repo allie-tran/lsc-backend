@@ -221,6 +221,8 @@ class TimeTagger:
     def tag(self, sent: str) -> List[Tags]:
         times = self.find_time(sent)
         tag_dict = dict([(time.text, time.tag) for time in times])
+        print("Times:", times)
+        print("Tag dict:", tag_dict)
 
         tokenizer = MWETokenizer(separator="__")
         for a in times:
@@ -364,12 +366,14 @@ def search_for_time(
 
     weekdays = []
     dates = []
-    timestamps = [] # for before, after a certain date
+    timestamps = []  # for before, after a certain date
     start = (0, 0)
     end = (24, 0)
     duration = None
+    year = []
 
     matches = {"WEEKDAY": [], "TIMEOFDAY": [], "DURATION": []}
+    print("Tags:", tags)
 
     for i, (word, tag) in enumerate(tags):
         if word in disabled_times:
@@ -404,10 +408,15 @@ def search_for_time(
         # ============================================== #
         # =================== TIME ===================== #
         # ============================================== #
+        elif tag == "CD":
+            # strip non-numeric characters from start and end
+            word = word.strip(".,?!:;-")
+            if word in YEARS:
+                year.append(word)
         elif tag == "TIME":
             if word in YEARS:
                 # Sometimes years are tagged as times
-                dates.append(get_day_month(word))
+                year.append(word)
             else:
                 # Check if these are time prepositions (before, after, etc.)
                 timeprep = ""
@@ -434,6 +443,9 @@ def search_for_time(
                 date_tuple = holiday_text_to_datetime(word)
             else:
                 date_tuple = DateTuple()
+
+            if date_tuple.year:
+                year.append(str(date_tuple.year))
 
             dateprep = ""
             if i >= 1 and tags[i - 1][1] in ["TIMEPREP", "DATEPREP"]:
@@ -507,7 +519,8 @@ def search_for_time(
         elif tag == "SEASON":
             # Heuristic
             for month in SEASONS[word]:
-                dates.append((None, MONTHS.index(month) + 1, None))
+                dates.append(DateTuple(
+                    year=None, month=MONTHS.index(month) + 1, day=None))
 
         # ============================================== #
         # ================= TIMEOFDAY ================= #
@@ -548,6 +561,19 @@ def search_for_time(
 
     # Clean_query
     clean_query = get_visual_text(text, unprocessed_words)
+
+    # Add years to dates
+    new_dates = []
+    print("Dates:", dates)
+    print("Years:", year)
+    year = set(year)
+    for date in dates:
+        if date.year is None:
+            for y in year:
+                new_dates.append(DateTuple(year=int(y), month=date.month, day=date.day))
+        else:
+            new_dates.append(date)
+    dates = new_dates
 
     # Post-processing
     info = TimeInfo(

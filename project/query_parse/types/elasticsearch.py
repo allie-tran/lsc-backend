@@ -36,7 +36,6 @@ class ESSearchRequest(ESQuery):
     """
 
     test: bool = False
-    original_text: Optional[str] = None
     index: str = SCENE_INDEX
     main_field: str = "scene"
     query: Any
@@ -212,13 +211,38 @@ class LocationInfo(BaseModel):
     def __bool__(self):
         return any([self.locations, self.regions, self.location_types])
 
+    def export(self) -> str:
+        info_dict = self.model_dump(
+            exclude_defaults=True,
+            exclude_none=True,
+            exclude_unset=True,
+            exclude={"original_texts"},
+        )
+        locations = info_dict.get("locations")
+        regions = info_dict.get("regions")
+        location_types = info_dict.get("location_types")
+
+        res = []
+
+        if locations:
+            locations = ", ".join(locations)
+            res.append(locations)
+        if regions:
+            regions = ", ".join(regions)
+            res.append(regions)
+        if location_types:
+            location_types = ", ".join(location_types)
+            res.append(location_types)
+
+        return ", ".join(res)
+
 
 class TimeInfo(BaseModel):
     """
     A class to represent time information in a query
     """
 
-    time: Tuple[int, int] = (0, 0)  # seconds since midnight
+    time: Tuple[int, int] = (0, 86400)  # seconds from midnight
     timestamps: List[Tuple[int, str]] = []
     duration: Optional[int] = None  # seconds
     weekdays: List[str] = []
@@ -230,6 +254,42 @@ class TimeInfo(BaseModel):
 
     def __bool__(self):
         return any([self.time, self.duration, self.weekdays, self.dates])
+
+    @staticmethod
+    def seconds_to_time(seconds: int) -> str:
+        """Preferred time format: HH:MM AM/PM"""
+        hours, remainder = divmod(seconds, 3600)
+        minutes, _ = divmod(remainder, 60)
+        return f"{hours:02d}:{minutes:02d}"
+
+    def export(self) -> str:
+        info_dict = self.model_dump(
+            exclude_defaults=True,
+            exclude_none=True,
+            exclude_unset=True,
+            exclude={"original_texts"},
+        )
+        time = info_dict.get("time")
+        duration = info_dict.get("duration")
+        weekdays = info_dict.get("weekdays")
+        dates = info_dict.get("dates")
+
+        res = []
+
+        if time:
+            time = f"{self.seconds_to_time(time[0])} to {self.seconds_to_time(time[1])}"
+            res.append(time)
+        if duration:
+            duration = f"{duration} seconds"
+            res.append(duration)
+        if weekdays:
+            weekdays = ", ".join(weekdays)
+            res.append(weekdays)
+        if dates:
+            dates = ", ".join([DateTuple(**date).export() for date in dates])
+            res.append(dates)
+
+        return ", ".join(res)
 
 
 class VisualInfo(BaseModel):
@@ -243,6 +303,9 @@ class VisualInfo(BaseModel):
 
     def __bool__(self):
         return bool(self.text)
+
+    def export(self) -> str:
+        return self.text
 
 
 class ESRangeFilter(ESQuery):
@@ -435,6 +498,7 @@ MUST_NOT = ESAndFilters(
         ESFilter(field="year", value=2018),
     ]
 )
+
 
 class ESBoolQuery(ESQuery):
     """

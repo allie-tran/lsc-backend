@@ -6,14 +6,11 @@ from typing import List
 
 from async_timeout import timeout
 from configs import IMAGE_DIRECTORY, TIMEOUT
-from llm import internlm_model
-from llm.gpt import MixedContent
-from llm import gpt_llm_model
+from llm import gpt_llm_model, internlm_model
+from llm.models import MixedContent
 from llm.prompts import MIXED_PROMPTS
 from nltk.probability import random
-from results.models import Event, GenericEventResults
-
-from question_answering.text import format_answer
+from results.models import AnswerResult, Event, GenericEventResults
 
 
 async def answer_visual_only(
@@ -90,14 +87,14 @@ async def answer_visual_one_event(
     question: str,
     textual_description: str,
     event: Event,
-) -> List[str]:
+) -> AsyncGenerator[List[AnswerResult], None]:
     """
     Process the question for a single event
     """
     image_paths = [os.path.join(IMAGE_DIRECTORY, img.src) for img in event.images]
     if len(image_paths) == 0:
-        return []
-    valid_answers = []
+        yield []
+        return
     loops = []
     if len(image_paths) < 3:
         loops = [image_paths]
@@ -111,17 +108,14 @@ async def answer_visual_one_event(
         )
         for answer in answer_dict:
             if not is_black_listed(answer_dict[answer]):
-                valid_answers.append(
-                    {
-                        "answer": "MMLM",
-                        "explanation": answer,
-                        "evidence": [n],
-                    }
-                )
-    if not valid_answers:
-        return []
-    return format_answer(valid_answers)
-
+                yield [
+                    AnswerResult(
+                        text="MMLM",
+                        explanation=[answer],
+                        evidence=[n],
+                    )
+                ]
+    yield []
 
 def to_base64(image_path: str) -> str:
     with open(image_path, "rb") as image_file:
@@ -129,12 +123,12 @@ def to_base64(image_path: str) -> str:
         return f"data:image/jpeg;base64,{b64}"
 
 
-async def answert_visual_with_text(
+async def answer_visual_with_text(
     question: str,
     textual_descriptions: List[str],
     results: GenericEventResults,
     k: int = 10,
-) -> AsyncGenerator[List[str], None]:
+) -> AsyncGenerator[List[AnswerResult], None]:
     """
     Given a natural language question and a list of scenes, returns the top k answers
     Note that the EventResults have already filtered the relevant fields
@@ -160,6 +154,17 @@ async def answert_visual_with_text(
         MixedContent(type="text", content=MIXED_PROMPTS[1].format(question=question))
     )
 
-    async for answer in gpt_llm_model.generate_from_mixed_media(content):
-        if answer and "answer" in answer and answer["answer"]:
-            yield format_answer(answer["answers"])
+    async for llm_response in gpt_llm_model.generate_from_mixed_media(content):
+        try:
+            answers = [
+                AnswerResult(
+                    text=answer["answer"],
+                    explanation=[answer["explanation"]],
+                    evidence=[int(ev) for ev in answer["evidence"]],
+                )
+                for answer in llm_response["answers"]
+            ]
+            yield answers
+        except Exception:
+            print("GPT", llm_response)
+            pass

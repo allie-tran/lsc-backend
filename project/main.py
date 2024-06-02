@@ -21,7 +21,7 @@ from query_parse.types.requests import (
 )
 from results.models import TimelineResult
 from retrieval.search import search_from_location, streaming_manager
-from retrieval.timeline import get_more_scenes, get_timeline, get_timeline_for_date
+from retrieval.timeline import get_timeline, get_timeline_for_date
 from submit.router import submit_router
 
 logger = logging.getLogger(__name__)
@@ -98,27 +98,13 @@ async def timeline(request: TimelineRequest):
 
     cached_request = GeneralRequestModel(request=request)
     if cached_request.finished:
-        return cached_request.responses[-1]
+        return cached_request.responses[-1].response
 
     result = get_timeline(request.image)
-    cached_request.add(Response(response=result, type="timeline"))
-    cached_request.mark_finished()
-    return result
-
-
-@app.get(
-    "/timeline_more/{group_id}/{direction}",
-    description="Get more scenes for the timeline",
-    response_model=TimelineResult,
-    status_code=200,
-)
-async def timeline_more(group_id: str, direction: str):
-    """
-    Get more scenes for the timeline
-    """
-    result = get_more_scenes(group_id, direction)
     if not result:
         raise HTTPException(status_code=404, detail="No results found")
+    cached_request.add(Response(response=result, type="timeline"))
+    cached_request.mark_finished()
     return result
 
 
@@ -185,7 +171,6 @@ async def location(request: MapRequest):  # type: ignore
         info["related_events"] = related_events
 
     res = LocationInfoResult.model_validate(info)
-    print(res)
     return res
 
 

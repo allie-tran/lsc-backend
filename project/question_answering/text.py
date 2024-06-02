@@ -121,7 +121,6 @@ async def answer_text_only(
         num_events=num_events,
         events=formated_textual_descriptions,
     )
-
     async for llm_response in llm_model.stream_from_text(prompt):
         try:
             answers = [
@@ -133,8 +132,9 @@ async def answer_text_only(
                 for answer in llm_response["answers"]
             ]
             yield answers
-        except Exception as e:
-            raise (e)
+        except Exception:
+            print("GROQ", llm_response)
+            pass
 
 
 def format_answer(answers: AnswerListResult) -> List[str]:
@@ -159,6 +159,6 @@ def format_answer(answers: AnswerListResult) -> List[str]:
             formatted += evidence_str
             formatted_answers.append(formatted)
         except Exception as e:
-            print(e)
+            raise (e)
 
     return formatted_answers

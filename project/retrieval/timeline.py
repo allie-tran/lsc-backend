@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import List, Optional
 
 from database.main import group_collection, image_collection, scene_collection
-from results.models import HighlightItem, TimelineGroup, TimelineResult
+from pydantic import validate_call
+from results.models import HighlightItem, Image, TimelineGroup, TimelineResult
 
 
 def get_timeline(image: str) -> Optional[TimelineResult]:
@@ -38,7 +39,10 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
     return TimelineResult(date=start_time, result=results, highlight=highlight)
 
 
-def get_scene_for_group_ids(group_range_ids: List[str]) -> List[TimelineGroup]:
+@validate_call
+def get_scene_for_group_ids(
+    group_range_ids: List[str], keep_only: Optional[List[Image]] = None
+) -> List[TimelineGroup]:
     grouped_results = scene_collection.aggregate(
         [
             {"$match": {"group": {"$in": group_range_ids}}},
@@ -58,16 +62,29 @@ def get_scene_for_group_ids(group_range_ids: List[str]) -> List[TimelineGroup]:
 
     results = []
     for group in grouped_results:
+        if keep_only:
+            scenes = []
+            for scene in group["scenes"]:
+                scene = [img for img in scene if img in keep_only]
+                if scene:
+                    scenes.append(scene)
+            if not scenes:
+                continue
+            group["scenes"] = scenes
         group_obj = TimelineGroup(**group)
         results.append(group_obj)
-
     return results
 
 
-def get_timeline_for_date(str_date: str) -> Optional[TimelineResult]:
+@validate_call
+def get_timeline_for_date(
+    str_date: str, keep_only: Optional[List[Image]] = None
+) -> Optional[TimelineResult]:
     """
     Get all scenes for a given date
+    Exclude the images that are not in the keep_only list
     """
+
     date = datetime.strptime(str_date, "%d-%m-%Y")
     start_time = date.replace(hour=0, minute=0, second=0)
     end_time = date.replace(hour=23, minute=59, second=59)
@@ -82,8 +99,9 @@ def get_timeline_for_date(str_date: str) -> Optional[TimelineResult]:
         },
         {"group": 1},
     )
+
     group_range_ids = [group["group"] for group in group_ids]
-    results = get_scene_for_group_ids(group_range_ids)
+    results = get_scene_for_group_ids(group_range_ids, keep_only=keep_only)
     return TimelineResult(date=start_time, result=results)
 
 

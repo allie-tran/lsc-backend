@@ -9,7 +9,7 @@ from bson import ObjectId
 
 
 from configs import EXPIRE_TIME
-from database.main import request_collection
+from database.main import request_collection, es_collection
 from query_parse.types.requests import AnyRequest
 
 
@@ -41,3 +41,7 @@ def get_request(oid: Optional[str]) -> Optional[dict]:
     """
     if oid:
         return request_collection.find_one({"_id": ObjectId(oid), "finished": True})
+
+def get_es(oid: Optional[str]) -> Optional[dict]:
+    if oid:
+        return es_collection.find_one({"_id": ObjectId(oid), "extracted": True})

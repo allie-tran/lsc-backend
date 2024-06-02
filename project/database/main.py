@@ -10,3 +10,4 @@ location_collection = db["locations"]
 
 user_collection = db["users"]
 request_collection = db["requests"]
+es_collection = db["es"]

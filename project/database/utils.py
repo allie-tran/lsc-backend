@@ -84,7 +84,9 @@ headers = {
 
 
 @memory.cache
-def search_fourspace(location, lat, lng) -> str:
+def search_fourspace(location: str, lat: float, lng: float) -> str:
+    lat = round(lat, 6)
+    lng = round(lng, 6)
     url = (
         f"https://api.foursquare.com/v3/places/search?query={location}&ll={lat}%2C{lng}"
     )
