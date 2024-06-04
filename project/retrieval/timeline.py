@@ -46,6 +46,7 @@ def get_scene_for_group_ids(
     grouped_results = scene_collection.aggregate(
         [
             {"$match": {"group": {"$in": group_range_ids}}},
+            {"$sort": {"start_time": 1, "group": 1, "scene": 1}},
             {
                 "$group": {
                     "_id": "$group",
@@ -67,7 +68,7 @@ def get_scene_for_group_ids(
             for scene in group["scenes"]:
                 scene = [img for img in scene if img in keep_only]
                 if scene:
-                    scenes.append(scene)
+                    scenes.extend(scene)
             if not scenes:
                 continue
             group["scenes"] = scenes

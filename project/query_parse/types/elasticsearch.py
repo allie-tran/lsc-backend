@@ -3,13 +3,13 @@ All classes and functions related to Elasticsearch
 """
 
 import json
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Self, Sequence, Tuple, Union
 
-from configs import DEFAULT_SIZE, SCENE_INDEX
+from configs import DEFAULT_SIZE, IMAGE_INDEX, SCENE_INDEX
 from nltk import defaultdict
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
-from .lifelog import DateTuple
+from .lifelog import DateTuple, Mode
 
 # ====================== #
 # ELASTICSEARCH
@@ -36,17 +36,33 @@ class ESSearchRequest(ESQuery):
     """
 
     test: bool = False
-    index: str = SCENE_INDEX
-    main_field: str = "scene"
+    mode: Mode = Mode.event
     query: Any
-    size: int = DEFAULT_SIZE
-    includes: List[str] = [main_field]
+
     sort_field: Optional[str] = None
     sort_order: str = "desc"
 
     scroll: Optional[bool] = False
     to_agg: Optional[bool] = False
     min_score: Optional[float] = 0.0
+
+    index: str = SCENE_INDEX
+    main_field: str = "scene"
+    size: int = DEFAULT_SIZE
+    includes: List[str] = [main_field]
+
+    @model_validator(mode="after")
+    def get_fields_based_on_mode(self) -> Self:
+        if self.mode == "image":
+            self.main_field = "image_path"
+            self.includes = [self.main_field]
+            self.index = IMAGE_INDEX
+            self.size *= 5
+            if self.sort_field in ["start_timestamp", "end_timestamp"]:
+                self.sort_field = "timestamp"
+            if self.sort_field in ["start_time", "end_time"]:
+                self.sort_field = "time"
+        return self
 
     def __bool__(self):
         return bool(self.query)
@@ -207,6 +223,7 @@ class LocationInfo(BaseModel):
     location_types: List[str] = []
     gps_bounds: Optional[Sequence] = None
     original_texts: Dict[str, List[str]] = defaultdict(list)
+    from_center: Optional[GPS] = None
 
     def __bool__(self):
         return any([self.locations, self.regions, self.location_types])
@@ -506,7 +523,6 @@ class ESBoolQuery(ESQuery):
     This is the MAIN query class that is fed to Elasticsearch
     Everything is combined here
     """
-
     # These are defined after processing the query
     must: ESAndFilters = ESAndFilters()
     must_not: ESAndFilters = MUST_NOT

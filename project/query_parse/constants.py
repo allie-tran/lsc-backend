@@ -60,4 +60,5 @@ AUXILIARY_VERBS = [
     "is",
     "are",
     "am",
+    "may",
 ]

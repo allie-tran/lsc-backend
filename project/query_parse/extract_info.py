@@ -2,7 +2,6 @@ from collections import defaultdict
 from typing import Dict, Optional, Self, Sequence
 
 from database.main import es_collection
-from database.requests import get_es
 from myeachtra.dependencies import ObjectId
 from openai import BaseModel
 from pydantic import SkipValidation, model_validator
@@ -25,19 +24,20 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
+from query_parse.types.lifelog import Mode
 from query_parse.visual import search_for_visual
 
 time_tagger = TimeTagger()
 
 
 class Query(BaseModel):
-    original_text: str
-    is_question: bool
-    query_parts: Optional[Dict[str, str]]
+    original_text: str = ""
+    is_question: bool = False
+    query_parts: Optional[Dict[str, str]] = {}
 
-    time: TimeInfo
-    location: LocationInfo
-    visual: VisualInfo
+    time: TimeInfo = TimeInfo()
+    location: LocationInfo = LocationInfo()
+    visual: VisualInfo = VisualInfo()
 
     oid: Optional[SkipValidation[ObjectId]] = None
     extracted: bool = False
@@ -49,27 +49,19 @@ class Query(BaseModel):
 
     @model_validator(mode="after")
     def insert_request(self) -> Self:
-        query = None
-        if self.oid:
-            query = get_es(self.oid)
-
-        if query:
-            self.__dict__.update(query)
-        else:
+        if not self.oid:
             inserted = es_collection.insert_one(self.model_dump(exclude={"responses"}))
             self.oid = inserted.inserted_id
         return self
 
-    def mark_extracted(self):
+    def mark_extracted(self, es: ESBoolQuery):
         self.extracted = True
+        self.es = es
         es_collection.update_one(
             {"_id": self.oid}, {"$set": {"extracted": True}}, upsert=True
         )
 
     def print_info(self):
-        rprint(self.time.export())
-        rprint(self.location.export())
-        rprint(self.visual.export())
         return {
             "time": self.time.export(),
             "location": self.location.export(),
@@ -97,11 +89,11 @@ async def extract_info(text: str, is_question: bool) -> Query:
     # TIME
     # =================================================================== #
     time_str = ""
-    if query_parts["time"] and query_parts["date"]:
+    if "time" in query_parts and "date" in query_parts:
         time_str = f"{query_parts['time']} {query_parts['date']}"
-    elif query_parts["time"]:
+    elif "time" in query_parts:
         time_str = query_parts["time"]
-    elif query_parts["date"]:
+    elif "date" in query_parts:
         time_str = query_parts["date"]
 
     if not time_str:
@@ -136,7 +128,7 @@ async def extract_info(text: str, is_question: bool) -> Query:
         location=locationinfo,
         visual=visualinfo,
     )
-    rprint("Query:", query)
+    rprint(query)
     return query
 
 
@@ -145,10 +137,10 @@ async def create_query(search_text: str, is_question: bool) -> Query:
 
 
 def time_to_filters(
-    query: Query, overwrite: bool = False
+    query: Query, overwrite: bool = False, mode: Mode = Mode.event
 ) -> Sequence[ESCombineFilters]:
     if not query.temporal_queries or overwrite:
-        query.temporal_queries, _ = get_temporal_filters(query.time)
+        query.temporal_queries, _ = get_temporal_filters(query.time, mode)
     return query.temporal_queries
 
 
@@ -167,14 +159,17 @@ def text_to_visual(query: Query, overwrite: bool = False) -> Sequence[ESCombineF
 
 
 async def create_es_query(
-    query: Query, ignore_limit_score: bool = False, overwrite: bool = False
+    query: Query,
+    ignore_limit_score: bool = False,
+    overwrite: bool = False,
+    mode: Mode = Mode.event,
 ) -> ESBoolQuery:
     """
     Convert a query to an Elasticsearch query
     """
     if not query.es or overwrite:
         # Get the filters
-        time, date, timestamp, duration, weekday = time_to_filters(query)  # type: ignore
+        time, date, timestamp, duration, weekday = time_to_filters(query, mode=mode)
         place, _, region = location_to_filters(query)  # type: ignore
         embedding, ocr, _ = text_to_visual(query)  # type: ignore
 
@@ -216,32 +211,39 @@ async def create_es_query(
         # this is done by sending a request with size=1
         elif embedding:
             test_request = ESSearchRequest(
-                query=embedding.to_query(), size=1, test=True
+                query=embedding.to_query(), size=1, test=True, mode=mode
             )
             test_results = await send_search_request(test_request)
-            if test_results is not None:
-                max_score = min_score + test_results.max_score
-                min_score = min_score + test_results.min_score
+            if test_results and test_results.hits.max_score:
+                max_score = min_score + test_results.hits.max_score
+                min_score = min_score + test_results.hits.max_score / 2
 
         elif es.should:
             test_request = ESSearchRequest(
-                query=es.should.to_query(), size=1, test=True
+                query=es.should.to_query(), size=1, test=True, mode=mode
             )
             test_results = await send_search_request(test_request)
-            if test_results is not None and test_results.max_score > 0.0:
-                max_score = test_results.max_score
+            assert not isinstance(test_results, list)
+            if test_results and test_results.hits.max_score:
+                max_score = test_results.hits.max_score
                 min_score = min(min_score, max_score / 2)
 
         es.min_score = min_score
         es.max_score = max_score
         query.es = es
-        query.mark_extracted()
+        query.mark_extracted(es)
 
     return query.es
 
 
 async def modify_es_query(
-    old_query: Query, location: LocationInfo, time: TimeInfo, visual: VisualInfo
+    old_query: Query,
+    *,
+    location: Optional[LocationInfo] = None,
+    time: Optional[TimeInfo] = None,
+    visual: Optional[VisualInfo] = None,
+    extra_filters: Optional[Sequence[ESCombineFilters]] = None,
+    mode: Mode = Mode.event,
 ) -> Optional[ESBoolQuery]:
     """
     Modify an existing query with new location, time and visual information
@@ -256,7 +258,7 @@ async def modify_es_query(
 
     if time:
         query.time = time
-        query.temporal_queries = time_to_filters(query, overwrite=True)
+        query.temporal_queries = time_to_filters(query, overwrite=True, mode=mode)
         changed = True
 
     if visual:
@@ -265,6 +267,12 @@ async def modify_es_query(
         changed = True
 
     if changed:
-        query.es = await create_es_query(query, ignore_limit_score=True, overwrite=True)
+        query.es = await create_es_query(
+            query, ignore_limit_score=True, overwrite=True, mode=mode
+        )
+
+    if query.es and extra_filters:
+        for extra_filter in extra_filters:
+            query.es.filter.append(extra_filter)
 
     return query.es

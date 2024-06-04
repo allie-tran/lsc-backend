@@ -103,7 +103,8 @@ class LLM:
 
         all_objects = {}
         for obj in self.__parse(res):
-            all_objects.update(obj)
+            if obj:
+                all_objects.update(obj)
         yield all_objects
 
     async def generate_from_text(self, text: str) -> Optional[Dict]:

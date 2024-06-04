@@ -1,14 +1,13 @@
 from datetime import datetime
-from typing import Any, Dict, ForwardRef, Generic, List, Optional, Self, TypeVar
+from typing import Any, Generic, List, Optional, Self, TypeVar
 
-from myeachtra.dependencies import ObjectId
+from configs import CACHE
+from myeachtra.dependencies import ObjectId, CamelCaseModel
 from pydantic import (
-    BaseModel,
     Field,
     SkipValidation,
     computed_field,
     field_serializer,
-    field_validator,
     model_validator,
 )
 from query_parse.types.requests import AnyRequest
@@ -17,7 +16,7 @@ from database.main import request_collection
 from database.requests import find_request
 
 
-class TimeStampModel(BaseModel):
+class TimeStampModel(CamelCaseModel):
     """
     For caching the streaming response for the timeline
     """
@@ -29,7 +28,7 @@ RequestT = TypeVar("RequestT", bound=AnyRequest)
 ResponseT = TypeVar("ResponseT")
 
 
-class Response(BaseModel):
+class Response(CamelCaseModel):
     progress: Optional[int] = None
     type: str = ""
     response: Any
@@ -37,8 +36,9 @@ class Response(BaseModel):
     # For caching
     oid: Optional[SkipValidation[ObjectId]] = None
     index: Optional[int] = None
+    es_id: Optional[SkipValidation[ObjectId]] = None
 
-    @field_serializer("oid")
+    @field_serializer("oid", "es_id")
     def serialize_oid(self, v: ObjectId) -> str:
         return str(v)
 
@@ -64,6 +64,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
 
     @model_validator(mode="after")
     def insert_request(self) -> Self:
+        if not CACHE:
+            return self
         if not self.oid:
             # Find the request in the database
             existing_request = find_request(self.request)
@@ -82,6 +84,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
         return self
 
     def add(self, response: Response) -> Response:
+        if not CACHE:
+            return response
         response.oid = self.oid
         response.index = len(self.responses) - 1
         request_collection.update_one(
@@ -93,6 +97,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
         return response
 
     def mark_finished(self):
+        if not CACHE:
+            return
         self.finished = True
         request_collection.update_one(
             {"_id": self.oid}, {"$set": {"finished": True}}, upsert=True
@@ -102,34 +108,34 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
 # ====================== #
 # FOURSQUARE
 # ====================== #
-class TranslatedName(BaseModel):
+class TranslatedName(CamelCaseModel):
     name: str
     language: str
 
 
-class FourSquareLocation(BaseModel):
+class FourSquareLocation(CamelCaseModel):
     formatted_address: str
     country: str
 
 
-class FourSquareIcon(BaseModel):
+class FourSquareIcon(CamelCaseModel):
     prefix: str
     suffix: str
 
 
-class FourSquareCategory(BaseModel):
+class FourSquareCategory(CamelCaseModel):
     id: int
     name: str
     icon: FourSquareIcon
 
 
-class BasicFourSquarePlace(BaseModel):
+class BasicFourSquarePlace(CamelCaseModel):
     fsq_id: str
     name: str
     categories: List[FourSquareCategory] = []
 
 
-class RelatedPlaces(BaseModel):
+class RelatedPlaces(CamelCaseModel):
     children: List[BasicFourSquarePlace] = []
     parent: Optional[BasicFourSquarePlace] = None
 
@@ -139,22 +145,5 @@ class FourSquarePlace(BasicFourSquarePlace):
     location: FourSquareLocation
     related_places: Optional[RelatedPlaces] = None
 
-
-Icon = ForwardRef("Icon")
-
-
-class LocationInfoResult(BaseModel):
-    location: str = ""
-    location_info: str = ""
-    fsq_info: FourSquarePlace | Dict = {}
-    icon: Any = None
-    related_events: List[Any] = []
-
-    @field_validator("location", "location_info", mode="before")
-    @classmethod
-    def check_location(cls, v: Any) -> str:
-        if isinstance(v, float):
-            return ""
-        return str(v)
 
 # ====================== #

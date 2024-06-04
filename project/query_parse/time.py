@@ -1,4 +1,5 @@
 import calendar
+import copy
 import re
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
@@ -9,6 +10,7 @@ import pytimeparse
 from nltk import MWETokenizer, pos_tag
 from parsedatetime import Constants
 from results.models import Visualisation
+from rich import print as rprint
 
 from .types import DateTuple, RegexInterval, Tags, TimeInfo
 from .utils import find_regex, get_visual_text
@@ -219,28 +221,23 @@ class TimeTagger:
         return self.merge_interval(results)
 
     def tag(self, sent: str) -> List[Tags]:
+        separator="_"
         times = self.find_time(sent)
         tag_dict = dict([(time.text, time.tag) for time in times])
-        print("Times:", times)
-        print("Tag dict:", tag_dict)
+        rprint("Tag dict:", tag_dict)
 
-        tokenizer = MWETokenizer(separator="__")
-        for a in times:
-            if a.text:
-                tokenizer.add_mwe(a.text.split())
+        tuples = [tuple(re.findall(r'\w+', a.text)) for a in times if a.text]
+        tokenizer = MWETokenizer(tuples, separator=separator)
 
-        # --- FIXED ---
-        original_tokens = tokenizer.tokenize(sent.split())
-        original_tags = pos_tag(original_tokens)
-        # --- END FIXED ---
-
-        tokens = tokenizer.tokenize(sent.split())
+        tokens = tokenizer.tokenize(re.findall(r'\w+|\S', sent))
         tags = pos_tag(tokens)
+
+        original_tags = copy.deepcopy(tags)
 
         new_tags = []
         for word, tag in tags:
-            if "__" in word or word in tag_dict:
-                word = word.replace("__", " ")
+            if separator in word or word in tag_dict:
+                word = word.replace(separator, " ")
                 try:
                     new_tags.append((word, tag_dict[word]))
                 except KeyError:
@@ -250,6 +247,14 @@ class TimeTagger:
                 new_tags.append((word, tag))
         return new_tags
 
+
+def test_time_tagger():
+    sentence = "What did I do on my last birthday in June 2019?"
+    tagger = TimeTagger()
+    tags = tagger.tag(sentence)
+    print(tags)
+
+# test_time_tagger()
 
 def get_day_month(
     date_string: str,
@@ -374,7 +379,6 @@ def search_for_time(
 
     matches = {"WEEKDAY": [], "TIMEOFDAY": [], "DURATION": []}
     print("Tags:", tags)
-
     for i, (word, tag) in enumerate(tags):
         if word in disabled_times:
             continue
@@ -408,11 +412,6 @@ def search_for_time(
         # ============================================== #
         # =================== TIME ===================== #
         # ============================================== #
-        elif tag == "CD":
-            # strip non-numeric characters from start and end
-            word = word.strip(".,?!:;-")
-            if word in YEARS:
-                year.append(word)
         elif tag == "TIME":
             if word in YEARS:
                 # Sometimes years are tagged as times
@@ -439,6 +438,7 @@ def search_for_time(
         elif tag in ["DATE", "HOLIDAY"]:
             if tag == "DATE":
                 date_tuple = get_day_month(word)
+                print("Date tuple:", date_tuple)
             elif tag == "HOLIDAY":
                 date_tuple = holiday_text_to_datetime(word)
             else:
@@ -519,8 +519,9 @@ def search_for_time(
         elif tag == "SEASON":
             # Heuristic
             for month in SEASONS[word]:
-                dates.append(DateTuple(
-                    year=None, month=MONTHS.index(month) + 1, day=None))
+                dates.append(
+                    DateTuple(year=None, month=MONTHS.index(month) + 1, day=None)
+                )
 
         # ============================================== #
         # ================= TIMEOFDAY ================= #
@@ -550,6 +551,14 @@ def search_for_time(
         elif tag == "PERIOD":
             duration = parse_period_expression(word)
             matches["DURATION"].append(f"{word}")
+        # ============================================== #
+        # =================== OTHER ==================== #
+        # ============================================== #
+        elif tag == "CD":
+            # strip non-numeric characters from start and end
+            word = word.strip(".,?!:;-")
+            if word in YEARS:
+                year.append(word)
 
     start = start[0] * 3600 + start[1] * 60
     end = end[0] * 3600 + end[1] * 60
@@ -565,8 +574,8 @@ def search_for_time(
     # Add years to dates
     new_dates = []
     print("Dates:", dates)
-    print("Years:", year)
     year = set(year)
+    print("Years:", year)
     for date in dates:
         if date.year is None:
             for y in year:
@@ -574,6 +583,9 @@ def search_for_time(
         else:
             new_dates.append(date)
     dates = new_dates
+    if not dates:
+        for y in year:
+            dates.append(DateTuple(year=int(y), month=None, day=None))
 
     # Post-processing
     info = TimeInfo(

@@ -1,11 +1,13 @@
 from datetime import datetime
-from typing import Any, Dict, Generic, List, Literal, Optional, Sequence, TypeVar, Union
+from typing import Any, Dict, Generic, List, Literal, Optional, Self, Sequence, TypeVar, Union
 
+from database.models import FourSquarePlace
+from myeachtra.dependencies import CamelCaseModel
 from pydantic import (
-    BaseModel,
     ConfigDict,
     Field,
     InstanceOf,
+    SkipValidation,
     computed_field,
     field_validator,
     model_validator,
@@ -20,8 +22,11 @@ from query_parse.utils import (
 )
 
 
+class ResponseModel(CamelCaseModel):
+    pass
 
-class Visualisation(BaseModel):
+
+class Visualisation(CamelCaseModel):
     """
     A class to represent info to visualise in the frontend for a search result
     """
@@ -48,7 +53,7 @@ class Visualisation(BaseModel):
         return self.model_dump()
 
 
-class Icon(BaseModel):
+class Icon(CamelCaseModel):
     """
     An icon for the map
     """
@@ -69,15 +74,17 @@ class Icon(BaseModel):
 GeneralIcon = Icon(type="material", name="place")
 
 
-class Marker(BaseModel):
+class Marker(CamelCaseModel):
     """
     A marker for the map
     """
 
+    model_config = ConfigDict(coerce_numbers_to_str=True)
     location: str
     location_info: str
     points: List[GPS] = Field(default_factory=list, exclude=True)
     icon: Optional[Icon] = GeneralIcon
+    center: Optional[GPS] = None
 
     @field_validator("location", "location_info")
     @classmethod
@@ -86,32 +93,35 @@ class Marker(BaseModel):
             return str(v)
         return str(v)
 
+
     @field_validator("points")
     @classmethod
     def check_points(cls, v: Sequence[GPS | None]) -> List[GPS]:
         return [x for x in v if x]
 
-    @computed_field
-    def center(self) -> Optional[GPS]:
+    @model_validator(mode="after")
+    def get_center(self) -> Self:
         """
         Get the center of the GPS
         """
-        lats = [x.lat for x in self.points]
-        lons = [x.lon for x in self.points]
-        if lats and lons:
-            return GPS(lat=sum(lats) / len(lats), lon=sum(lons) / len(lons))
+        if not self.center:
+            lats = [x.lat for x in self.points]
+            lons = [x.lon for x in self.points]
+            if lats and lons:
+                self.center = GPS(lat=sum(lats) / len(lats), lon=sum(lons) / len(lons))
+        return self
 
     def __bool__(self):
         return bool(self.points)
 
 
-class Image(BaseModel):
+class Image(CamelCaseModel):
     src: str
     aspect_ratio: float = 16 / 9
     hash_code: str = ""
 
 
-class Event(BaseModel):
+class Event(CamelCaseModel):
     # IDs
     group: str = ""
     scene: str = ""
@@ -281,9 +291,11 @@ class DerivedEvent(Event):
 
     model_config = ConfigDict(extra="allow")
 
+fakedate = datetime(2020, 1, 1)
 
-class Results(BaseModel):
+class Results(CamelCaseModel):
     pass
+
 
 
 class ImageResults(Results):
@@ -293,8 +305,7 @@ class ImageResults(Results):
 
 EventT = TypeVar("EventT")
 
-
-class DoubletEvent(BaseModel):
+class DoubletEvent(CamelCaseModel):
     main: Event
     conditional: Event
     condition: TimeCondition
@@ -303,7 +314,7 @@ class DoubletEvent(BaseModel):
         return iter([self.main, self.conditional])
 
 
-class TripletEvent(BaseModel):
+class TripletEvent(CamelCaseModel):
     main: Event
     before: Optional[Event] = None
     after: Optional[Event] = None
@@ -311,7 +322,6 @@ class TripletEvent(BaseModel):
     def custom_iter(self):
         # return only the ones that are not None
         return iter([x for x in [self.main, self.before, self.after] if x])
-
 
 class GenericEventResults(Results, Generic[EventT]):
     events: List[EventT]
@@ -339,26 +349,25 @@ DoubletEventResults = GenericEventResults[DoubletEvent]
 TripletEventResults = GenericEventResults[TripletEvent]
 
 
-class ReturnResults(BaseModel):
-    """
-    Wrapper for the results
-    """
+class EvidenceLink(CamelCaseModel):
+    event_id: int
 
-    scroll_id: Optional[str] = None
-    result_list: List[TripletEvent] = []
-    visualisation: Optional[Visualisation] = None
-    answers: Optional[List[str]] = None
-
-
-class AnswerResult(BaseModel, revalidate_instances="always"):
+class AnswerResult(CamelCaseModel, revalidate_instances="always"):
     text: str
     evidence: List[int] = []
     explanation: List[str] = []
 
+
     @field_validator("evidence")
-    def sort_evidence(cls, v: List[int]) -> List[int]:
+    def sort_evidence(cls, v: List[int] | List[EvidenceLink]) -> List[int]:
+        new_v: List[int] = []
+        for x in v:
+            if isinstance(x, EvidenceLink):
+                new_v.append(x.event_id)
+            else:
+                new_v.append(x)
         # Sort and remove duplicates
-        return list(set(sorted(v)))
+        return list(set(sorted(new_v)))
 
     @field_validator("explanation")
     def sort_explanation(cls, v: List[str]) -> List[str]:
@@ -370,7 +379,7 @@ class AnswerResult(BaseModel, revalidate_instances="always"):
         return new_v
 
 
-class AnswerListResult(BaseModel, revalidate_instances="always"):
+class AnswerListResult(CamelCaseModel, revalidate_instances="always"):
 
     answers: Dict[str, AnswerResult] = {}
 
@@ -387,7 +396,7 @@ class AnswerListResult(BaseModel, revalidate_instances="always"):
         self.answers[answer.text] = current_answer
 
 
-class TimelineGroup(BaseModel):
+class TimelineGroup(CamelCaseModel):
     """
     A group of events
     """
@@ -399,7 +408,7 @@ class TimelineGroup(BaseModel):
     location_info: str
 
 
-class HighlightItem(BaseModel):
+class HighlightItem(CamelCaseModel):
     """
     A highlight item
     """
@@ -409,7 +418,7 @@ class HighlightItem(BaseModel):
     image: str
 
 
-class TimelineResult(BaseModel):
+class TimelineResult(CamelCaseModel):
     """
     Wrapper for the results
     """
@@ -419,8 +428,36 @@ class TimelineResult(BaseModel):
     highlight: Optional[HighlightItem] = None
 
 
-class AsyncioTaskResult(BaseModel):
-    results: Optional[EventResults | RelevantFields]
+fakedate = datetime(2020, 1, 1)
+
+
+class PartialEvent(DerivedEvent):
+    """
+    A partial event
+    """
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True, extra="allow", coerce_numbers_to_str=True
+    )
+    start_time: SkipValidation[datetime] = Field(default=fakedate, exclude=True)
+    end_time: SkipValidation[datetime] = Field(default=fakedate, exclude=True)
+
+    @field_validator("location", "location_info")
+    @classmethod
+    def check_location(cls, v: str | float) -> str:
+        if isinstance(v, float):
+            return str(v)
+        return str(v)
+
+
+class LocationInfoResult(Marker):
+    fsq_info: FourSquarePlace | Dict = {}
+    related_events: List[PartialEvent] = []
+
+ResultT = TypeVar("ResultT", EventResults, RelevantFields, List[str])
+
+class AsyncioTaskResult(CamelCaseModel, Generic[ResultT]):
+    results: Optional[ResultT] = None
     tag: str = ""
     task_type: Literal["search"] | Literal["llm"]
     query: Optional[Any] = None

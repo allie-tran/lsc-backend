@@ -2,22 +2,28 @@
 # PROCESSING
 # ====================== #
 
+from enum import StrEnum
 from typing import List, Literal, Optional, Self, Tuple
 
-from pydantic import BaseModel, field_validator, model_validator  # noqa: E0611
+from pydantic import field_validator, model_validator
+from myeachtra.dependencies import CamelCaseModel
 
 " POS tagging, NER, and other NLP related types "
 Tags = Tuple[str, str]
 
+class Mode(StrEnum):
+    event = "event"
+    image = "image"
 
-class RegexInterval(BaseModel):
+
+class RegexInterval(CamelCaseModel):
     start: int
     end: int
     text: str
     tag: Optional[str] = ""
 
 
-class DateTuple(BaseModel):
+class DateTuple(CamelCaseModel):
     year: Optional[int] = None
     month: Optional[int] = None
     day: Optional[int] = None
@@ -45,7 +51,7 @@ class DateTuple(BaseModel):
         date = "/".join([str(v) for v in [self.day, self.month, self.year] if v is not None])
         return date
 
-class TimeCondition(BaseModel):
+class TimeCondition(CamelCaseModel):
     condition: Literal["before", "after"]
     time_limit_str: str = "1h"
     time_limit_float: float = 1.0
@@ -60,17 +66,23 @@ class TimeCondition(BaseModel):
         return self.condition == other.condition
 
 
-class TimeGap(BaseModel):
+class TimeGap(CamelCaseModel):
     unit: str
     value: float
 
 
-class LocationGap(BaseModel):
+class LocationGap(CamelCaseModel):
     unit: str
     value: float
 
+    @field_validator("value")
+    def validate_value(cls, v):
+        if isinstance(v, str) and v.isdigit():
+            return float(v)
+        return v
 
-class MaxGap(BaseModel):
+
+class MaxGap(CamelCaseModel):
     time_gap: Optional[TimeGap] = None
     gps_gap: Optional[LocationGap] = None
 
@@ -89,12 +101,12 @@ class MaxGap(BaseModel):
         return v
 
 
-class SortBy(BaseModel):
+class SortBy(CamelCaseModel):
     field: str
     order: Literal["asc", "desc"]
 
 
-class RelevantFields(BaseModel):
+class RelevantFields(CamelCaseModel):
     relevant_fields: List[str] = []
     merge_by: List[str] = []
     sort_by: List[SortBy] = []

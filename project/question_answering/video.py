@@ -3,6 +3,7 @@ import base64
 import os
 from collections.abc import AsyncGenerator
 from typing import List
+from rich import print as rprint
 
 from async_timeout import timeout
 from configs import IMAGE_DIRECTORY, TIMEOUT
@@ -165,6 +166,7 @@ async def answer_visual_with_text(
                 for answer in llm_response["answers"]
             ]
             yield answers
-        except Exception:
-            print("GPT", llm_response)
+        except Exception as e:
+            rprint(e)
+            rprint("GPT", llm_response)
             pass

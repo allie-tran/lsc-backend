@@ -1,5 +1,7 @@
 from typing import Any, Callable, Dict, List, Literal, Optional, TypeVar
 
+from pydantic.alias_generators import to_camel
+
 from configs import (
     DEFAULT_SIZE,
     FILTER_FIELDS,
@@ -8,13 +10,14 @@ from configs import (
     MERGE_EVENTS,
     QUERY_PARSER,
 )
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
+from myeachtra.dependencies import CamelCaseModel
 
 InputT = TypeVar("InputT")
 OutputT = TypeVar("OutputT")
 
 
-class Option(BaseModel):
+class Option(CamelCaseModel):
     """For defining options"""
 
     name: str = ""
@@ -73,7 +76,7 @@ class Filter(Option):
     pass
 
 
-class SortOption(BaseModel):
+class SortOption(CamelCaseModel):
 
     field: Optional[str] = None
     order: Literal["asc", "desc"] = "asc"
@@ -95,7 +98,7 @@ class AnswerComponent(Option):
     description: str = "Generate the answer based on the events"
 
 
-class SearchParams(BaseModel):
+class SearchParams(CamelCaseModel):
     """For defining search parameters"""
 
     # Simple parameters
@@ -112,7 +115,7 @@ class SearchParams(BaseModel):
     answer: AnswerComponent = AnswerComponent()
 
 
-class FunctionWithArgs(BaseModel):
+class FunctionWithArgs(CamelCaseModel):
     """For defining a function with arguments"""
 
     function: Callable
@@ -149,7 +152,7 @@ class FunctionWithArgs(BaseModel):
         return self
 
 
-class Pipe(BaseModel):
+class Pipe(CamelCaseModel):
     """For defining the pipeline"""
 
     # If the function is executed
@@ -173,6 +176,13 @@ class Pipe(BaseModel):
         """Clean the output"""
         for key in self.exclude_output + keys:
             self.output.pop(key, None)
+        self.change_output(self.output)
+
+    def change_output(self, output: Dict[str, Any]):
+        new_output = {}
+        for key, value in output.items():
+            new_output[to_camel(key)] = value
+        self.output = new_output
 
     def execute(self, functions: List[FunctionWithArgs]) -> Any:
         """Execute multiple function,
@@ -203,7 +213,7 @@ class Pipe(BaseModel):
         self.executed = True
 
 
-class SearchPipeline(BaseModel):
+class SearchPipeline(CamelCaseModel):
     """For defining the search pipeline
     The point of this is when a user change the search paremeter,
     only changed part will be re-executed
@@ -239,4 +249,4 @@ class SearchPipeline(BaseModel):
         self.image_limiter.clean_output()
 
         # Then, export the pipeline
-        return self.model_dump()
+        return self.model_dump(by_alias=True)

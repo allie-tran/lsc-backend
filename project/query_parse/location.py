@@ -5,7 +5,6 @@ Location module
 import re
 from typing import List, Tuple
 
-from query_parse.types.elasticsearch import GPS
 from results.models import Visualisation
 
 from .constants import (
@@ -107,4 +106,3 @@ def search_for_locations(
         query_visualisation.map_countries = choose_countries_for_map(regions)
 
     return clean_query, info, query_visualisation
-

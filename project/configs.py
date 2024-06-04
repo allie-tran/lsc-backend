@@ -17,7 +17,9 @@ memory = Memory(location="cache", verbose=0)
 # These could be adjusted in the frontend with settings
 DEV_MODE = False
 USE_GROQ = True
+IMAGE_SEARCH = True
 DEBUG = False
+CACHE=True
 
 # Search Configurations
 # ------------------- #
@@ -74,7 +76,7 @@ ES_HOST = os.getenv("ES_HOST", "localhost")
 ES_PORT = os.getenv("ES_PORT", 9200)
 ES_URL = f"http://{ES_HOST}:{ES_PORT}"
 
-INDEX = os.getenv("INDEX", "all_lsc")
+IMAGE_INDEX = os.getenv("INDEX", "all_lsc")
 SCENE_INDEX = os.getenv("SCENE_INDEX", "all_lsc_mean")
 CLIP_MIN_SCORE = 1.2  # 1.2 is the normal score, 1.0 is for Transf
 
@@ -104,7 +106,8 @@ INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 # ========================== #
 # Functions to derive fields #
 # ========================== #
-ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps"]
+ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps", "time"]
+IMAGE_ESSENTIAL_FIELDS = ["image", "time", "gps", "scene", "group", "location", "aspect_ratio", "hash_code", "icon"]
 
 DEPENDENCIES = {
     "place": ["location"],

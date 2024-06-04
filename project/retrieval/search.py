@@ -1,50 +1,71 @@
 import asyncio
-import heapq
 import logging
+from collections import defaultdict
 from collections.abc import Sequence
 from datetime import datetime
-from typing import Any, AsyncGenerator, Callable, List, Optional
+from typing import AsyncGenerator, Callable, List, Optional
 
 from configs import FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
-from database.main import image_collection
+from database.main import group_collection, image_collection
 from database.models import GeneralRequestModel, Response
-from database.requests import get_request
+from database.requests import get_es, get_request
 from database.utils import get_relevant_fields
 from fastapi import HTTPException
-from pydantic import BaseModel, PositiveInt, model_validator
-from query_parse.es_utils import get_conditional_time_filters
-from query_parse.extract_info import Query, create_es_query, create_query
+from pydantic import InstanceOf
+from query_parse.es_utils import get_conditional_time_filters, get_location_filters
+from query_parse.extract_info import (
+    Query,
+    create_es_query,
+    create_query,
+    modify_es_query,
+)
 from query_parse.question import detect_question, question_to_retrieval
-from query_parse.types import ESSearchRequest
-from query_parse.types.elasticsearch import ESBoolQuery, ESEmbedding, MSearchQuery
-from query_parse.types.lifelog import TimeCondition
+from query_parse.types.elasticsearch import (
+    ESBoolQuery,
+    ESEmbedding,
+    LocationInfo,
+    MSearchQuery,
+    TimeInfo,
+)
+from query_parse.types.lifelog import DateTuple, Mode, TimeCondition
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
 from query_parse.types.requests import (
     GeneralQueryRequest,
     MapRequest,
+    Step,
     TimelineDateRequest,
 )
 from query_parse.visual import encode_image
 from question_answering.text import answer_text_only, get_specific_description
+from question_answering.video import answer_visual_with_text
 from results.models import (
     AnswerListResult,
     AnswerResult,
     AsyncioTaskResult,
+    Event,
     EventResults,
     GenericEventResults,
+    Image,
+    PartialEvent,
+    TimelineGroup,
+    TimelineResult,
 )
 from results.utils import (
     RelevantFields,
     create_event_label,
     limit_images_per_event,
     merge_events,
+    merge_scenes_and_images,
 )
 from rich import print
 
+from retrieval.async_utils import merge_generators
 from retrieval.search_utils import (
-    get_search_function,
+    get_raw_search_results,
+    get_search_request,
     merge_msearch_with_main_results,
     organize_by_relevant_fields,
+    process_es_results,
     process_search_results,
     send_multiple_search_request,
     send_search_request,
@@ -75,7 +96,7 @@ async def streaming_manager(request: GeneralQueryRequest):
         search_function = get_search_function(request, single_query, two_queries)
         async for response in search_function:
             cached_responses.add(response)
-            data = response.model_dump_json()
+            data = response.model_dump_json(by_alias=True)
             yield f"data: {data}\n\n"
 
     except asyncio.CancelledError:
@@ -92,55 +113,69 @@ async def streaming_manager(request: GeneralQueryRequest):
     yield "data: END\n\n"
 
 
+def get_search_function(
+    request: GeneralQueryRequest, single_query: Callable, two_queries: Callable
+) -> AsyncGenerator:
+    search_function = None
+    before, main, after = request.before, request.main, request.after
+    size = request.pipeline.size if request.pipeline else 200
+    match (before, main, after):
+        case ("", main, ""):
+            search_function = single_query(request.main, request.pipeline)
+        case (before, main, ""):
+            search_function = two_queries(
+                main,
+                before or "",
+                TimeCondition(condition="before", time_limit_str=request.before_time),
+                size=size,
+            )
+        case ("", main, after):
+            search_function = two_queries(
+                main,
+                after or "",
+                TimeCondition(condition="after", time_limit_str=request.after_time),
+                size=size,
+            )
+        case (before, main, after):
+            raise NotImplementedError("Triplet is not implemented yet")
+        case _:
+            raise ValueError("Invalid query")
+    return search_function
+
+
 # ============================= #
 # Easy Peasy Part: one query only
 # ============================= #
 async def simple_search(
-    main_query: ESBoolQuery, size: int, tag: str = ""
-) -> AsyncioTaskResult:
+    main_query: ESBoolQuery,
+    size: int,
+    tag: str = "",
+) -> AsyncioTaskResult[EventResults]:
     """
     Search a single query without any fancy stuff
     """
-    async_results = AsyncioTaskResult(results=None, tag=tag, task_type="search")
+    all_results: List[EventResults] = []
+    for mode in [Mode.event, Mode.image]:
+        request = get_search_request(main_query, size, mode)
+        es_response = await send_search_request(request)
+        es_results = process_es_results(es_response, mode=mode)
+        # Give some label to the results
+        if es_results:
+            print(f"[green]Found {len(es_results.events)} matches for {mode}[/green]")
+            es_results.min_score = main_query.min_score
+            es_results.max_score = main_query.max_score
+            all_results.append(es_results)
 
-    print(f"[blue]Min score {main_query.min_score:.2f}[/blue]")
-    search_request = ESSearchRequest(
-        query=main_query.to_query(),
-        sort_field="start_timestamp",
-        min_score=main_query.min_score,
-        size=size,
-    )
-    results = await send_search_request(search_request)
-
-    if results is None:
-        print("[red]No results found[/red]")
-        return async_results
-
-    async_results.results = results
-    print(f"[green]Found {len(results)} events[/green]")
-    results.min_score = main_query.min_score
-    results.max_score = main_query.max_score
-
-    # Give some label to the results
-    results = create_event_label(results)
-
-    # Just send the raw results first (unmerged, with full info)
-    print("[green]Sending raw results...[/green]")
-    return async_results
-
-
-class Step(BaseModel):
-    step: PositiveInt
-    total: PositiveInt
-
-    @model_validator(mode="after")
-    def check_step(self):
-        if self.step > self.total:
-            raise ValueError("Step cannot be greater than total")
-        return self
-
-    def progress(self) -> int:
-        return int((self.step / self.total) * 100)
+    match len(all_results):
+        case 0:
+            return AsyncioTaskResult(task_type="search", tag=tag, results=None)
+        case 1:
+            results = create_event_label(all_results[0])
+            return AsyncioTaskResult(task_type="search", tag=tag, results=results)
+        case _:
+            results = merge_scenes_and_images(all_results[0], all_results[1])
+            results = create_event_label(results)
+            return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
 
 async def single_query(
@@ -188,7 +223,10 @@ async def single_query(
 
     if output["is_question"]:
         step.total = 4
-    pipeline.query_parser.add_output(output["query"].print_info())
+
+    configs = output["query"].print_info()
+    print("[blue]Query[/blue]", configs)
+    pipeline.query_parser.add_output(configs)
 
     # ============================= #
     # 2. Search (Field extractor can be skipped)
@@ -196,7 +234,6 @@ async def single_query(
     # a. Check if we need to extract the relevant fields
     field_extractor = pipeline.field_extractor
     to_extract_field = not field_extractor.executed and not field_extractor.skipped
-
     async_tasks = get_search_tasks(
         output["es_query"],
         pipeline.size,
@@ -204,7 +241,6 @@ async def single_query(
         "single",
         to_extract_field,
     )
-
     # ----------------------------- #
     # b. Start the async tasks
     results = None
@@ -219,6 +255,7 @@ async def single_query(
                 type="images",
                 response=process_search_results(results),
                 progress=step.progress(),
+                es_id=output["query"].oid,
             )
         elif res.task_type == "llm":
             relevant_fields = res.results
@@ -233,7 +270,6 @@ async def single_query(
     # ============================= #
     # a. Organize the results by relevant fields
     pipeline.field_organizer.default_output = {"results": results}
-    print("Relevant fields", relevant_fields)
     results = pipeline.field_organizer.execute(
         [
             FunctionWithArgs(
@@ -328,30 +364,13 @@ def get_search_tasks(
     tag: str = "",
     filter_fields: bool = FILTER_FIELDS,
 ) -> List[asyncio.Task]:
+    tasks = [simple_search(main_query, size, f"{tag}_event")]
     # Starting the async tasks
-    async_tasks: Sequence = [asyncio.create_task(simple_search(main_query, size, tag))]
     if filter_fields and text:
-        task = asyncio.create_task(get_relevant_fields(text, tag))
-        async_tasks.append(task)
+        tasks.append(get_relevant_fields(text, tag))
+
+    async_tasks = [asyncio.create_task(task) for task in tasks]
     return async_tasks
-
-
-async def merge_generators(*generators: AsyncGenerator) -> AsyncGenerator[Any, None]:
-    priority_queue = []
-    next_idx = 0
-
-    async def add_to_queue(generator, idx):
-        nonlocal next_idx
-        async for value in generator:
-            heapq.heappush(priority_queue, (next_idx, value, idx))
-            next_idx += 1
-
-    tasks = [add_to_queue(generator, idx) for idx, generator in enumerate(generators)]
-    await asyncio.gather(*tasks)
-
-    while priority_queue:
-        _, value, _ = heapq.heappop(priority_queue)
-        yield value
 
 
 async def get_answer_tasks(
@@ -369,10 +388,12 @@ async def get_answer_tasks(
 
     print("[green]Textual description sample[/green]", textual_descriptions[0])
     k = min(k, len(results.events))
+
     async_tasks: Sequence = [
         answer_text_only(text, textual_descriptions, k),
-        # answer_visual_with_text(text, textual_descriptions, results, k),
+        answer_visual_with_text(text, textual_descriptions, results, k),
     ]
+
     async for task in merge_generators(*async_tasks):
         yield task
 
@@ -558,13 +579,44 @@ async def two_queries(
         yield {"type": "answers", "answers": all_answers}
 
 
-def search_from_location(request: MapRequest) -> Optional[List[dict]]:
+async def search_location_again(request: MapRequest) -> Optional[List[Event]]:
+    query_doc = get_es(request.es_id)
+    if not query_doc:
+        print("[red]Query not found[/red]")
+        return []
+    query_doc["oid"] = query_doc.pop("_id")
+    query = Query.model_validate(query_doc)
+    location, center = request.location, request.center
+    print("Location", location)
+    print("Center", center)
+
+    assert location, "Location should not be empty"
+    location = location.lower()
+
+    location_info = LocationInfo(locations=[location], from_center=center)
+    lcoation_filters = get_location_filters(location_info)
+    # Modify the query
+    new_query = await modify_es_query(query, location=location_info, extra_filters=lcoation_filters, mode=Mode.event)
+    if not new_query:
+        print("[red]New query not found[/red]")
+        return []
+    results = await simple_search(new_query, size=20, tag="location")
+    if not results.results:
+        print("[red]No results found[/red]")
+        return []
+    return results.results.events
+
+
+async def search_from_location(
+    request: MapRequest,
+) -> Optional[List[InstanceOf[Event]]]:
     """
     Search from the location
     """
     # Do another search with different location filter
     if request.es_id:
-        raise NotImplementedError("Not implemented yet")
+        print("[green]Searching from location again...[/green]")
+        return await search_location_again(request)
 
     # Just filter the results based on the location
     # Find main cached request with oid
@@ -578,7 +630,10 @@ def search_from_location(request: MapRequest) -> Optional[List[dict]]:
     results = main_request["responses"][0]["response"]
 
     assert results, "Results should not be empty"
+    assert location, "Location should not be empty"
+
     location = location.lower()
+
     new_results = []
     for event in results:
         loc = event["main"]["location"].lower()
@@ -589,43 +644,92 @@ def search_from_location(request: MapRequest) -> Optional[List[dict]]:
         print(f"[red]No results found for location {location}[/red]")
         return None
 
-    return new_results
+    return [PartialEvent(**event) for event in new_results]
 
 
-def search_from_time(request: TimelineDateRequest) -> Optional[List[dict]]:
+async def search_from_time(request: TimelineDateRequest) -> TimelineResult:
     """
     Filter down the search from the timeline view
     """
-    # Do another search with different time filter
-    if request.es_id:
-        raise NotImplementedError("Not implemented yet")
-
-    # Just filter the results based on the time
-    # Find main cached request with oid
-    main_request = get_request(request.oid)
-    if not main_request:
-        print("[red]Main request not found[/red]")
-        raise HTTPException(status_code=404, detail="I don't know how you got here")
+    all_images = []
 
     # Filter the results based on the time
     date = datetime.strptime(request.date, "%d-%m-%Y")
     start_time = date.replace(hour=0, minute=0, second=0)
-    end_time = date.replace(hour=23, minute=59, second=59)
-    results = main_request["responses"][0]["response"]
-    all_scenes = []
-    for event in results:
-        # event is a triplet event now
-        for k in ["before", "main", "after"]:
-            if k in event:
-                all_scenes.extend(event[k]["images"])
 
-    filtered = image_collection.find(
+    # Do another search with different time filter
+    all_images = await try_search_again(request, date)
+    print("[green]Found images[/green]", len(all_images))
+
+    # Just filter the results based on the time
+    filtered = image_collection.find({"image": {"$in": all_images}}).sort("time", 1)
+    filtered = list(filtered)
+    all_groups = set([image["group"] for image in filtered])
+
+    # Find time info
+    group_docs = group_collection.find(
         {
-            "start_timestamp": {"$gte": start_time, "$lte": end_time},
-            "image": {"$in": all_scenes},
+            "group": {"$in": list(all_groups)},
         }
+    ).sort("time", 1)
+
+    group_info = {group["group"]: group for group in group_docs}
+
+    # Group by group -> scene -> images
+    groups = defaultdict(dict)
+    for image in filtered:
+        key = image["image"]
+        group = image["group"]
+        if key not in groups[group]:
+            groups[group][key] = []
+        groups[group][key].append(
+            Image(
+                src=image["image"],
+                aspect_ratio=image["aspect_ratio"],
+                hash_code=image["hash_code"],
+            )
+        )
+
+    timeline_groups = []
+    for group in groups:
+        scenes = groups[group].values()
+        timeline_groups.append(
+            TimelineGroup(
+                group=group,
+                location=group_info[group]["location"],
+                location_info=group_info[group]["location_info"],
+                time_info=[group_info[group]["time_info"]],
+                scenes=list(scenes),
+            )
+        )
+    print("[green]Found groups[/green]", len(timeline_groups))
+    return TimelineResult(result=timeline_groups, date=start_time)
+
+
+async def try_search_again(request, date) -> List[str]:
+    if not request.es_id:
+        return []
+
+    # Do another search with different time filter
+    query_doc = get_es(request.es_id)
+    if not query_doc:
+        print("[red]Query not found[/red]")
+        return []
+
+    query_doc["oid"] = query_doc.pop("_id")
+    query = Query.model_validate(query_doc)
+    time_info = TimeInfo(
+        dates=[DateTuple(year=date.year, month=date.month, day=date.day)]
     )
-    return list(filtered)
+    new_query = await modify_es_query(query, time=time_info, mode=Mode.image)
+    if new_query:
+        search_request = get_search_request(new_query, size=20, mode=Mode.image)
+        print(search_request.min_score)
+        results = await get_raw_search_results(search_request)
+        all_images = results.results or []
+        return all_images
+
+    return []
 
 
 async def search_similar_events(image: str) -> Optional[EventResults]:
@@ -641,11 +745,7 @@ async def search_similar_events(image: str) -> Optional[EventResults]:
     es.must.append(ESEmbedding(embedding=image_feat.tolist()))
 
     result = await simple_search(es, size=200, tag="similar")
-    assert isinstance(
-        result.results, GenericEventResults
-    ), "Results should be EventResults"
-
-    if not result.results.events:
+    if not result.results or not result.results.events:
         print("[red]No similar events found[/red]")
         return None
 

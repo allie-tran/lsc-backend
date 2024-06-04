@@ -6,22 +6,15 @@ import redis
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from database.models import GeneralRequestModel, LocationInfoResult, Response
-from database.utils import get_location_info
-from query_parse.types.requests import (
-    GeneralQueryRequest,
-    MapRequest,
-    TimelineDateRequest,
-    TimelineRequest,
-)
-from results.models import TimelineResult
-from retrieval.search import search_from_location, streaming_manager
-from retrieval.timeline import get_timeline, get_timeline_for_date
+from myeachtra import timeline_router, map_router
+from query_parse.types.requests import GeneralQueryRequest
+from retrieval.search import streaming_manager
 from submit.router import submit_router
 
 logger = logging.getLogger(__name__)
@@ -37,9 +30,10 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(submit_router, prefix="/submit")
-
+app.include_router(timeline_router, prefix="/timeline")
+app.include_router(map_router, prefix="/location")
 
 @app.post(
     "/search",
@@ -83,97 +77,6 @@ async def get_stream_results(session_id: str, token: str):
     return StreamingResponse(streaming_manager(request), media_type="text/event-stream")
 
 
-@app.post(
-    "/timeline",
-    description="Get the timeline of an image",
-    response_model=TimelineResult,
-    status_code=200,
-)
-async def timeline(request: TimelineRequest):
-    """
-    Timeline endpoint
-    """
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
-    cached_request = GeneralRequestModel(request=request)
-    if cached_request.finished:
-        return cached_request.responses[-1].response
-
-    result = get_timeline(request.image)
-    if not result:
-        raise HTTPException(status_code=404, detail="No results found")
-    cached_request.add(Response(response=result, type="timeline"))
-    cached_request.mark_finished()
-    return result
-
-
-@app.post(
-    "/timeline-date",
-    description="Get the timeline of a date",
-    response_model=TimelineResult,
-    status_code=200,
-)
-async def timeline_date(request: TimelineDateRequest):
-    """
-    Get the timeline of a date
-    """
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
-    cached_request = GeneralRequestModel(request=request)
-    if cached_request.finished:
-        return cached_request.responses[-1]
-
-    date = request.date
-    result = get_timeline_for_date(date)
-    cached_request.add(Response(response=result, type="timeline"))
-    return result
-
-
-@app.get("/health", description="Health check endpoint", status_code=200)
-async def health():
-    """
-    Health check endpoint
-    """
-    return {"status": "ok"}
-
-
-@app.get(
-    "/create-request-database",
-    description="Create the request database",
-    status_code=200,
-)
-async def create_request_database():
-    """
-    Create the request database
-    """
-    return {"message": "ok"}
-
-
-@app.post(
-    "/location",
-    description="Get location info",
-    response_model=LocationInfoResult,
-    status_code=200,
-)
-async def location(request: MapRequest):  # type: ignore
-    """
-    Get location info
-    """
-    info = get_location_info(request.location, request.center)
-    if not info:
-        print(f"Location not found: {request.location}")
-        raise HTTPException(status_code=404, detail="No results found")
-
-    related_events = search_from_location(request)
-    if related_events:
-        info["related_events"] = related_events
-
-    res = LocationInfoResult.model_validate(info)
-    return res
-
-
 @app.get(
     "/encode-blurhash",
     description="Encode images",
@@ -186,3 +89,11 @@ async def encode():
     """
     batch_encode()
     return {"message": "ok"}
+
+
+@app.get("/health", description="Health check endpoint", status_code=200)
+async def health():
+    """
+    Health check endpoint
+    """
+    return {"status": "ok"}

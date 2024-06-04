@@ -18,9 +18,9 @@ from open_clip.tokenizer import _tokenizer
 
 # Load CLIP Model
 device = "cpu"
-if not FORCE_CPU and torch.cuda.is_available():  # type: ignore
-    print("Using GPU")
-    device = "cuda"
+# if not FORCE_CPU and torch.cuda.is_available():  # type: ignore
+#     print("Using GPU")
+#     device = "cuda"
 
 # Load pre-embedded photo features
 photo_features = np.zeros((0, EMBEDDING_DIM))

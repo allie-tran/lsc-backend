@@ -1,47 +1,65 @@
 import os
-from typing import List, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
-from configs import ESSENTIAL_FIELDS
+from configs import ESSENTIAL_FIELDS, IMAGE_ESSENTIAL_FIELDS
 from joblib import Memory
 from llm import llm_model
 from llm.prompts import RELEVANT_FIELDS_PROMPT
 from query_parse.types.elasticsearch import GPS
+from query_parse.types.requests import MapRequest
 from query_parse.utils import extend_no_duplicates
-from results.models import AsyncioTaskResult, Event, Icon, Marker
+from results.models import AsyncioTaskResult, Event, Icon, Image, Marker
 from results.utils import RelevantFields
-from rich import print
+from rich import print as rprint
 
 import requests
-from database.main import location_collection, scene_collection
+from database.main import location_collection, scene_collection, image_collection
 
 memory = Memory("cachedir")
 
+def to_event(image: dict)-> Event:
+    image["start_time"] = image.pop("time")
+    image["end_time"] = image["start_time"]
+    image["images"] = [Image(src=image.pop("image"), aspect_ratio=image.pop("aspect_ratio"), hash_code=image.pop("hash_code"))]
+    image["gps"] = [GPS(**image.pop("gps"))]
+    if "icon" in image:
+        image["icon"] = Icon(**image.pop("icon"))
+    return Event(**image)
 
 def convert_to_events(
-    event_list: List[str],
+    key_list: List[str],
     relevant_fields: Optional[List[str]] = None,
+    key: Literal["scene", "image"] = "scene",
 ) -> List[Event]:
     """
     Convert a list of event ids to a list of Event objects
     """
+    collection = scene_collection if key == "scene" else image_collection
+    fields = ESSENTIAL_FIELDS if key == "scene" else IMAGE_ESSENTIAL_FIELDS
+
     documents = []
-    index = {scene: i for i, scene in enumerate(event_list)}
+    index = {key: i for i, key in enumerate(key_list)}
     if relevant_fields:
-        projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
+        projection = extend_no_duplicates(relevant_fields, fields)
         try:
-            documents = scene_collection.find(
-                {"scene": {"$in": event_list}}, projection=projection
+            documents = collection.find(
+                {key: {"$in": key_list}}, projection=projection
             )
         except Exception as e:
-            print("[red]Error in convert_to_events[/red]", e)
+            rprint("[red]Error in convert_to_events[/red]", e)
 
     if not documents:
-        documents = scene_collection.find({"scene": {"$in": event_list}})
+        documents = collection.find({key: {"$in": key_list}})
 
     # Sort the documents based on the order of the event_list
-    documents = sorted(documents, key=lambda doc: index[doc["scene"]])
+    documents = sorted(documents, key=lambda doc: index[doc[key]])
 
-    events = [Event(**doc) for doc in documents]
+    events = []
+    if key == "scene":
+        events = [Event(**doc) for doc in documents]
+    else:
+        events = [to_event(doc) for doc in documents]
+
     for event in events:
         event.markers, event.orphans = calculate_markers(event)
     return events
@@ -92,11 +110,11 @@ def search_fourspace(location: str, lat: float, lng: float) -> str:
     )
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
-        print(f"Error in {location}")
+        rprint(f"Error in {location}")
         return ""
     data = response.json()["results"]
     if not data:
-        print(f"No data for {location}")
+        rprint(f"No data for {location}")
         return ""
     return data[0]["fsq_id"]
 
@@ -107,7 +125,7 @@ def get_info(fsq_id: str) -> dict:
     url = f"https://api.foursquare.com/v3/places/{fsq_id}"
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
-        print(f"Error in {fsq_id}")
+        rprint(f"Error in {fsq_id}")
         return {}
     data = response.json()
     return data
@@ -120,35 +138,70 @@ def calculate_distance(point1: GPS, point2: GPS) -> float:
     return ((point1.lat - point2.lat) ** 2 + (point1.lon - point2.lon) ** 2) ** 0.5
 
 
-def get_location_info(location: str, center: GPS) -> Optional[dict]:
+def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
+    if request.location and request.center:
+        return request.location, request.center
+    scene = scene_collection.find_one(
+        {
+            "$or": [
+                {"images": {"$elemMatch": {"src": request.image}}},
+                {"scene": request.scene},
+                {"group": request.group},
+            ]
+        }
+    )
+    if scene:
+        points = [GPS(**point) for point in scene["gps"]]
+        if len(points) == 1:
+            return scene["location"], points[0]
+        if points:
+            return scene["location"], GPS(
+                lat=sum(point.lat for point in points) / len(points),
+                lon=sum(point.lon for point in points) / len(points),
+            )
+        else:
+            return scene["location"], request.center
+
+    raise ValueError("No location found")
+
+
+def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
     """
     Get the location info
     If there is only one location with the same name, return that
-    If there are multiple locations with the same name, return the one closest to the center
+    If there are multiple locations with the same name, then check other parameters
     """
+    location, center = get_location_name(request)
+
     locations = location_collection.find({"location": location})
     locations = list(locations)
-    print(f"Locations: len={len(locations)}")
 
     info = None
     location_info = ""
 
     if len(locations) == 1:
-        return locations[0]
+        return location, locations[0]
     elif len(locations) > 1:
-        threshold = 0.01  # 0.1 degrees is about 11 km
-        closest_location = None
-        closest_distance = float("inf")
-        for loc in locations:
-            distance = calculate_distance(center, loc["gps"])
-            if distance < threshold:
-                return loc
-            if distance < closest_distance:
-                closest_location = loc
-                closest_distance = distance
-        if closest_location:
-            return closest_location
+        if not center:
+            for loc in locations:
+                if loc["gps"]:
+                    return location, loc
+        else:
+            threshold = 0.01  # 0.1 degrees is about 11 km
+            closest_location = None
+            closest_distance = float("inf")
+            for loc in locations:
+                distance = calculate_distance(center, loc["gps"])
+                if distance < threshold:
+                    return loc
+                if distance < closest_distance:
+                    closest_location = loc
+                    closest_distance = distance
+            if closest_location:
+                return location, closest_location
 
+    if not center:
+        return None
     # Search for the location
     id = search_fourspace(location, center.lat, center.lon)
     if not id:
@@ -174,7 +227,7 @@ def get_location_info(location: str, center: GPS) -> Optional[dict]:
     location_collection.insert_one(
         data,
     )
-    return data
+    return location, data
 
 
 def get_icon_from_fsq(info: dict) -> Optional[Icon]:
@@ -279,4 +332,3 @@ def get_icon(marker: Marker) -> Optional[Icon]:
     if fsq_info and fsq_info["fsq_info"]:
         return get_icon_from_fsq(fsq_info["fsq_info"])
     return get_icon_from_location_name(marker.location, marker.location_info)
-

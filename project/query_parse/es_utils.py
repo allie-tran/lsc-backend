@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Literal, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 from results.models import EventResults
 
@@ -21,7 +21,7 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
-from query_parse.types.lifelog import TimeCondition
+from query_parse.types.lifelog import Mode, TimeCondition
 from query_parse.visual import encode_text
 
 
@@ -32,7 +32,7 @@ def range_filter(
 
 
 def get_time_filters(
-    timeinfo: TimeInfo, mode: Literal["event", "image"] = "event"
+    timeinfo: TimeInfo, mode: Mode = Mode.event
 ) -> Tuple[ESOrFilters, dict]:
     """
     We are using bool query to get the minimum_should_match parameter.
@@ -41,10 +41,8 @@ def get_time_filters(
 
     s, e = timeinfo.time
     has_child = False
-    if s == 0 and e == 24 * 3600:
-        # no time filter
-        time_filters = []
-    else:
+    time_filters = []
+    if s != 0 or e != 24 * 3600:
         if mode == "image":
             # for images, we only have the time
             if s <= e:
@@ -123,7 +121,7 @@ def get_weekday_filters(timeinfo: TimeInfo) -> ESOrFilters:
     return ESOrFilters(name="WEEKDAY", queries=weekday_filters)
 
 
-def get_timestamp_filters(timeinfo: TimeInfo) -> ESOrFilters:
+def get_timestamp_filters(timeinfo: TimeInfo, mode: Mode = Mode.event) -> ESOrFilters:
     """
     Get the timestamp filters
     (usually before/after a certain date)
@@ -132,22 +130,42 @@ def get_timestamp_filters(timeinfo: TimeInfo) -> ESOrFilters:
     if timeinfo.timestamps:
         for timestamp, condition in timeinfo.timestamps:
             if condition == "before":
-                timestamp_filters.append(
-                    range_filter(0, timestamp, "end_timestamp", 0.1)
-                )
-            elif condition == "after":
-                timestamp_filters.append(
-                    range_filter(timestamp, 24 * 3600, "start_timestamp", 0.1)
-                )
-            elif condition == "around":
-                timestamp_filters.append(
-                    range_filter(
-                        timestamp - 2 * 3600,
-                        timestamp + 2 * 3600,
-                        "start_timestamp",
-                        0.1,
+                if mode == Mode.event:
+                    timestamp_filters.append(
+                        range_filter(0, timestamp, "end_timestamp", 0.1)
                     )
-                )
+                elif mode == Mode.image:
+                    timestamp_filters.append(
+                        range_filter(0, timestamp, "timestamp", 0.1)
+                    )
+            elif condition == "after":
+                if mode == Mode.event:
+                    timestamp_filters.append(
+                        range_filter(timestamp, 24 * 3600, "start_timestamp", 0.1)
+                    )
+                elif mode == Mode.image:
+                    timestamp_filters.append(
+                        range_filter(timestamp, 24 * 3600, "timestamp", 0.1)
+                    )
+            elif condition == "around":
+                if mode == "image":
+                    timestamp_filters.append(
+                        range_filter(
+                            timestamp - 2 * 3600,
+                            timestamp + 2 * 3600,
+                            "end_timestamp",
+                            0.1,
+                        )
+                    )
+                elif mode == "event":
+                    timestamp_filters.append(
+                        range_filter(
+                            timestamp - 2 * 3600,
+                            timestamp + 2 * 3600,
+                            "start_timestamp",
+                            0.1,
+                        )
+                    )
     return ESOrFilters(name="TIMESTAMP", queries=timestamp_filters)
 
 
@@ -225,13 +243,15 @@ def get_date_filters(timeinfo: TimeInfo) -> Tuple[ESOrFilters, dict]:
     return ESOrFilters(name="DATE", queries=date_filters), query_visualisation
 
 
-def get_temporal_filters(timeinfo: TimeInfo) -> Tuple[Sequence[ESCombineFilters], dict]:
+def get_temporal_filters(
+    timeinfo: TimeInfo, mode: Mode = Mode.event
+) -> Tuple[Sequence[ESCombineFilters], dict]:
     """
     Get the time filters
     """
-    time_filters, time_visualisation = get_time_filters(timeinfo)
+    time_filters, time_visualisation = get_time_filters(timeinfo, mode)
     date_filters, date_visualisation = get_date_filters(timeinfo)
-    timestamp_filters = get_timestamp_filters(timeinfo)
+    timestamp_filters = get_timestamp_filters(timeinfo, mode)
     duration_filters = get_duration_filters(timeinfo)
     weekday_filters = get_weekday_filters(timeinfo)
 

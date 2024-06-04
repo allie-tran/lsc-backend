@@ -1,5 +1,5 @@
 from functools import cmp_to_key
-from typing import Iterable, List
+from typing import Dict, Iterable, List
 
 from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
 from pydantic import InstanceOf, validate_call
@@ -196,7 +196,6 @@ def merge_events(
                 )
             )
 
-
     print("[green]Merged into[/green]", len(new_results), "events")
     return EventResults(
         events=new_results,
@@ -204,6 +203,56 @@ def merge_events(
         relevant_fields=results.relevant_fields + derive_fields,
         min_score=results.min_score,
         max_score=results.max_score,
+    )
+
+
+def merge_scenes_and_images(scenes: EventResults, images: EventResults) -> EventResults:
+    all_scenes: Dict[str, Event] = {}
+    for scene, score in zip(scenes.events, scenes.scores):
+        scene.image_scores = [score] * len(scene.images)
+        all_scenes[scene.scene] = scene
+
+    for image, score in zip(images.events, images.scores):
+        image.image_scores = [score]
+        if image.scene not in all_scenes:
+            all_scenes[image.scene] = image
+        else:
+            scene_images = [img.src for img in all_scenes[image.scene].images]
+            if image.images[0].src not in scene_images:
+                all_scenes[image.scene].images.extend(image.images)
+                all_scenes[image.scene].image_scores.extend(image.image_scores)
+
+    all_scene_scores = []
+    for scene in all_scenes.values():
+        # Reorder the images by their scores
+        scene_images = scene.images
+        scene_scores = scene.image_scores
+        if scene_images:
+            scene.images, scene.image_scores = zip(
+                *sorted(
+                    zip(scene_images, scene_scores),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )
+            )
+            scene.image_scores = list(scene.image_scores)
+            scene.images = list(scene.images)
+        all_scene_scores.append(max(scene_scores))
+
+    # Sort the scenes by their scores
+    sorted_scenes, sorted_scores = zip(
+        *sorted(
+            zip(all_scenes.values(), all_scene_scores),
+            key=lambda x: x[1],
+            reverse=True,
+        )
+    )
+
+    return EventResults(
+        events=list(sorted_scenes),
+        scores=list(sorted_scores),
+        min_score=min(scenes.min_score, images.min_score),
+        max_score=max(scenes.max_score, images.max_score),
     )
 
 
@@ -301,10 +350,10 @@ def create_event_label(
                     label["city"] = f"{event.city.title()}, {event.country.title()}"
                     done.update(["city", "country"])
                 elif "city" in all_fields and "region" in all_fields:
-                    label["city"] = event.region.title()
+                    label["city"] = ", ".join(event.region).title()
                     done.update(["city", "region"])
                 elif "region" in all_fields and "country" in all_fields:
-                    label["city"] = event.region.title()
+                    label["region"] = ", ".join(event.region).title()
                     done.update(["region", "country"])
 
                 # The rest of the fields
@@ -326,7 +375,14 @@ def create_event_label(
 
                 # Create the label
                 label = [
-                    f"<strong>{k.capitalize()}</strong>: {v}" for k, v in label.items()
+                    f"<strong>{format_key(k)}</strong>: {v}" for k, v in label.items()
                 ]
                 event.name = "\n".join(label)
     return results
+
+
+def format_key(key: str) -> str:
+    """
+    Format the key
+    """
+    return key.replace("_", " ").title()

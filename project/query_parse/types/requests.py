@@ -5,20 +5,26 @@
 from datetime import datetime
 from typing import List, Optional, Union
 
-from pydantic import BaseModel, SkipValidation, field_serializer, field_validator
-from pydantic.alias_generators import to_camel
-from myeachtra.dependencies import ObjectId
+from myeachtra.dependencies import CamelCaseModel, ObjectId
+from pydantic import PositiveInt, SkipValidation, field_serializer, field_validator, model_validator
 from query_parse.types.elasticsearch import GPS
 from query_parse.types.options import SearchPipeline
 
+class Step(CamelCaseModel):
+    step: PositiveInt
+    total: PositiveInt
 
-class TemplateRequest(BaseModel):
+    @model_validator(mode="after")
+    def check_step(self):
+        if self.step > self.total:
+            raise ValueError("Step cannot be greater than total")
+        return self
+
+    def progress(self) -> int:
+        return int((self.step / self.total) * 100)
+
+class TemplateRequest(CamelCaseModel):
     session_id: Optional[str] = None
-
-    class Config:
-        alias_generator = to_camel
-        populate_by_name = True
-        str_strip_whitespace = True
 
     def find_one(self):
         self_dict = self.model_dump(
@@ -91,8 +97,12 @@ class TimelineDateRequest(TemplateRequest):
 # MAP REQUESTS
 # ====================== #
 class MapRequest(TemplateRequest):
-    location: str
-    center: GPS
+    location: Optional[str] = None
+    center: Optional[GPS] = None
+    group: Optional[str] = None
+    image: Optional[str] = None
+    scene: Optional[str] = None
+
     # requestid
     oid: Optional[SkipValidation[ObjectId]] = None
     # esid
@@ -103,11 +113,27 @@ class MapRequest(TemplateRequest):
     def serialize_oid(cls, v):
         return str(v)
 
+    @model_validator(mode="after")
+    def check_validity(self):
+        # If location is provided, then ok
+        if self.location:
+            return self
+
+        # If any of the group, image, scene is provided, then ok
+        if any([self.image, self.scene, self.group]):
+            return self
+
+        raise ValueError(
+            "At least one of the location, group, image or scene should be provided"
+        )
+
+
 # ====================== #
 # USER OPTIONS & RESPONSES
 # ====================== #
 class VisualSimilarityRequest(TemplateRequest):
     image: str
+
 
 class SortRequest(TemplateRequest):
     session_id: Optional[str] = None
@@ -115,7 +141,7 @@ class SortRequest(TemplateRequest):
     order: str = "asc"
     size: int = 10
 
+
 AnyRequest = Union[
-    GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest,
-    MapRequest
+    GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest, MapRequest
 ]

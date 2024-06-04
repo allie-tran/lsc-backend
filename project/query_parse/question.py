@@ -1,7 +1,7 @@
 """
 All utilities related to question answering
 """
-
+import re
 from collections import defaultdict
 from typing import Dict
 
@@ -9,7 +9,7 @@ from configs import QUERY_PARSER
 from llm import llm_model
 from llm.prompts import PARSE_QUERY, REWRITE_QUESTION
 
-from .constants import QUESTION_TYPES, QUESTION_WORDS, STOP_WORDS
+from .constants import AUXILIARY_VERBS, QUESTION_TYPES, QUESTION_WORDS, STOP_WORDS
 
 
 def detect_question(query: str) -> bool:
@@ -21,20 +21,18 @@ def detect_question(query: str) -> bool:
         return True
 
     # detect mutli-sentence questions
-    seperators = [".", "!", ";", "\n"]
-    for sep in seperators:
-        if sep in query:
-            sentences = query.split(sep)
-            for sentence in sentences:
-                first_word = sentence.split()[0]
-                if first_word in QUESTION_WORDS:
-                    return True
-                if len(sentence.split()) > 1:
-                    second_word = sentence.split()[1]
-                    if second_word in QUESTION_WORDS:
-                        return True
-    return False
+    sentences = re.split(r"[.!?,]", query)
+    for sentence in sentences:
+        words = sentence.lower().strip().split()
+        if words:
+            # check if the first word is a question word
+            if words[0] in QUESTION_WORDS:
+                return True
 
+            if len(words) > 1:
+                if words[0] in AUXILIARY_VERBS and words[1] in QUESTION_WORDS:
+                    return True
+    return False
 
 async def question_to_retrieval(text: str, is_question: bool) -> str:
     """

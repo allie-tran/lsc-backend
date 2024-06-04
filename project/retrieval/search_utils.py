@@ -8,11 +8,12 @@ from configs import DERIVABLE_FIELDS, ES_URL
 from database.utils import convert_to_events
 from elastic_transport import ObjectApiResponse
 from fastapi import HTTPException
-from query_parse.types.elasticsearch import ESSearchRequest, MSearchQuery
-from query_parse.types.lifelog import TimeCondition
+from query_parse.types.elasticsearch import ESBoolQuery, ESSearchRequest, MSearchQuery
+from query_parse.types.lifelog import Mode, TimeCondition
 from query_parse.types.requests import GeneralQueryRequest
 from requests import Response
 from results.models import (
+    AsyncioTaskResult,
     DoubletEvent,
     DoubletEventResults,
     EventResults,
@@ -22,73 +23,17 @@ from results.models import (
 from results.utils import create_event_label, deriving_fields
 from rich import print
 
+from retrieval.types import ESResponse
+
 logger = logging.getLogger(__name__)
 
 json_headers = {"Content-Type": "application/json"}
 
 
-def handle_failed_request(
-    response: Union[Response, ObjectApiResponse], query: Any
-) -> None:
-    logger.error(f"There was an error with the request: ({response.status_code})")
-    logger.error(response.text)
-    with open("request.log", "a") as f:
-        f.write(response.text + "\n")
-        f.write(json.dumps(query) + "\n")
-
-
-def delete_scroll_id(scroll_id) -> None:
-    response = requests.delete(
-        f"{ES_URL}/_search/scroll",
-        data=json.dumps({"scroll_id": scroll_id}),
-        headers=json_headers,
-    )
-    if response.status_code != 200:
-        handle_failed_request(response, {"scroll_id": scroll_id})
-
-
-# def get_scroll_request(query: ESScroll) -> Optional[ESScroll]:
-#     """
-#     Get the next scroll request and update the query
-#     """
-#     response = requests.post(
-#         f"{ES_URL}/_search/scroll",
-#         data=json.dumps({"scroll": "5m", "scroll_id": query.scroll_id}),
-#         headers=json_headers,
-#     )
-#     if response.status_code != 200:
-#         handle_failed_request(response, query)
-#         return None
-
-#     response_json = response.json()  # Convert to json as dict formatted
-#     events = [d["_source"] for d in response_json["hits"]["hits"]]
-#     scores = [d["_score"] for d in response_json["hits"]["hits"]]
-
-#     query.add_results(EventResults(events=events, scores=scores))
-
-#     new_scroll_id = response_json["_scroll_id"]
-#     if new_scroll_id:
-#         # Delete the old scroll_id
-#         delete_scroll_id(query.scroll_id)
-#         query.scroll_id = new_scroll_id
-
-#     return query
-
-# es = AsyncElasticsearch([ES_URL])
-
-# async def es_search(query: dict):
-#     """
-#     Send a new search request
-#     """
-#     start = time()
-#     response_json = await es.search(
-#         **query,
-#     )
-#     print("Time taken", time() - start)
-#     return response_json
-
-
-async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
+# ======================== #
+# MAIN REQUEST FUNCTIONS
+# ======================== #
+async def send_search_request(query: ESSearchRequest) -> ESResponse:
     """
     Send a new search request
     """
@@ -96,47 +41,16 @@ async def send_search_request(query: ESSearchRequest) -> Optional[EventResults]:
 
     # Use normal search
     response = requests.post(
-        f"{ES_URL}/_search{'?scroll=5m' if query.scroll else ''}",
+        f"{ES_URL}/{query.index}/_search{'?scroll=5m' if query.scroll else ''}",
         data=json.dumps(json_query),
         headers=json_headers,
     )
     if response.status_code != 200:
         handle_failed_request(response, json_query)
-        return None
-    response_json = response.json()  # Convert to json as dict formatted
-
-    scroll_id = ""
-    if query.scroll:
-        scroll_id = response_json["_scroll_id"]
-
-    # Get the event ids and scores
-    event_ids = [d["_source"]["scene"] for d in response_json["hits"]["hits"]]
-    if len(event_ids) == 0:
-        print("[red]No events found![/red]")
-        return None
-    scores = [d["_score"] for d in response_json["hits"]["hits"]]
-
-    # Get the relevant fields and form the EventResults object
-    if query.test:
-        if isinstance(scores[0], float):
-            max_score = scores[0]
-        else:
-            max_score = 1.0
-        min_score = 0.0
-        aggs = response_json["aggregations"]
-        min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]
-        # It is a test query, so we don't need to return the events
-        return EventResults(
-            events=[],
-            scores=[],
-            min_score=min_score,
-            max_score=max_score,
+        raise HTTPException(
+            status_code=500, detail="Error with the Elasticsearch request"
         )
-
-    # Just get everything for now
-    events = convert_to_events(event_ids)
-    result = EventResults(events=events, scores=scores, scroll_id=scroll_id)
-    return result
+    return ESResponse.model_validate(response.json())
 
 
 async def send_multiple_search_request(
@@ -172,6 +86,121 @@ async def send_multiple_search_request(
             list_events.append(None)
 
     return list_events
+
+
+def handle_failed_request(
+    response: Union[Response, ObjectApiResponse], query: Any
+) -> None:
+    logger.error(f"There was an error with the request: ({response.status_code})")
+    logger.error(response.text)
+    with open("request.log", "a") as f:
+        f.write(response.text + "\n")
+        f.write(json.dumps(query) + "\n")
+
+
+def delete_scroll_id(scroll_id) -> None:
+    response = requests.delete(
+        f"{ES_URL}/_search/scroll",
+        data=json.dumps({"scroll_id": scroll_id}),
+        headers=json_headers,
+    )
+    if response.status_code != 200:
+        handle_failed_request(response, {"scroll_id": scroll_id})
+
+
+# ======================================== #
+# PRE-PROCESSING FUNCTIONS
+# ======================================== #
+def get_search_request(
+    main_query: ESBoolQuery,
+    size: int,
+    mode: Mode = Mode.event,
+) -> ESSearchRequest:
+    """
+    Get the search request
+    """
+    print(f"[blue]Min score {main_query.min_score:.2f}[/blue]")
+    search_request = ESSearchRequest(
+        query=main_query.to_query(),
+        min_score=main_query.min_score,
+        size=size,
+        mode=mode,
+        sort_field="start_timestamp" if mode == Mode.event else "timestamp",
+    )
+    return search_request
+
+
+async def get_raw_search_results(
+    request: ESSearchRequest, tag: str = ""
+) -> AsyncioTaskResult[List[str]]:
+    """
+    Get the raw search results
+    """
+    response = await send_search_request(request)
+    if not response:
+        return AsyncioTaskResult(results=None, tag=tag, task_type="search")
+
+    return AsyncioTaskResult(
+        results=[d.source[request.main_field] for d in response.hits.hits],
+        tag=tag,
+        task_type="search",
+    )
+
+
+async def get_search_results(request: ESSearchRequest) -> EventResults | None:
+    es_response = await send_search_request(request)
+    results = process_es_results(es_response, request.test, request.mode)
+
+    if results is None:
+        print("[red]No results found[/red]")
+        return None
+
+    print(f"[green]Found {len(results)} events[/green]")
+    # Give some label to the results
+    results = create_event_label(results)
+
+    # Just send the raw results first (unmerged, with full info)
+    print("[green]Sending raw results...[/green]")
+    return results
+
+# ======================================== #
+# POST-PROCESSING FUNCTIONS
+# ======================================== #
+def process_es_results(
+    response: ESResponse,
+    test: bool = False,
+    mode: Mode = Mode.event,
+) -> EventResults | None:
+    important_field = "scene" if mode == "event" else "image_path"
+    ids = [doc.source[important_field] for doc in response.hits.hits]
+    if len(ids) == 0:
+        print("[red]No results found![/red]")
+    scores = [doc.score for doc in response.hits.hits]
+
+    # Get the relevant fields and form the EventResults object
+    if test and response.aggregations:
+        if isinstance(scores[0], float):
+            max_score = scores[0]
+        else:
+            max_score = 1.0
+        min_score = 0.0
+        aggs = response.aggregations
+        min_score = aggs["score_stats"]["std_deviation_bounds"]["upper"]
+        # It is a test query, so we don't need to return the events
+        return EventResults(
+            events=[],
+            scores=[],
+            min_score=min_score,
+            max_score=max_score,
+        )
+
+    # ------------------------- #
+    # Organize the results
+    # ------------------------- #
+    key = "scene" if mode == "event" else "image"
+    events = convert_to_events(ids, key=key)
+    result = EventResults(events=events, scores=scores)
+    return result
 
 
 def merge_msearch_with_main_results(
@@ -241,9 +270,13 @@ def merge_msearch_with_main_results(
 
 
 def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
-    scene_ids = [event.scene for event in results.events]
+    # scene_ids = [event.scene for event in results.events]
+    # results.relevant_fields = relevant_fields
+    # results.events = convert_to_events(scene_ids, relevant_fields, key="image")
+    # TODO: Implement this
+    images = [image.src for event in results.events for image in event.images]
+    results.events = convert_to_events(images, relevant_fields, key="image")
     results.relevant_fields = relevant_fields
-    results.events = convert_to_events(scene_ids, relevant_fields)
     derivable_fields = set(relevant_fields) & set(DERIVABLE_FIELDS)
     if derivable_fields:
         new_events = deriving_fields(results.events, list(derivable_fields))
@@ -301,4 +334,3 @@ def get_search_function(
         case _:
             raise ValueError("Invalid query")
     return search_function
-
