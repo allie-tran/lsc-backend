@@ -1,49 +1,43 @@
 import asyncio
 import base64
 import os
+import random
 from collections.abc import AsyncGenerator
 from typing import List
-from rich import print as rprint
 
-from async_timeout import timeout
-from configs import IMAGE_DIRECTORY, TIMEOUT
-from llm import gpt_llm_model, internlm_model
+from configs import IMAGE_DIRECTORY
+from llm import gpt_llm_model
 from llm.models import MixedContent
 from llm.prompts import MIXED_PROMPTS
-from nltk.probability import random
-from results.models import AnswerResult, Event, GenericEventResults
+from results.models import AnswerResult, Event, GenericEventResults, Image
+from retrieval.async_utils import async_generator_timer
+from rich import print as rprint
 
 
 async def answer_visual_only(
     question: str,
     textual_descriptions: List[str],
-    events: GenericEventResults,
+    results: GenericEventResults,
     k: int = 10,
-) -> AsyncGenerator[str, None]:
+) -> AsyncGenerator[List[AnswerResult], None]:
     """
     Answer the question using the visual information only
     K: number of events to consider
     """
-    if not internlm_model.loaded:
-        internlm_model.load_model()
+    # if internlm_model.loaded:
+    #     internlm_model.load_model()
 
     # Get the list of images
     try:
-        tasks = []
         for i, (event, description) in enumerate(
-            zip(events.events[:k], textual_descriptions[:k])
+            zip(results.events[:k], textual_descriptions[:k])
         ):
             e = event if isinstance(event, Event) else event.main
-            tasks.append(answer_visual_one_event(i, question, description, e))
+            async for answers in answer_visual_one_event(i, question, description, e):
+                yield answers
 
-        async with timeout(TIMEOUT):
-            for future in asyncio.as_completed(tasks):
-                answer = await future
-                if answer:
-                    for ans in answer:
-                        yield ans
     except asyncio.TimeoutError:
-        yield "Timeout"
+        yield []
 
 
 black_list = [
@@ -92,7 +86,7 @@ async def answer_visual_one_event(
     """
     Process the question for a single event
     """
-    image_paths = [os.path.join(IMAGE_DIRECTORY, img.src) for img in event.images]
+    image_paths = event.images
     if len(image_paths) == 0:
         yield []
         return
@@ -103,20 +97,28 @@ async def answer_visual_one_event(
         for _ in range(3):
             samples = random.sample(image_paths, k=2)
             loops.append(samples)
+
     for samples in loops:
-        answer_dict = await internlm_model.answer_question(
-            question, samples, extra_info=textual_description
-        )
-        for answer in answer_dict:
-            if not is_black_listed(answer_dict[answer]):
-                yield [
-                    AnswerResult(
-                        text="MMLM",
-                        explanation=[answer],
-                        evidence=[n],
-                    )
-                ]
+        async for answer_list in answer_visual_with_text(
+            question, samples, textual_description
+        ):
+            for answer_dict in answer_list:
+                try:
+                    answer: str = answer_dict["answer"]
+                    explanation: str = answer_dict["explanation"]
+                    if not is_black_listed(answer):
+                        yield [
+                            AnswerResult(
+                                text=answer,
+                                explanation=[explanation],
+                                evidence=[n + 1],
+                            )
+                        ]
+                except Exception as e:
+                    rprint(e)
+                    rprint("GPT", answer_dict)
     yield []
+
 
 def to_base64(image_path: str) -> str:
     with open(image_path, "rb") as image_file:
@@ -124,49 +126,30 @@ def to_base64(image_path: str) -> str:
         return f"data:image/jpeg;base64,{b64}"
 
 
+@async_generator_timer("answer_visual_with_text")
 async def answer_visual_with_text(
-    question: str,
-    textual_descriptions: List[str],
-    results: GenericEventResults,
-    k: int = 10,
-) -> AsyncGenerator[List[AnswerResult], None]:
+    question: str, image_paths: List[Image], textual_description: str
+) -> AsyncGenerator[list[dict], None]:
     """
     Given a natural language question and a list of scenes, returns the top k answers
     Note that the EventResults have already filtered the relevant fields
     """
-    ## First get the textual description of the events
-    content: List[MixedContent] = [
+    images = [os.path.join(IMAGE_DIRECTORY, img.src) for img in image_paths][:3]
+    bs64_images = [to_base64(image) for image in images if os.path.exists(image)]
+    content = [MixedContent(type="image_url", content=image) for image in bs64_images]
+    content.append(
         MixedContent(
             type="text",
-            content=MIXED_PROMPTS[0].format(question=question, num_events=k),
+            content=MIXED_PROMPTS.format(
+                question=question, extra_info=textual_description
+            ),
         )
-    ]
-    for i, text in enumerate(textual_descriptions):
-        image_paths = results.events[i].images
-        images = [os.path.join(IMAGE_DIRECTORY, img.src) for img in image_paths][:3]
-        bs64_images = [to_base64(image) for image in images if os.path.exists(image)]
-        description = f"Event {i+1}. {text}"
-
-        content.append(MixedContent(type="text", content=description))
-        content.extend(
-            [MixedContent(type="image_url", content=image) for image in bs64_images]
-        )
-    content.append(
-        MixedContent(type="text", content=MIXED_PROMPTS[1].format(question=question))
     )
-
-    async for llm_response in gpt_llm_model.generate_from_mixed_media(content):
+    task = gpt_llm_model.generate_from_mixed_media(content)
+    async for llm_response in task:
         try:
-            answers = [
-                AnswerResult(
-                    text=answer["answer"],
-                    explanation=[answer["explanation"]],
-                    evidence=[int(ev) for ev in answer["evidence"]],
-                )
-                for answer in llm_response["answers"]
-            ]
-            yield answers
+            if llm_response and "answers" in llm_response:
+                yield llm_response["answers"]
         except Exception as e:
             rprint(e)
             rprint("GPT", llm_response)
-            pass

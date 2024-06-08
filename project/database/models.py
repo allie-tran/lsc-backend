@@ -1,19 +1,14 @@
 from datetime import datetime
 from typing import Any, Generic, List, Optional, Self, TypeVar
 
-from configs import CACHE
-from myeachtra.dependencies import ObjectId, CamelCaseModel
-from pydantic import (
-    Field,
-    SkipValidation,
-    computed_field,
-    field_serializer,
-    model_validator,
-)
-from query_parse.types.requests import AnyRequest
+from pydantic import (Field, InstanceOf, SkipValidation, computed_field,
+                      field_serializer, model_validator)
 
+from configs import CACHE
 from database.main import request_collection
 from database.requests import find_request
+from myeachtra.dependencies import CamelCaseModel, ObjectId
+from query_parse.types.requests import AnyRequest
 
 
 class TimeStampModel(CamelCaseModel):
@@ -27,11 +22,10 @@ class TimeStampModel(CamelCaseModel):
 RequestT = TypeVar("RequestT", bound=AnyRequest)
 ResponseT = TypeVar("ResponseT")
 
-
-class Response(CamelCaseModel):
-    progress: Optional[int] = None
+class Response(CamelCaseModel, Generic[ResponseT]):
     type: str = ""
-    response: Any
+    response: ResponseT
+    progress: Optional[int] = None
 
     # For caching
     oid: Optional[SkipValidation[ObjectId]] = None
@@ -43,8 +37,11 @@ class Response(CamelCaseModel):
         return str(v)
 
     def model_dump_json(self, **kwargs) -> str:
+        kwargs["exclude_unset"] = True
+        kwargs["exclude_defaults"] = True
+        kwargs["exclude_none"] = True
         return super().model_dump_json(
-            exclude_unset=True, exclude_defaults=True, exclude_none=True, **kwargs
+            **kwargs,
         )
 
 

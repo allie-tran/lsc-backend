@@ -1,6 +1,7 @@
 import httpx
 from configs import SUBMIT_URL
 from fastapi import APIRouter, HTTPException
+from rich import print
 
 from submit.models import (
     AnswerItem,
@@ -41,7 +42,6 @@ async def submit_answer(request: SubmitAnswerRequest):
                     for ans in request.answer
                 ]
 
-        print(answer)
 
         dres_request = DRESSubmitRequest(
             answer_sets=[
@@ -53,7 +53,7 @@ async def submit_answer(request: SubmitAnswerRequest):
             ],
         )
 
-        print(dres_request.model_dump(by_alias=True, exclude_unset=True))
+        print("Request", dres_request.model_dump(by_alias=True, exclude_unset=True))
         url = f"{SUBMIT_URL}/{request.evaluation_id}?session={request.session_id}"
         dres_response = await client.post(
             url, json=dres_request.model_dump(by_alias=True, exclude_unset=True)
@@ -62,13 +62,15 @@ async def submit_answer(request: SubmitAnswerRequest):
         try:
             dres_response.raise_for_status()
         except httpx.HTTPStatusError as e:
+            print("Error", e)
             return SubmitAnswerResponse(
-                severity="error",
-                message=f"Error submitting answer: {e}",
+                severity="warning",
+                message=f"Probably duplicate submission",
                 verdict="ERROR",
             )
 
         response = DRESSubmitResponse.model_validate(dres_response.json())
+        print("Response", response.model_dump())
 
         match (response.status, response.submission):
             case (False, _):
@@ -95,7 +97,7 @@ async def submit_answer(request: SubmitAnswerRequest):
                     message=response.description,
                     verdict="CORRECT",
                 )
-            case (_, "INCORRECT"):
+            case (_, x) if x in ["INCORRECT", "WRONG"]:
                 return SubmitAnswerResponse(
                     severity="warning",
                     message=response.description,

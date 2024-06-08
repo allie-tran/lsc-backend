@@ -18,9 +18,9 @@ from open_clip.tokenizer import _tokenizer
 
 # Load CLIP Model
 device = "cpu"
-# if not FORCE_CPU and torch.cuda.is_available():  # type: ignore
-#     print("Using GPU")
-#     device = "cuda"
+if not FORCE_CPU and torch.cuda.is_available():  # type: ignore
+    print("Using GPU")
+    device = "cuda"
 
 # Load pre-embedded photo features
 photo_features = np.zeros((0, EMBEDDING_DIM))
@@ -37,13 +37,12 @@ for year in DATA_YEARS:
     new_photo_ids = pd.read_csv(
         f"{CLIP_EMBEDDINGS}/{year}/{MODEL_NAME}_{PRETRAINED_DATASET}_nonorm/photo_ids.csv"
     )["photo_id"].to_list()
-    new_photo_ids = photo_ids + new_photo_ids
+    photo_ids = photo_ids + new_photo_ids
 
 # Add .jpg extension to photo ids if not present
 photo_ids = [
     photo_id + ".jpg" if "." not in photo_id else photo_id for photo_id in photo_ids
 ]
-
 
 # Normalize photo features
 norm_photo_features = photo_features / LA.norm(photo_features, keepdims=True, axis=-1)

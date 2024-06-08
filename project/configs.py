@@ -19,7 +19,7 @@ DEV_MODE = False
 USE_GROQ = True
 IMAGE_SEARCH = True
 DEBUG = False
-CACHE=True
+CACHE = True
 
 # Search Configurations
 # ------------------- #
@@ -49,7 +49,7 @@ TIMEOUT = 60
 TIMELINE_SPAN = 9  # If they want more, submit more
 
 # QA Configurations
-BUILD_ON_STARTUP = False
+BUILD_ON_STARTUP = True
 
 # ==================== #
 # Model Configurations #

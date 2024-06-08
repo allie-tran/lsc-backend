@@ -9,11 +9,6 @@ dependencies:
   - setuptools
   - ipykernel
   - pandas
-  - pytorch==2.2.1
-  - torchvision=0.17.1
-  - torchaudio=2.2.1
-  - pytorch-cuda=11.8
-  - nvidia::cuda=11.8
   - pip:
     - transformers==4.40.0
     - timm==0.4.12
@@ -57,5 +52,8 @@ dependencies:
     - isort
     - black
     - rope
+    - pympler
+    - groq
+    - blurhash-python
 
 

@@ -1,14 +1,15 @@
 from datetime import datetime
 from typing import List, Literal, Optional
 
-from pandas.core.arrays import boolean
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from pydantic.alias_generators import to_camel
+
 
 class CamelCaseModel(BaseModel):
     class Config:
         alias_generator = to_camel
-        populate_by_name=True
+        populate_by_name = True
+
 
 class AnswerItem(CamelCaseModel):
     text: str = ""
@@ -48,10 +49,12 @@ class AnswerItem(CamelCaseModel):
     def check_text(cls, v: str) -> str:
         return v.strip()
 
+
 class AnswerSet(CamelCaseModel):
     task_id: str = ""
     task_name: str = ""
     answers: List[AnswerItem] = []
+
 
 class DRESSubmitRequest(CamelCaseModel):
     answer_sets: List[AnswerSet] = []
@@ -64,9 +67,10 @@ class DRESSubmitRequest(CamelCaseModel):
             return non_empty
         raise ValidationError("At least one answer set is required")
 
+
 class DRESSubmitResponse(CamelCaseModel):
     status: bool
-    submission: Literal["CORRECT", "INCORRECT", "INVALID", "ERROR", "INDETERMINATE"]
+    submission: str
     description: str
 
 
@@ -77,8 +81,8 @@ class SubmitAnswerRequest(CamelCaseModel):
     query_type: Literal["KIS", "ad-hoc", "QA"] = "KIS"
     answer: str | List[str]
 
+
 class SubmitAnswerResponse(CamelCaseModel):
     severity: Literal["info", "warning", "error", "success"]
     message: str
     verdict: Literal["CORRECT", "INCORRECT", "INVALID", "ERROR", "INDETERMINATE"]
-

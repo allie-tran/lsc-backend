@@ -3,7 +3,8 @@
 # ====================== #
 
 from datetime import datetime
-from typing import List, Optional, Union
+from enum import Enum
+from typing import List, Literal, Optional, Union
 
 from myeachtra.dependencies import CamelCaseModel, ObjectId
 from pydantic import PositiveInt, SkipValidation, field_serializer, field_validator, model_validator
@@ -41,8 +42,14 @@ class TemplateRequest(CamelCaseModel):
 
         return criteria
 
+class Task(str, Enum):
+    AD_HOC = "AD-HOC"
+    QA = "QA"
+    KIS = "KIS"
+    NONE = ""
 
 class GeneralQueryRequest(TemplateRequest):
+    task_type: Task
     session_id: Optional[str] = None
     main: str
 
@@ -141,6 +148,10 @@ class SortRequest(TemplateRequest):
     order: str = "asc"
     size: int = 10
 
+class AnswerThisRequest(TemplateRequest):
+    image: str
+    question: str
+    relevant_fields: Optional[List[str]] = None
 
 AnyRequest = Union[
     GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest, MapRequest

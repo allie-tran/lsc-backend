@@ -13,19 +13,8 @@ from retrieval.search import search_from_location
 
 map_router = APIRouter()
 
-
-@map_router.get(
-    "/see-on-map", description="See the location on a map", status_code=200
-)
-async def see_on_map():
-    """
-    See the location on a map
-    """
-    return {"message": "ok"}
-
-
 @map_router.post(
-    "/location",
+    "",
     description="Get location info",
     response_model=LocationInfoResult,
     status_code=200,

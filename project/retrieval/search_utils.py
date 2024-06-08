@@ -10,7 +10,7 @@ from elastic_transport import ObjectApiResponse
 from fastapi import HTTPException
 from query_parse.types.elasticsearch import ESBoolQuery, ESSearchRequest, MSearchQuery
 from query_parse.types.lifelog import Mode, TimeCondition
-from query_parse.types.requests import GeneralQueryRequest
+from query_parse.types.requests import GeneralQueryRequest, Task
 from requests import Response
 from results.models import (
     AsyncioTaskResult,
@@ -23,6 +23,7 @@ from results.models import (
 from results.utils import create_event_label, deriving_fields
 from rich import print
 
+from retrieval.async_utils import async_generator_timer, async_timer, timer
 from retrieval.types import ESResponse
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ json_headers = {"Content-Type": "application/json"}
 # ======================== #
 # MAIN REQUEST FUNCTIONS
 # ======================== #
+@async_timer("send_search_request")
 async def send_search_request(query: ESSearchRequest) -> ESResponse:
     """
     Send a new search request
@@ -111,6 +113,7 @@ def delete_scroll_id(scroll_id) -> None:
 # ======================================== #
 # PRE-PROCESSING FUNCTIONS
 # ======================================== #
+@timer("get_search_request")
 def get_search_request(
     main_query: ESBoolQuery,
     size: int,
@@ -129,7 +132,6 @@ def get_search_request(
     )
     return search_request
 
-
 async def get_raw_search_results(
     request: ESSearchRequest, tag: str = ""
 ) -> AsyncioTaskResult[List[str]]:
@@ -147,6 +149,7 @@ async def get_raw_search_results(
     )
 
 
+@async_timer("get_search_results")
 async def get_search_results(request: ESSearchRequest) -> EventResults | None:
     es_response = await send_search_request(request)
     results = process_es_results(es_response, request.test, request.mode)
@@ -160,12 +163,12 @@ async def get_search_results(request: ESSearchRequest) -> EventResults | None:
     results = create_event_label(results)
 
     # Just send the raw results first (unmerged, with full info)
-    print("[green]Sending raw results...[/green]")
     return results
 
 # ======================================== #
 # POST-PROCESSING FUNCTIONS
 # ======================================== #
+@timer("process_es_results")
 def process_es_results(
     response: ESResponse,
     test: bool = False,
@@ -269,6 +272,7 @@ def merge_msearch_with_main_results(
     return DoubletEventResults(events=doublets, scores=doublet_scores)
 
 
+@timer("organize_by_relevant_fields")
 def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
     # scene_ids = [event.scene for event in results.events]
     # results.relevant_fields = relevant_fields
@@ -284,6 +288,7 @@ def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
     return results
 
 
+@timer("process_search_results")
 def process_search_results(results: GenericEventResults) -> List[TripletEvent]:
     # This is the search results
     if not results:
@@ -306,21 +311,23 @@ def process_search_results(results: GenericEventResults) -> List[TripletEvent]:
     return triplet_results
 
 
+@async_generator_timer("get_search_function")
 def get_search_function(
-    request: GeneralQueryRequest, single_query: Callable, two_queries: Callable
+    request: GeneralQueryRequest, single_query: Callable, two_queries: Callable, task_type: Task
 ) -> AsyncGenerator:
     search_function = None
     before, main, after = request.before, request.main, request.after
     size = request.pipeline.size if request.pipeline else 200
     match (before, main, after):
         case ("", main, ""):
-            search_function = single_query(request.main, request.pipeline)
+            search_function = single_query(request.main, request.pipeline, task_type)
         case (before, main, ""):
             search_function = two_queries(
                 main,
                 before or "",
                 TimeCondition(condition="before", time_limit_str=request.before_time),
                 size=size,
+                task_type=task_type,
             )
         case ("", main, after):
             search_function = two_queries(
@@ -328,6 +335,7 @@ def get_search_function(
                 after or "",
                 TimeCondition(condition="after", time_limit_str=request.after_time),
                 size=size,
+                task_type=task_type,
             )
         case (before, main, after):
             raise NotImplementedError("Triplet is not implemented yet")

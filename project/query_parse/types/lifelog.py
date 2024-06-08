@@ -2,7 +2,7 @@
 # PROCESSING
 # ====================== #
 
-from enum import StrEnum
+from enum import Enum, StrEnum
 from typing import List, Literal, Optional, Self, Tuple
 
 from pydantic import field_validator, model_validator
@@ -11,7 +11,7 @@ from myeachtra.dependencies import CamelCaseModel
 " POS tagging, NER, and other NLP related types "
 Tags = Tuple[str, str]
 
-class Mode(StrEnum):
+class Mode(str, Enum):
     event = "event"
     image = "image"
 

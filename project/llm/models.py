@@ -16,8 +16,10 @@ from openai.types.chat import (
 from openai.types.chat.chat_completion_content_part_image_param import ImageURL
 from partialjson.json_parser import JSONParser
 from pyrate_limiter import BucketFullException, Duration, Limiter, Rate
+from rich import print
 
 from llm.prompts import INSTRUCTIONS
+from retrieval.async_utils import async_generator_timer, async_timer
 
 parser = JSONParser()
 parser.on_extra_token = lambda *_, **__: None
@@ -52,6 +54,7 @@ class LLM:
         request = await self.client.chat.completions.create(
             model=self.model_name, messages=messages, stream=True
         )
+
         async for chunk in request:
             if chunk.choices[0].delta.content is not None:
                 yield chunk.choices[0].delta.content
@@ -84,6 +87,7 @@ class LLM:
         res = ""
         if DEBUG:
             print("Generating completions...")
+
         async for completion in self.generate(messages):
             res += completion
             response = res
@@ -96,17 +100,30 @@ class LLM:
                     limiter.try_acquire("1")
                     all_objects = {}
                     for obj in self.__parse(response):
-                        all_objects.update(obj)
+                        try:
+                            all_objects.update(obj)
+                        except ValueError:
+                            pass
+                            print("Error parsing object")
+                            print("[ERROR]", obj)
                     yield all_objects
                 except BucketFullException:
                     continue
 
         all_objects = {}
         for obj in self.__parse(res):
-            if obj:
-                all_objects.update(obj)
-        yield all_objects
+            try:
+                if obj:
+                    all_objects.update(obj)
+            except ValueError:
+                print("Error parsing object")
+                print("[ERROR]", obj)
+                pass
 
+        yield all_objects
+        yield {}
+
+    @async_timer("generate_from_text")
     async def generate_from_text(self, text: str) -> Optional[Dict]:
         """
         Generate completions from text
@@ -120,6 +137,7 @@ class LLM:
             res = data
         return res
 
+    @async_generator_timer("stream_from_text")
     async def stream_from_text(self, text: str) -> AsyncGenerator[Dict, None]:
         """
         Generate completions from text
@@ -131,7 +149,8 @@ class LLM:
         async for data in self.__generate_and_parse(messages, stream=True):
             yield data
 
-    async def generate_from_mixed_media(self, data: Sequence[MixedContent]):
+    @async_generator_timer("generate_from_mixed_media")
+    async def generate_from_mixed_media(self, data: Sequence[MixedContent])-> AsyncGenerator[Dict, None]:
         messages = [self.template_message]
         content: List[ChatCompletionContentPartParam] = []
         for part in data:

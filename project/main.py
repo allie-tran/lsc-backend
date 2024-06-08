@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import List
 from uuid import uuid4
 
 import redis
@@ -12,10 +13,14 @@ from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from myeachtra import timeline_router, map_router
-from query_parse.types.requests import GeneralQueryRequest
-from retrieval.search import streaming_manager
+from myeachtra import map_router, timeline_router
+from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest
+from results.models import AnswerResultWithEvent
+from retrieval.search import answer_single_event, streaming_manager
 from submit.router import submit_router
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -30,10 +35,11 @@ app.add_middleware(
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+# app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(submit_router, prefix="/submit")
 app.include_router(timeline_router, prefix="/timeline")
 app.include_router(map_router, prefix="/location")
+
 
 @app.post(
     "/search",
@@ -89,6 +95,21 @@ async def encode():
     """
     batch_encode()
     return {"message": "ok"}
+
+@app.post(
+    "/answer-this",
+    description="Answer a question on a scene",
+    status_code=200,
+    response_model=List[AnswerResultWithEvent]
+)
+async def answer_this(request: AnswerThisRequest):
+    """
+    Answer a question on a scene
+    """
+    answers = []
+    async for answer in answer_single_event(request):
+        answers.append(answer)
+    return answers
 
 
 @app.get("/health", description="Health check endpoint", status_code=200)

@@ -6,9 +6,10 @@ from collections import defaultdict
 from typing import Dict
 
 from configs import QUERY_PARSER
-from llm import llm_model
+from llm import llm_model, gpt_llm_model
 from llm.prompts import PARSE_QUERY, REWRITE_QUESTION
 
+from timer import timer
 from .constants import AUXILIARY_VERBS, QUESTION_TYPES, QUESTION_WORDS, STOP_WORDS
 
 
@@ -43,7 +44,7 @@ async def question_to_retrieval(text: str, is_question: bool) -> str:
 
     prompt = REWRITE_QUESTION.format(question=text)
     search_text = await llm_model.generate_from_text(prompt)
-    if isinstance(search_text, dict):
+    if isinstance(search_text, dict) and "text" in search_text:
         search_text = search_text["text"]
     if search_text and isinstance(search_text, str):
         return search_text
@@ -71,11 +72,12 @@ async def parse_query(text: str) -> Dict[str, str]:
             return template
 
         prompt = PARSE_QUERY.format(query=text)
-        feat = await llm_model.generate_from_text(prompt)
+        feat = await gpt_llm_model.generate_from_text(prompt)
 
         if isinstance(feat, dict):
-            print(feat)
             for key, value in feat.items():
+                if key in ["before-when", "after-when"]:
+                    continue
                 template[key] = value
             # add location into visual
             if "location" in template and "visual" in template:

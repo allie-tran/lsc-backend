@@ -64,7 +64,7 @@ Response:
 ```json
 {{
     "visual": "biking in the park", // notice that the location is not specific
-    "time": "from 5am to 8am",
+    "time": "before 9am",
     "location": "in the park near my house"
 }}
 ```
@@ -79,17 +79,13 @@ Response:
 }}
 ```
 
-Query: "Waiting for a flight to Paris at the airport."
+Query: "Waiting for a flight to Paris at the airport for Christmas in 2019."
 Response:
 ```json
 {{
-    "visual": "waiting for a flight at the airport",
-    "time": "",
+    "visual": "waiting for a flight to Paris at the airport",
+    "time": "before 25th December 2019",
     "location": "airport",
-    "after-query": {{
-        "after-when": "3 hours",
-        "location": "Paris"
-    }}
 }}
 ```
 
@@ -101,10 +97,6 @@ Response:
     "location": "New York City",
     "date": "January, February, December"
     "time": "from 9am to 10am" // because it is at winter so sunrise is late
-    "after-query": {{
-        "after-when": "1 hour",
-        "visual": "walking to the bus",
-    }}
 }}
 ```
 
@@ -156,7 +148,7 @@ Query: {query}
 QA_PROMPT = """Answer the following question based on the text provided: {question}
 There are {num_events} retrieved using the lifelog retrieval system. Here are the non-visual information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).
 {events}
-Give one or more of your best, educated guesses to the question in the following format, with each answer being the key. The explanation should be brief. You don't have to give a full sentence, just list the reasons.
+Give one or more of your best, educated guesses to the question in the following format, with each answer being the key. The explanation should be brief. You don't have to give a full sentence, just list the reasons. If you can't answer the question, return an empty array for "answers".
 
 Reminder of the question: {question}
 
@@ -192,11 +184,8 @@ EventLink:
 ```
 """
 
-MIXED_PROMPTS = [
-    """Answer the following question based on the text and images provided: {question}
-There are {num_events} retrieved using the lifelog retrieval system. Here are some information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).""",
-    """
-Reminder of the question: {question}.
+MIXED_PROMPTS = """Answer the following question based on the text and images provided: {question}.
+Some extra information (non visual): {extra_info}. But focus on the visual information more.
 Give one or more of your best guess to the question in the following format, with each answer being the key. The explantion should be brief. You don't have to give a full sentence, just list the reasons.
 
 Use the following schema in a valid JSON format:
@@ -204,9 +193,6 @@ Answers: List[Answer]
 Answer:
 - answer: str
 - explanation: str
-- evidence: List[EventLink]
-EventLink:
-- event_id: int # the event id, starting from 1
 
 ```json
 {{
@@ -214,27 +200,30 @@ EventLink:
         {{
             "answer": "something",
             "explanation": "brief explanation for why the answer is `something`",
-            "evidence": [1, 2, 3]
         }},
         {{
             "answer": "one",
             "explanation": "brief explanation for why the answer is `one`",
-            "evidence": [4, 5, 6]
         }},
         {{
             "answer": "5 days",
             "explanation": "brief explanation for why the answer is `5 days`",
-            "evidence": [1, 7, 8]
         }}
     ]
 }}
 ```
-""",
-]
-
+"""
 
 VISUAL_PROMPT = """<ImageHere>Answer the following question: {question}
-Some extra information (non visual): {extra_info}. But focus on the visual information more. Be brief and concise. If you can't answer the question, just say so."""
+Some extra information (non visual): {extra_info}. But focus on the visual information more. Be brief and concise. If you can't answer the question, just say so.
+Reply with a JSON object in the following format:
+```json
+{{
+    "answer": "Your answer here",
+    "explanation": "Brief explanation of your answer"
+}}
+```
+"""
 
 
 # Filter relevant fields from the query
@@ -244,17 +233,18 @@ RELEVANT_FIELDS_PROMPT = """My database has this schema:
 # Valid location fields
 place: str # home, work, a restaurant's name, etc. This is the most specific location
 place_info: str # type of the semantic_location (restaurant, university, etc.)
-region: str # cities, states
-country: str
+city: str # city name, like Dublin, Tokyo, etc.
+country: str # country name, like Ireland, Japan, etc.
 
 # Valid time fields
-start_time: datetime
-end_time: datetime
-date: datetime
+date: str # date of the event
 month: str
 weekday: str
 year: int
 duration: str # duration of the event
+
+start_time: datetime # very specific, so unless you have a good reason, use other time fields
+end_time: datetime # same as above
 
 # Visual information
 ocr: List[str] # text extracted from images
@@ -265,20 +255,32 @@ And these are valid gap units:
 - gps_gap: km, meter
 
 Given this query: "{query}", what are the relevant fields that I should consider? Try to choose the most important ones. If two fields are similar, choose the one that is more specific.
-For merge_by criteria, consider how far apart two events should be split into two different occasions  For example, if two events are in the same city but 1 week apart, should they be grouped together or not? How about if they are 5 hours apart but in different cities?
+For merge_by criteria, consider how far apart two events should be split into two different occasions. Some examples:
 
-The relevant fields should include all the fields mentioned in the other fields.
+Query: "How many times did I go to the gym last month?"
+Merge by: day. Max gap: 3 hours.
+Reason: Most likely, a person goes to the gym at most once a day, so we can consider the same day as the same occasion. In case there are two events on the same day, the max gap of 3 hours is reasonable as a gym session usually lasts around 1-2 hours.
+
+Query: "How many days did I spend in Paris last year?"
+Merge by: day. Max gap: none
+Reason: If the lifelogger spent multiple days in Paris, each day should be considered a separate occasion. There is no need to consider the max gap as it's embedded in the merge_by criteria.
+
+Query: "In which city did I spend the most time in 2019?"
+Merge by: city, month. Max gap: 1 week
+Reason: Events that happen in the same city within a month are considered the same occasion. If two events are in the same city but 1 week apart, they are considered different occasions.
+
+Reminder of the query: {query}
 
 Answer in this format.
 ```json
 {{
-    "merge_by": ["hour", "place"],
     "max_gap": {{
                     "time_gap": {{"unit": "hour", "value": 5}},
                     "gps_gap": {{"unit": "km", "value": 1}}
                 }},
+    "merge_by": ["day", "country"], // or any other relevant fields
     "sort_by": [{{"field": "time", "order": "desc"}}],
-    "relevant_fields": ["place", "start_time", "end_time", "date", "ocr"],
+    "relevant_fields": ["place", "date", "ocr"],
 }}
 ```
 """

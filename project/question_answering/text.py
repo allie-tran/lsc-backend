@@ -121,20 +121,22 @@ async def answer_text_only(
         num_events=num_events,
         events=formated_textual_descriptions,
     )
+
     async for llm_response in llm_model.stream_from_text(prompt):
-        try:
-            answers = [
-                AnswerResult(
-                    text=answer["answer"],
-                    explanation=[answer["explanation"]],
-                    evidence=[int(ev) for ev in answer["evidence"]],
-                )
-                for answer in llm_response["answers"]
-            ]
-            yield answers
-        except Exception:
-            print("GROQ", llm_response)
-            pass
+        if llm_response:
+            try:
+                answers = [
+                    AnswerResult(
+                        text=answer["answer"],
+                        explanation=[answer["explanation"]],
+                        evidence=[int(ev) for ev in answer["evidence"]],
+                    )
+                    for answer in llm_response["answers"]
+                ]
+                yield answers
+            except Exception:
+                print("GROQ", llm_response)
+                pass
 
 
 def format_answer(answers: AnswerListResult) -> List[str]:

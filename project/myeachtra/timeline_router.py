@@ -22,15 +22,16 @@ async def timeline(request: TimelineRequest):
     if not request.session_id and not DEV_MODE:
         raise HTTPException(status_code=401, detail="Please log in")
 
-    cached_request = GeneralRequestModel(request=request)
-    if cached_request.finished:
-        return cached_request.responses[-1].response
+    # cached_request = GeneralRequestModel(request=request)
+    # if cached_request.finished:
+    #     return cached_request.responses[-1].response
 
+    print("Getting timeline")
     result = get_timeline(request.image)
     if not result:
         raise HTTPException(status_code=404, detail="No results found")
-    cached_request.add(Response(response=result, type="timeline"))
-    cached_request.mark_finished()
+    # cached_request.add(Response(response=result, type="timeline"))
+    # cached_request.mark_finished()
     return result
 
 

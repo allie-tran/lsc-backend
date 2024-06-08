@@ -27,6 +27,7 @@ def find_request(request: AnyRequest) -> Optional[dict]:
     Find the request in the database
     First, check the same request name
     """
+    create_new_collection()
     criteria = request.find_one()
     if criteria:
         # Get the lastest request

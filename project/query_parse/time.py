@@ -247,15 +247,6 @@ class TimeTagger:
                 new_tags.append((word, tag))
         return new_tags
 
-
-def test_time_tagger():
-    sentence = "What did I do on my last birthday in June 2019?"
-    tagger = TimeTagger()
-    tags = tagger.tag(sentence)
-    print(tags)
-
-# test_time_tagger()
-
 def get_day_month(
     date_string: str,
 ) -> DateTuple:
@@ -378,7 +369,6 @@ def search_for_time(
     year = []
 
     matches = {"WEEKDAY": [], "TIMEOFDAY": [], "DURATION": []}
-    print("Tags:", tags)
     for i, (word, tag) in enumerate(tags):
         if word in disabled_times:
             continue
@@ -438,7 +428,6 @@ def search_for_time(
         elif tag in ["DATE", "HOLIDAY"]:
             if tag == "DATE":
                 date_tuple = get_day_month(word)
-                print("Date tuple:", date_tuple)
             elif tag == "HOLIDAY":
                 date_tuple = holiday_text_to_datetime(word)
             else:
@@ -450,8 +439,6 @@ def search_for_time(
             dateprep = ""
             if i >= 1 and tags[i - 1][1] in ["TIMEPREP", "DATEPREP"]:
                 dateprep = tags[i - 1][0]
-
-            print("Found date", word, tags[i - 1], dateprep)
 
             # Timestamps
             if dateprep in ["before", "after"]:
@@ -573,9 +560,7 @@ def search_for_time(
 
     # Add years to dates
     new_dates = []
-    print("Dates:", dates)
     year = set(year)
-    print("Years:", year)
     for date in dates:
         if date.year is None:
             for y in year:

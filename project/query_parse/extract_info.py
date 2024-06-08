@@ -5,8 +5,8 @@ from database.main import es_collection
 from myeachtra.dependencies import ObjectId
 from openai import BaseModel
 from pydantic import SkipValidation, model_validator
+from retrieval.cuvs import search
 from retrieval.search_utils import send_search_request
-from rich import print as rprint
 
 from query_parse.es_utils import (
     get_location_filters,
@@ -24,6 +24,7 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
+from query_parse.types.elasticsearch import ESEmbedding, ESFilter
 from query_parse.types.lifelog import Mode
 from query_parse.visual import search_for_visual
 
@@ -75,7 +76,6 @@ async def extract_info(text: str, is_question: bool) -> Query:
     extracted_parts = None
     if query_parts:
         extracted_parts = query_parts
-        rprint("Extracted Parts:", extracted_parts)
 
     # =================================================================== #
     # LOCATIONS
@@ -111,11 +111,7 @@ async def extract_info(text: str, is_question: bool) -> Query:
     # =================================================================== #
     # VISUAL INFO
     # =================================================================== #
-    visualinfo = search_for_visual(query_parts["visual"])
-    if visualinfo:
-        print("Visual Text:", visualinfo.text)
-    else:
-        print("No Visual Text.")
+    visualinfo = search_for_visual(text)
 
     # =================================================================== #
     # END
@@ -128,7 +124,6 @@ async def extract_info(text: str, is_question: bool) -> Query:
         location=locationinfo,
         visual=visualinfo,
     )
-    rprint(query)
     return query
 
 
@@ -175,7 +170,9 @@ async def create_es_query(
 
         min_score = 0.0
         max_score = 1.0
-        es = ESBoolQuery()
+
+        # Important
+        es = ESBoolQuery() if not query.es else query.es
 
         # Should queries:
         if place:
@@ -196,6 +193,17 @@ async def create_es_query(
 
         if embedding:
             es.should.append(embedding)
+            # New
+            assert isinstance(embedding, ESEmbedding), "Embedding is not an ESEmbedding"
+            _, relevant_images = search(embedding.embedding, top_k=1000)
+
+            if mode == Mode.event:
+                field = "images"
+            else:
+                field = "image_path"
+            # Hack for the tour
+            if not "marklin" in query.original_text.lower():
+                es.should.append(ESFilter(field=field, value=relevant_images.tolist(), boost=0.1))
 
         # Filter queries (no scores)
         es.filter.append(time)
@@ -244,6 +252,7 @@ async def modify_es_query(
     visual: Optional[VisualInfo] = None,
     extra_filters: Optional[Sequence[ESCombineFilters]] = None,
     mode: Mode = Mode.event,
+    overwrite: bool = False,
 ) -> Optional[ESBoolQuery]:
     """
     Modify an existing query with new location, time and visual information
@@ -266,7 +275,7 @@ async def modify_es_query(
         query.visual_queries = text_to_visual(query, overwrite=True)
         changed = True
 
-    if changed:
+    if changed or overwrite:
         query.es = await create_es_query(
             query, ignore_limit_score=True, overwrite=True, mode=mode
         )

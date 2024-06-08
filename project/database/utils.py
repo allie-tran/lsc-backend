@@ -2,30 +2,38 @@ import os
 from typing import List, Literal, Optional, Tuple
 
 from configs import ESSENTIAL_FIELDS, IMAGE_ESSENTIAL_FIELDS
-from joblib import Memory
-from llm import llm_model
+from llm import gpt_llm_model
 from llm.prompts import RELEVANT_FIELDS_PROMPT
+from myeachtra.dependencies import memory
 from query_parse.types.elasticsearch import GPS
 from query_parse.types.requests import MapRequest
 from query_parse.utils import extend_no_duplicates
 from results.models import AsyncioTaskResult, Event, Icon, Image, Marker
 from results.utils import RelevantFields
+from retrieval.async_utils import async_timer, timer
 from rich import print as rprint
 
 import requests
-from database.main import location_collection, scene_collection, image_collection
+from database.main import image_collection, location_collection, scene_collection
 
-memory = Memory("cachedir")
 
-def to_event(image: dict)-> Event:
+def to_event(image: dict) -> Event:
     image["start_time"] = image.pop("time")
     image["end_time"] = image["start_time"]
-    image["images"] = [Image(src=image.pop("image"), aspect_ratio=image.pop("aspect_ratio"), hash_code=image.pop("hash_code"))]
+    image["images"] = [
+        Image(
+            src=image.pop("image"),
+            aspect_ratio=image.pop("aspect_ratio"),
+            hash_code=image.pop("hash_code"),
+        )
+    ]
     image["gps"] = [GPS(**image.pop("gps"))]
     if "icon" in image:
         image["icon"] = Icon(**image.pop("icon"))
     return Event(**image)
 
+
+@timer("convert_to_events")
 def convert_to_events(
     key_list: List[str],
     relevant_fields: Optional[List[str]] = None,
@@ -42,9 +50,7 @@ def convert_to_events(
     if relevant_fields:
         projection = extend_no_duplicates(relevant_fields, fields)
         try:
-            documents = collection.find(
-                {key: {"$in": key_list}}, projection=projection
-            )
+            documents = collection.find({key: {"$in": key_list}}, projection=projection)
         except Exception as e:
             rprint("[red]Error in convert_to_events[/red]", e)
 
@@ -82,14 +88,17 @@ def calculate_markers(event: Event) -> Tuple[List[Marker], List[GPS]]:
     return [], event.gps
 
 
+@async_timer("get_relevant_fields")
 async def get_relevant_fields(query: str, tag: str) -> AsyncioTaskResult:
     """
     Get the relevant fields from the query
     """
     prompt = RELEVANT_FIELDS_PROMPT.format(query=query)
-    data = await llm_model.generate_from_text(prompt)
+    data = await gpt_llm_model.generate_from_text(prompt)
     if not isinstance(data, dict):
         data = {}
+
+    rprint("Relevant Fields", data)
 
     relevant_fields = RelevantFields.model_validate(data)
     return AsyncioTaskResult(results=relevant_fields, tag=tag, task_type="llm")
@@ -332,3 +341,8 @@ def get_icon(marker: Marker) -> Optional[Icon]:
     if fsq_info and fsq_info["fsq_info"]:
         return get_icon_from_fsq(fsq_info["fsq_info"])
     return get_icon_from_location_name(marker.location, marker.location_info)
+
+
+def get_all_images_with_location(location: str) -> List[str]:
+    images = image_collection.find({"location": location})
+    return [image["image"] for image in images]

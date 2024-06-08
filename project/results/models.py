@@ -150,6 +150,23 @@ class Event(CamelCaseModel):
     image_scores: List[float] = Field(default_factory=list, exclude=True)
     icon: Optional[Icon] = Icon(type="material", name="place")
 
+    # # Extra
+    # time: Optional[datetime] = None
+    # minute: Optional[str] = None
+    # hour: Optional[str] = None
+    # day: Optional[str] = None
+    # date: Optional[str] = None
+    # week: Optional[str | int] = None
+    # weekday: Optional[str] = None
+    # month: Optional[str] = None
+    # year: Optional[str | int] = None
+    # city: Optional[str] = None
+    # days: Optional[int] = None
+    # hours: Optional[int] = None
+    # weeks: Optional[int] = None
+    # place: Optional[str] = None
+    # place_info: Optional[str] = None
+
     def custom_iter(self):
         return iter([self])
 
@@ -352,11 +369,17 @@ TripletEventResults = GenericEventResults[TripletEvent]
 class EvidenceLink(CamelCaseModel):
     event_id: int
 
+
+class AnswerResultWithEvent(CamelCaseModel):
+    text: str
+    evidence: List[Event] = []
+    explanation: List[str] = []
+
 class AnswerResult(CamelCaseModel, revalidate_instances="always"):
     text: str
     evidence: List[int] = []
     explanation: List[str] = []
-
+    time: datetime = Field(default_factory=datetime.now, exclude=True)
 
     @field_validator("evidence")
     def sort_evidence(cls, v: List[int] | List[EvidenceLink]) -> List[int]:
@@ -395,6 +418,16 @@ class AnswerListResult(CamelCaseModel, revalidate_instances="always"):
         current_answer = AnswerResult.model_validate(current_answer)
         self.answers[answer.text] = current_answer
 
+    def export(self) -> List[AnswerResult]:
+        sorted_answers = sorted(
+            self.answers.values(), key=lambda x: x.time
+        )
+        return sorted_answers
+
+
+class TimelineScene(CamelCaseModel):
+    scene: str
+    images: List[Image]
 
 class TimelineGroup(CamelCaseModel):
     """
@@ -402,7 +435,7 @@ class TimelineGroup(CamelCaseModel):
     """
 
     group: str
-    scenes: List[List[Image]]
+    scenes: List[TimelineScene]
     time_info: List[str]
     location: str
     location_info: str

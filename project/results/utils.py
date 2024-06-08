@@ -1,10 +1,13 @@
+from datetime import datetime
 from functools import cmp_to_key
 from typing import Dict, Iterable, List
+from database.main import image_collection, scene_collection
 
 from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
-from pydantic import InstanceOf, validate_call
+from pydantic import BaseModel, InstanceOf, validate_call
 from query_parse.types.lifelog import MaxGap, RelevantFields
 from query_parse.visual import score_images
+from retrieval.async_utils import timer
 from retrieval.common_nn import encode_query
 from rich import print
 
@@ -25,6 +28,52 @@ def deriving_fields(
         derived_events.append(derived_event)
     return derived_events
 
+
+class FakeEvent(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    location: str
+    region: List[str]
+    country: str
+    location_info: str
+
+
+def index_derived_fields():
+    """
+    Index the derived fields
+    """
+    for image in image_collection.find():
+        for field in DERIVABLE_FIELDS:
+            fake_event = FakeEvent(
+                start_time=image["time"],
+                end_time=image["time"],
+                location=image["location"],
+                region=image["region"],
+                country=image["country"],
+                location_info=image["location_info"],
+            )
+            if field in image:
+                continue
+            image[field] = DERIVABLE_FIELDS[field](fake_event)
+        image_collection.update_one({"_id": image["_id"]}, {"$set": image})
+    print("[green]Indexed derived fields for images[/green]")
+    for scene in scene_collection.find():
+        for field in DERIVABLE_FIELDS:
+            fake_event = FakeEvent(
+                start_time=scene["start_time"],
+                end_time=scene["end_time"],
+                location=scene["location"],
+                region=scene["region"],
+                country=scene["country"],
+                location_info=scene["location_info"],
+            )
+            if field in scene:
+                continue
+            scene[field] = DERIVABLE_FIELDS[field](fake_event)
+        scene_collection.update_one({"_id": scene["_id"]}, {"$set": scene})
+    print("[green]Indexed derived fields for scenes[/green]")
+
+# index_derived_fields()
 
 def custom_compare_function(
     event1: Event, event2: Event, fields: Iterable[str], max_gap: MaxGap
@@ -255,7 +304,7 @@ def merge_scenes_and_images(scenes: EventResults, images: EventResults) -> Event
         max_score=max(scenes.max_score, images.max_score),
     )
 
-
+@timer("limit_images_per_event")
 def limit_images_per_event(
     results: GenericEventResults, text_query: str, max_images: int
 ) -> GenericEventResults:
@@ -264,6 +313,7 @@ def limit_images_per_event(
     This is achieved by selecting the images with the highest score
     and highest relevance to the query
     """
+    encoded_query = encode_query(text_query)
     for generic_event in results.events:
         for event in generic_event.custom_iter():  # might be a doublet or triplet
 
@@ -273,7 +323,6 @@ def limit_images_per_event(
             if len(images) <= max_images:
                 continue
 
-            encoded_query = encode_query(text_query)
             visual_scores = score_images(images, encoded_query)
 
             # Sort the images by the visual score and the original score
@@ -324,6 +373,51 @@ def create_event_label(
     else:
         all_fields = set(relevant_fields)
         done = set()
+
+        # We have to go from specific to general
+        # If the specific field is available then ignore the general fields
+        filtered_fields = {"place": [], "time": [], "location": []}
+
+        # 1st line: specific place:
+        for field in ["location", "location_info"]:
+            if field in all_fields:
+                filtered_fields["place"].append(field)
+        if not filtered_fields:
+            for field in ["place", "place_info"]:
+                if field in all_fields:
+                    filtered_fields["place"].append(field)
+
+        # 2nd line: time fields
+        if "time" in all_fields:
+            filtered_fields["time"].append("time")
+            all_fields.discard("start_time")
+            all_fields.discard("end_time")
+            all_fields.discard("hour")
+            all_fields.discard("minute")
+
+        for field in ["start_time", "end_time"]:
+            if field in all_fields:
+                filtered_fields["time"].append(field)
+                all_fields.discard("hour")
+                all_fields.discard("minute")
+
+        for field in ["weekday", "date", "month", "year"]:
+            if field in all_fields:
+                filtered_fields["time"].append(field)
+
+        # 3rd line: location fields
+        # Location fields
+        if "city" in all_fields and "country" in all_fields:
+            all_fields.discard("region")
+
+        if "region" in all_fields:
+            all_fields.discard("city")
+            all_fields.discard("country")
+
+        for field in ["city", "region", "country"]:
+            if field in all_fields:
+                filtered_fields["location"].append(field)
+
         for generic_event in results.events:
             for event in generic_event.custom_iter():
                 label = {}
@@ -347,13 +441,11 @@ def create_event_label(
                     done.update(["hour", "minute", "time"])
 
                 if "city" in all_fields and "country" in all_fields:
-                    label["city"] = f"{event.city.title()}, {event.country.title()}"
+                    city = ", ".join(event.city).title()
+                    label["city"] = f"{city}, {event.country.title()}"
                     done.update(["city", "country"])
-                elif "city" in all_fields and "region" in all_fields:
+                elif "region" in all_fields:
                     label["city"] = ", ".join(event.region).title()
-                    done.update(["city", "region"])
-                elif "region" in all_fields and "country" in all_fields:
-                    label["region"] = ", ".join(event.region).title()
                     done.update(["region", "country"])
 
                 # The rest of the fields
@@ -368,16 +460,39 @@ def create_event_label(
                         if value:
                             label[field] = value.title()
 
-                # Make time and date on the same line
-                if "time" in label and "date" in label:
-                    label["time"] += f", {label['date']}"
-                    del label["date"]
+                # # Create the label
+                # label = [
+                #     f"<strong>{format_key(k)}</strong>: {v}" for k, v in label.items()
+                # ]
 
                 # Create the label
-                label = [
-                    f"<strong>{format_key(k)}</strong>: {v}" for k, v in label.items()
-                ]
-                event.name = "\n".join(label)
+                lines = []
+                line = []
+                for key in filtered_fields["place"]:
+                    if key in label and label[key]:
+                        if key == "location" or key == "place":
+                            line.append(f"<strong>{label[key]}</strong>")
+                        else:
+                            line.append(label[key])
+                if line:
+                    lines.append(", ".join(line))
+
+                line = []
+                for key in filtered_fields["time"]:
+                    if key in label and label[key]:
+                        line.append(label[key])
+                if line:
+                    lines.append("@" + ", ".join(line))
+
+                line = []
+                for key in filtered_fields["location"]:
+                    if key in label and label[key]:
+                        line.append(label[key])
+                if line:
+                    lines.append(", ".join(line))
+
+                event.name = "\n".join(lines)
+                break
     return results
 
 

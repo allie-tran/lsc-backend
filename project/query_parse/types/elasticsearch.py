@@ -3,7 +3,7 @@ All classes and functions related to Elasticsearch
 """
 
 import json
-from typing import Any, Callable, Dict, List, Literal, Optional, Self, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Self, Sequence, Tuple, Union
 
 from configs import DEFAULT_SIZE, IMAGE_INDEX, SCENE_INDEX
 from nltk import defaultdict
@@ -57,7 +57,7 @@ class ESSearchRequest(ESQuery):
             self.main_field = "image_path"
             self.includes = [self.main_field]
             self.index = IMAGE_INDEX
-            self.size *= 5
+            self.size *= 3
             if self.sort_field in ["start_timestamp", "end_timestamp"]:
                 self.sort_field = "timestamp"
             if self.sort_field in ["start_time", "end_time"]:
@@ -361,6 +361,8 @@ class ESFilter(ESQuery):
     boost: float = 1.0
 
     def to_query(self) -> dict:
+        if isinstance(self.value, list):
+            return {"terms": {self.field: self.value, "boost": self.boost}}
         return {"term": {self.field: {"value": self.value, "boost": self.boost}}}
 
     def __bool__(self):
@@ -546,6 +548,8 @@ class ESBoolQuery(ESQuery):
 
     # Results
     aggregations: Optional[dict] = None
+    # For storing the image scores from ivf
+    image_scores: Optional[dict] = None
 
     def to_query(self) -> dict:
         query = {}
