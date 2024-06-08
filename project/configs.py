@@ -18,7 +18,7 @@ memory = Memory(location="cache", verbose=0)
 DEV_MODE = False
 USE_GROQ = True
 IMAGE_SEARCH = True
-DEBUG = False
+DEBUG = True
 CACHE = True
 
 # Search Configurations

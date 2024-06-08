@@ -61,6 +61,7 @@ Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the
 Some examples:
 Query: "I was biking in the park near my house in the early morning."
 Response:
+
 ```json
 {{
     "visual": "biking in the park", // notice that the location is not specific
@@ -274,13 +275,13 @@ Reminder of the query: {query}
 Answer in this format.
 ```json
 {{
+    "relevant_fields": ["place", "date", "ocr"],
     "max_gap": {{
                     "time_gap": {{"unit": "hour", "value": 5}},
                     "gps_gap": {{"unit": "km", "value": 1}}
                 }},
     "merge_by": ["day", "country"], // or any other relevant fields
     "sort_by": [{{"field": "time", "order": "desc"}}],
-    "relevant_fields": ["place", "date", "ocr"],
 }}
 ```
 """

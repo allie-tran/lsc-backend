@@ -121,7 +121,6 @@ class LLM:
                 pass
 
         yield all_objects
-        yield {}
 
     @async_timer("generate_from_text")
     async def generate_from_text(self, text: str) -> Optional[Dict]:
