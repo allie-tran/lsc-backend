@@ -25,23 +25,13 @@ async def submit_answer(request: SubmitAnswerRequest):
 
     async with httpx.AsyncClient() as client:
         if request.query_type == "QA":
-            assert isinstance(request.answer, str), "Answer must be a string"
             answer = [AnswerItem(text=request.answer)]
         else:
-            if isinstance(request.answer, str):
-                answer = [
-                    AnswerItem(
-                        media_item_name=request.answer,
-                    )
-                ]
-            else:
-                answer = [
-                    AnswerItem(
-                        media_item_name=ans,
-                    )
-                    for ans in request.answer
-                ]
-
+            answer = [
+                AnswerItem(
+                    media_item_name=request.answer,
+                )
+            ]
 
         dres_request = DRESSubmitRequest(
             answer_sets=[

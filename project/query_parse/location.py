@@ -21,8 +21,7 @@ from .utils import is_enabled, search_keywords
 
 def postprocess_countries(countries: List[str]) -> List[str]:
     """
-    Postprocess the countries
-    so that they can be used for filtering and visualisation
+    Postprocess the countries so that they can be used for filtering and visualisation
     """
     maps = {
         "korea": "south korea",  # I assume you want South Korea

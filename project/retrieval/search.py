@@ -11,11 +11,14 @@ from database.models import GeneralRequestModel, Response
 from database.requests import get_es, get_request
 from database.utils import get_relevant_fields
 from fastapi import HTTPException
-from pydantic import InstanceOf
+from llm import llm_model
+from llm.prompts import ANSWER_MODEL_CHOOSING_PROMPT
+from pydantic import BaseModel, InstanceOf, RootModel
 from pympler import asizeof
 from query_parse.es_utils import get_conditional_time_filters, get_location_filters
 from query_parse.extract_info import (
     Query,
+    create_es_combo_query,
     create_es_query,
     create_query,
     modify_es_query,
@@ -40,7 +43,7 @@ from query_parse.types.requests import (
 )
 from query_parse.visual import encode_image, encode_text, score_images
 from question_answering.text import answer_text_only, get_specific_description
-from question_answering.video import answer_visual_with_text
+from question_answering.video import answer_visual_only, answer_visual_with_text
 from results.models import (
     AnswerListResult,
     AnswerResult,
@@ -171,6 +174,67 @@ async def simple_search(
     return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
 
+class AnswerModel(BaseModel):
+    enabled: bool = True
+    top_k: int = 10
+
+
+class AnswerModelOption(RootModel):
+    root: Dict[str, AnswerModel]
+
+    def get(self, key: str, default: Any = None):
+        return self.root.get(key, default)
+
+
+from contextlib import asynccontextmanager
+
+
+class RetryException(Exception):
+    pass
+
+
+@asynccontextmanager
+async def try_until_success(times: int = 3):
+    tries = 0
+    try:
+        while tries < times:
+            try:
+                yield
+                break
+            except Exception as e:
+                tries += 1
+                if tries == times:
+                    raise RetryException(f"Failed after {times} tries") from e
+                await asyncio.sleep(0)
+    except RetryException as e:
+        pass
+    finally:
+        pass
+
+
+async def get_answer_models(question: str) -> AnswerModelOption:
+    prompt = ANSWER_MODEL_CHOOSING_PROMPT.format(question=question)
+    answer_models = AnswerModelOption({"text": AnswerModel(), "visual": AnswerModel()})
+    tries = 0
+    while tries < 3:
+        res = await llm_model.generate_from_text(prompt)
+        try:
+            if not res:
+                raise Exception("Empty response")
+            answer_models = AnswerModelOption.model_validate(res["answer_models"])
+            break
+        except Exception:
+            print(res)
+            tries += 1
+            if tries == 3:
+                print("[red]Failed to get the answer models[/red]")
+                break
+            await asyncio.sleep(0)
+        finally:
+            pass
+    return answer_models
+
+
 @async_generator_timer("single_query")
 async def single_query(
     text: str, pipeline: Optional[SearchPipeline] = None, task_type: Task = Task.NONE
@@ -205,7 +269,7 @@ async def single_query(
                 is_async=True,
             ),
             FunctionWithArgs(  # no skipping
-                function=create_es_query,
+                function=create_es_combo_query,
                 use_previous_output=True,
                 kwargs={"ignore_limit_score": False},
                 output_name="es_query",
@@ -225,9 +289,7 @@ async def single_query(
     # ============================= #
     # a. Check if we need to extract the relevant fields
     field_extractor = pipeline.field_extractor
-    skip_extract = (
-        field_extractor.skipped or field_extractor.executed or task_type == Task.AD_HOC
-    )
+    skip_extract = task_type == Task.AD_HOC
     async_tasks = get_search_tasks(
         output["es_query"],
         pipeline.size,
@@ -290,15 +352,16 @@ async def single_query(
     # ----------------------------- #
     # c. Limit the images
     pipeline.image_limiter.default_output = {"results": results}
-    results = pipeline.image_limiter.execute(
-        [
-            FunctionWithArgs(
-                function=limit_images_per_event,
-                args=[results, text, pipeline.image_limiter.output["max_images"]],
-                output_name="results",
-            )
-        ]
-    )["results"]
+    if task_type != Task.AD_HOC:
+        results = pipeline.image_limiter.execute(
+            [
+                FunctionWithArgs(
+                    function=limit_images_per_event,
+                    args=[results, text, pipeline.image_limiter.output["max_images"]],
+                    output_name="results",
+                )
+            ]
+        )["results"]
 
     # ----------------------------- #
     # d. Check if anything changed
@@ -330,13 +393,11 @@ async def single_query(
     # ============================= #
     if not output["is_question"]:
         return
-    k = min(pipeline.top_k, len(results.events))
 
-    print(f"[yellow]Answering the question for {k} events...[/yellow]")
     all_answers = AnswerListResult()
 
     async for answers in get_answer_tasks(
-        text, results, relevant_fields.relevant_fields, k
+        text, results, relevant_fields.relevant_fields
     ):
         for answer in answers:
             all_answers.add_answer(answer)
@@ -372,8 +433,15 @@ async def get_answer_tasks(
     text: str,
     results: EventResults,
     relevant_fields: List[str],
-    k: int = 10,
 ) -> AsyncGenerator[List[AnswerResult], None]:
+    options = await get_answer_models(text)
+
+    text_model = options.get("text", AnswerModel())
+    visual_model = options.get("visual", AnswerModel())
+
+    k = max(text_model.top_k, visual_model.top_k)
+    k = min(k, len(results.events))
+
     textual_descriptions = []
     for event in results.events[:k]:
         textual_descriptions.append(get_specific_description(event, relevant_fields))
@@ -381,16 +449,13 @@ async def get_answer_tasks(
     if not textual_descriptions:
         return
 
+    print(f"[yellow]Answering the question with configs[/yellow]", options)
     print("[green]Textual description sample[/green]", textual_descriptions[0])
-    k = min(k, len(results.events))
 
     async_tasks: Sequence = [
-        answer_text_only(text, textual_descriptions, k),
-        # answer_visual_only(text, textual_descriptions, results, k),
+        answer_text_only(text, textual_descriptions, text_model.top_k),
+        answer_visual_only(text, textual_descriptions, results, visual_model.top_k),
     ]
-
-    # async for task in merge_generators(*async_tasks):
-    #     yield task
 
     for task in async_tasks:
         async for answers in task:
@@ -436,9 +501,9 @@ async def two_queries(
         search_text = main_text
 
     query = await create_query(search_text, is_question=is_question)
-    es_query = await create_es_query(query, ignore_limit_score=False)
+    es_query = await create_es_combo_query(query, ignore_limit_score=False)
     conditional = await create_query(conditional_text, is_question=is_question)
-    conditional_es_query = await create_es_query(conditional, ignore_limit_score=False)
+    conditional_es_query = await create_es_combo_query(conditional, ignore_limit_score=False)
 
     tasks = get_search_tasks(es_query, size, main_text, "main")
     tasks += get_search_tasks(
@@ -573,7 +638,7 @@ async def two_queries(
     all_answers: AnswerListResult = AnswerListResult()
 
     async for new_answers in get_answer_tasks(
-        main_text, main_results, main_results.relevant_fields, k
+        main_text, main_results, main_results.relevant_fields
     ):
         for answer in new_answers:
             all_answers.add_answer(answer)

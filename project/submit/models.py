@@ -78,8 +78,8 @@ class SubmitAnswerRequest(CamelCaseModel):
     timestamp: datetime = Field(default_factory=datetime.now)
     evaluation_id: str
     session_id: str = Field(..., serialization_alias="session")
-    query_type: Literal["KIS", "ad-hoc", "QA"] = "KIS"
-    answer: str | List[str]
+    query_type: str 
+    answer: str
 
 
 class SubmitAnswerResponse(CamelCaseModel):

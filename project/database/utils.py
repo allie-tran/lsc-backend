@@ -1,6 +1,8 @@
 import os
 from typing import List, Literal, Optional, Tuple
 
+from pydantic import ValidationError
+
 from configs import ESSENTIAL_FIELDS, IMAGE_ESSENTIAL_FIELDS
 from llm import gpt_llm_model
 from llm.prompts import RELEVANT_FIELDS_PROMPT
@@ -94,11 +96,16 @@ async def get_relevant_fields(query: str, tag: str) -> AsyncioTaskResult:
     Get the relevant fields from the query
     """
     prompt = RELEVANT_FIELDS_PROMPT.format(query=query)
-    data = await gpt_llm_model.generate_from_text(prompt)
-    if not isinstance(data, dict):
-        data = {}
+    data = {}
+    while True:
+        try:
+            data = await gpt_llm_model.generate_from_text(prompt)
+            if data:
+                rprint("Relevant Fields", data)
+                break
+        except ValidationError as e:
+            rprint(e)
 
-    rprint("Relevant Fields", data)
 
     relevant_fields = RelevantFields.model_validate(data)
     return AsyncioTaskResult(results=relevant_fields, tag=tag, task_type="llm")
@@ -148,8 +155,12 @@ def calculate_distance(point1: GPS, point2: GPS) -> float:
 
 
 def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
-    if request.location and request.center:
-        return request.location, request.center
+    location = request.location
+    if location == "---":
+        location = None
+
+    if location and request.center:
+        return location, request.center
     scene = scene_collection.find_one(
         {
             "$or": [
@@ -346,3 +357,10 @@ def get_icon(marker: Marker) -> Optional[Icon]:
 def get_all_images_with_location(location: str) -> List[str]:
     images = image_collection.find({"location": location})
     return [image["image"] for image in images]
+
+
+def get_all_images_from_same_scene(image: str) -> List[Image]:
+    scene = scene_collection.find_one({"images": {"$elemMatch": {"src": image}}})
+    if scene:
+        return [Image(**img) for img in scene["images"]]
+    return []

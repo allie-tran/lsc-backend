@@ -1,16 +1,18 @@
 """
 All utilities related to question answering
 """
+
 import re
 from collections import defaultdict
-from typing import Dict
 
 from configs import QUERY_PARSER
-from llm import llm_model, gpt_llm_model
+from llm import gpt_llm_model, llm_model
 from llm.prompts import PARSE_QUERY, REWRITE_QUESTION
+from rich import print as rprint
 
-from timer import timer
-from .constants import AUXILIARY_VERBS, QUESTION_TYPES, QUESTION_WORDS, STOP_WORDS
+from query_parse.types.lifelog import ParsedQuery, SingleQuery
+
+from .constants import AUXILIARY_VERBS, QUESTION_WORDS, STOP_WORDS
 
 
 def detect_question(query: str) -> bool:
@@ -34,6 +36,7 @@ def detect_question(query: str) -> bool:
                 if words[0] in AUXILIARY_VERBS and words[1] in QUESTION_WORDS:
                     return True
     return False
+
 
 async def question_to_retrieval(text: str, is_question: bool) -> str:
     """
@@ -61,41 +64,43 @@ def detect_simple_query(query: str) -> bool:
     return len(words) < 3
 
 
-async def parse_query(text: str) -> Dict[str, str]:
+async def parse_query(text: str, is_question: bool) -> ParsedQuery:
     """
     Get the relevant fields from the query
     """
-    template = defaultdict(lambda: text)
-    if QUERY_PARSER:
+    template = {
+        "main": defaultdict(lambda: text),
+        "after": defaultdict(str),
+        "before": defaultdict(str),
+        "must_not": defaultdict(str),
+    }
+
+    if QUERY_PARSER or is_question:
         # in some cases, it's inefficient to parse the query
         if detect_simple_query(text):
-            return template
+            main = SingleQuery(visual=text, location=text, time=text, date=text)
+            return ParsedQuery(main=main)
 
         prompt = PARSE_QUERY.format(query=text)
         feat = await gpt_llm_model.generate_from_text(prompt)
 
         if isinstance(feat, dict):
             for key, value in feat.items():
-                if key in ["before-when", "after-when"]:
-                    continue
-                template[key] = value
-            # add location into visual
-            if "location" in template and "visual" in template:
-                if template["location"] != template["visual"]:
-                    template["visual"] = template["visual"] + " " + template["location"]
+                if key in template:
+                    query = template[key]
+
+                    for k, v in value.items():
+                        query[k] = v
+
+                    # add location into main
+                    if "location" in query and "visual" in query:
+                        if query["location"] != query["visual"]:
+                            query["visual"] = query["visual"] + " " + query["location"]
+
         else:
             print("Failed to parse query")
             print(feat)
 
-    return template
-
-
-def question_classification(query: str) -> str:
-    """
-    Classify the question type
-    """
-    # TODO!
-    for question_type in QUESTION_TYPES:
-        if question_type in query:
-            return question_type
-    return "other"
+    parsed_query = ParsedQuery.model_validate(template)
+    rprint(parsed_query)
+    return parsed_query

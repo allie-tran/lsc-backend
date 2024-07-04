@@ -4,7 +4,7 @@ from typing import Counter, Generator, Iterable, List, Tuple, TypeVar, Union
 
 import nltk
 
-from query_parse.constants import STOP_WORDS
+from query_parse.constants import STOP_WORDS, TRANSPORT_MODES
 from query_parse.types import RegexInterval, Tags
 
 
@@ -48,7 +48,7 @@ def is_enabled(location: str, disabled: List[str]) -> bool:
     """
     Check if the location is OK to be used
     """
-    if location in ["", "the house", "restaurant"] + disabled:
+    if location in ["", "the house", "restaurant"] + disabled + TRANSPORT_MODES:
         return False
     return True
 

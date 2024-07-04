@@ -18,7 +18,7 @@ memory = Memory(location="cache", verbose=0)
 DEV_MODE = False
 USE_GROQ = True
 IMAGE_SEARCH = True
-DEBUG = True
+DEBUG = False
 CACHE = True
 
 # Search Configurations
@@ -121,6 +121,7 @@ DERIVABLE_FIELDS = {
     "day": lambda x: x.start_time.strftime("%d"),
     "date": lambda x: x.start_time.strftime("%d-%m-%Y"),
     "week": lambda x: x.start_time.isocalendar()[1],
+    "duration": lambda x: (x.end_time - x.start_time).seconds,
     "weekday": lambda x: x.start_time.strftime("%A"),
     "month": lambda x: x.start_time.strftime("%B %Y"),
     "year": lambda x: x.start_time.year,

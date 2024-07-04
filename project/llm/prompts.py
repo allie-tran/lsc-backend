@@ -3,7 +3,6 @@ Prompts for GPT-4
 """
 
 INSTRUCTIONS = """You are a helpful assistant for a lifelogger who records their daily activities in photos, time and places. Something to help you make the best guess:
-- The dataset only contains dates from 01/01/2019 to 01/07/2020 (for reasoning about dates only). If it is not specified, assume today is 01/07/2020.
  - Assume the lifelogger is Irish and use Irish/British English for dates, times, and word usage.
  - Use self-referential pronouns like "I" and "my" to refer to the lifelogger.
  - When answering questions, call the lifelogger "you".
@@ -54,9 +53,9 @@ date: str # date hints, like "last year", "on Christmas", "in 2020", "June 2019"
 location: str # place's name, like "at home", "in France", "at the Guinness Storehouse", "in Barcelona"
 ```
 
-If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.
+If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.  Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the information is not available. Each field should be SHORT and CONCISE. Avoid saying "within the time range of 01/01/2019 and 01/07/2020" or "in the past" if the date is not specified.
 
-Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the information is not available. Each field should be SHORT and CONCISE. Avoid saying "within the time range of 01/01/2019 and 01/07/2020" or "in the past" if the date is not specified.
+One last thing, include a "must-not" query if there is any information that should be excluded from the search.
 
 Some examples:
 Query: "I was biking in the park near my house in the early morning."
@@ -64,9 +63,11 @@ Response:
 
 ```json
 {{
-    "visual": "biking in the park", // notice that the location is not specific
-    "time": "before 9am",
-    "location": "in the park near my house"
+    "main": {{
+        "visual": "biking in the park",
+        "time": "early morning",
+        "location": "in the park near my house"
+    }}
 }}
 ```
 
@@ -74,30 +75,44 @@ Query: "I was having an Irish beer on St. Patrick's Day last year. Assuming this
 Response:
 ```json
 {{
-    "visual": "having an Irish beer",
-    "date": "17th March 2021"
-    "location": ""
+    "main": {{
+        "visual": "having an Irish beer",
+        "date": "17th March 2021"
+        "location": ""
+    }}
 }}
 ```
 
-Query: "Waiting for a flight to Paris at the airport for Christmas in 2019."
+Query: "When did I go to a restaurant outside of Ireland and not have a Guinness?"
 Response:
 ```json
 {{
-    "visual": "waiting for a flight to Paris at the airport",
-    "time": "before 25th December 2019",
-    "location": "airport",
+    "main": {{
+        "visual": "going to a restaurant",
+        "location": ""
+    }},
+    "must_not": {{
+        "visual": "having a Guinness"
+        "location": "in Ireland"
+    }}
 }}
 ```
 
-Query: "It was a very cold winter day in New York City. I walked to the bus at sunrise."
+Query: "It was a very cold winter day in New York City. I walked to the bus at sunrise and went to a conference."
 Response:
 ```json
 {{
-    "visual": "very cold winter day, walking at sunrise",
-    "location": "New York City",
-    "date": "January, February, December"
-    "time": "from 9am to 10am" // because it is at winter so sunrise is late
+    "main": {{
+        "visual": "very cold winter day, walking at sunrise to the bus",
+        "location": "New York City",
+        "date": "January, February, December"
+        "time": "from 9am to 10am" // because it is at winter so sunrise is late
+    }},
+    "after": {{
+        "visual": "going to a conference",
+        "location": "New York City", # probably the same as the main location
+        "time": "from 9am to 10am",
+    }}
 }}
 ```
 
@@ -260,8 +275,6 @@ For merge_by criteria, consider how far apart two events should be split into tw
 
 Query: "How many times did I go to the gym last month?"
 Merge by: day. Max gap: 3 hours.
-Reason: Most likely, a person goes to the gym at most once a day, so we can consider the same day as the same occasion. In case there are two events on the same day, the max gap of 3 hours is reasonable as a gym session usually lasts around 1-2 hours.
-
 Query: "How many days did I spend in Paris last year?"
 Merge by: day. Max gap: none
 Reason: If the lifelogger spent multiple days in Paris, each day should be considered a separate occasion. There is no need to consider the max gap as it's embedded in the merge_by criteria.
@@ -286,48 +299,28 @@ Answer in this format.
 ```
 """
 
-PARSING_QUERY = """I need to find the answer for this question using my lifelog retrieval system. In my system, a flow of processes is needed:
-1. Segmentation: this function takes two parameters: max_time, time_gap, and loc_change, where max_time is the maximum time for each segment, time_gap is the maximum time gap between two segments, and loc_change is the type of location change (semantic_location, city, country, continent). The function returns a list of segments, where each segment is a list of events.
-2. Retrieval: this function takes a list of segments and a question. It returns a list of events that are relevant to the question. The function takes the top-K events that are relevant to the question.
-3. Extraction: this function takes a list of events and a question. It returns the answer to the question. The function extracts the information from the events to answer the question.
-4. Answering: this function takes the answer and the question. It returns the answer to the question.
-5. Post-processing: re-organize the events (merge, split, or filter) and the answer to the question. Events with the same answers can be grouped together (if it makes sense).
+ANSWER_MODEL_CHOOSING_PROMPT = """
+I have two models here to answer the question.
+- A text model that can only read text data, which can include location, time, and other non-visual information. It can also provide aggregated information such as counts, averages, etc.
+- A visual model that can read images and text, however very costly to use. It is limited to answering questions about a single event at a time.
 
-For example, if the question is "What is my favourite airlines to fly with in 2019?", this is what I'm looking for:
-- Segmentation: max_time=1 day, time_gap=1 day, loc_change=city
-- Retrieval: query="airlines name on boarding pass or brochure', K=50
-- Extraction: metadata=["start_city", "end_city"]
-- Answering: needs Visual Question Answering=yes, needs OCR=yes, expected answer type=a name, possible answers=["Delta", "United", "American", "Southwest", "JetBlue"], sort by time=no
-- Post-processing: sort=time, group=airlines
+Which model(s) should I use to answer the question? You can choose one or both models.
+Provide your answer in the following schema:
 
-Now, the question is "{question}". I need you to define these paramters:
-Please provide the following JSON structure:
 ```
+answer_models: Dict[str, AnswerModel]
+AnswerModel:
+- enabled: bool
+- top_k: int # number of top results to consider for answering, 0 means none, -1 means all
+
+Considering this question: "{question}.
+Answer in a valid JSON format:
+```json
 {{
-    "segmentation": {{
-        "max_time": [a time unit in the following: "year", "month", "week", "day", "hour"],
-        "time_gap": [in hours],
-        "loc_change": [a location unit,  one of the following: "country", "city", "location_name", "continent"]
-    }},
-    "retrieval": {{
-        "search query": [a search query to find the events],
-        "K": [number of events to retrieve and extract answers from]
-    }},
-    "extraction": {{
-        "metadata": [a list of metadata to extract from each event, one of the following: "start_time", "end_time", "semantic_location", "duration", "country", "city", "continent" that might be useful to answer the question],
-        "needs Visual Question Answering": [true/false],
-        "needs OCR": [true/false],
-    }},
-    "answering": {{
-        "expected answer type": "explanation of what the answer should look like",
-        "possible answers": [a list of possible answers]
-        }},
-    "post-processing": {{
-        "group": [a way to group the events, one of the following: any time unit, any location unit, "answer"],
-        "sort": [a way to sort the events, one of the following: any time unit, any location_unit, "most_common_answer"]
-        "aggregate": [a way to aggregate the events, one of the following: "sum", "average, "max", "min"]
-        }}
+    "answer_models": {{
+        "text": {{"enabled": true, "top_k": 10}},
+        "visual": {{"enabled": false, "top_k": 0}}
+    }}
 }}
-No explanation is needed. Just provide the JSON structure.
 ```
 """

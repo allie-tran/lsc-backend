@@ -2,14 +2,15 @@
 # PROCESSING
 # ====================== #
 
-from enum import Enum, StrEnum
+from enum import Enum
 from typing import List, Literal, Optional, Self, Tuple
 
-from pydantic import field_validator, model_validator
 from myeachtra.dependencies import CamelCaseModel
+from pydantic import field_validator, model_validator
 
 " POS tagging, NER, and other NLP related types "
 Tags = Tuple[str, str]
+
 
 class Mode(str, Enum):
     event = "event"
@@ -48,8 +49,11 @@ class DateTuple(CamelCaseModel):
         Export the date tuple to a string
         Format: DD/MM/YYYY, DD/MM, YYYY
         """
-        date = "/".join([str(v) for v in [self.day, self.month, self.year] if v is not None])
+        date = "/".join(
+            [str(v) for v in [self.day, self.month, self.year] if v is not None]
+        )
         return date
+
 
 class TimeCondition(CamelCaseModel):
     condition: Literal["before", "after"]
@@ -89,14 +93,14 @@ class MaxGap(CamelCaseModel):
     @field_validator("time_gap")
     def validate_time_gap(cls, v):
         if v is not None:
-            if v.unit not in ["none", "hour", "minute", "day", "week", "month", "year"]:
+            if v.unit not in ["hour", "minute", "day", "week", "month", "year"]:
                 return None
         return v
 
     @field_validator("gps_gap")
     def validate_gps_gap(cls, v):
         if v is not None:
-            if v.unit not in ["none", "meter", "km"]:
+            if v.unit not in ["meter", "km"]:
                 return None
         return v
 
@@ -110,7 +114,7 @@ class RelevantFields(CamelCaseModel):
     relevant_fields: List[str] = []
     merge_by: List[str] = []
     sort_by: List[SortBy] = []
-    max_gap: MaxGap = MaxGap()
+    max_gap: Optional[MaxGap] = None
 
     @field_validator("merge_by", mode="before")
     def validate_merge_by(cls, v) -> List[str]:
@@ -120,7 +124,6 @@ class RelevantFields(CamelCaseModel):
                 values.append(value)
         values = set(values)
         return list(values)
-
 
     @field_validator("relevant_fields", "merge_by")
     @classmethod
@@ -137,9 +140,25 @@ class RelevantFields(CamelCaseModel):
     def change_fields(self) -> Self:
         self.relevant_fields += self.merge_by
         self.relevant_fields += [sort.field for sort in self.sort_by]
+
+        if self.max_gap is None:
+            self.max_gap = MaxGap()
         if self.max_gap.time_gap is not None:
             self.relevant_fields.append("start_time")
         if self.max_gap.gps_gap is not None:
             self.relevant_fields.append("center")
+
         self.relevant_fields = list(set(self.relevant_fields))
         return self
+
+class SingleQuery(CamelCaseModel):
+    visual: str = ""
+    location: str = ""
+    time: str = ""
+    date: str = ""
+
+class ParsedQuery(CamelCaseModel):
+    main: SingleQuery
+    after: SingleQuery | None = None
+    before: SingleQuery | None = None
+    must_not: SingleQuery | None = None

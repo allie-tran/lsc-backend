@@ -21,6 +21,37 @@ for loc in LOCATIONS:
         if loc == origin_doc.lower():
             GPS_NORMAL_CASE[loc] = origin_doc
 
+# exclude trnspoet modes frpm location
+TRANSPORT_MODES = [
+    "bus",
+    "train",
+    "metro",
+    "subway",
+    "tram",
+    "ferry",
+    "cable car",
+    "gondola",
+    "funicular", "monorail", "trolley", "trolleybus", "shuttle",
+    "taxi",
+    "cab",
+    "car",
+    "bike",
+    "bicycle",
+    "motorbike",
+    "motorcycle",
+    "scooter",
+    "moped",
+    "skateboard",
+    "hoverboard",
+    "segway",
+    "scooty",
+    "rickshaw",
+    "autorickshaw",
+    "cycle rickshaw",
+    "cycle",
+    "public transport",
+    'airplane']
+
 QUESTION_WORDS = [
     "who",
     "what",

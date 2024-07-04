@@ -7,7 +7,6 @@ import redis
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import StreamingResponse
 from rich import print
 
@@ -16,6 +15,7 @@ from database.encode_blurhash import batch_encode
 from myeachtra import map_router, timeline_router
 from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest
 from results.models import AnswerResultWithEvent
+from retrieval.graph import to_csv
 from retrieval.search import answer_single_event, streaming_manager
 from submit.router import submit_router
 
@@ -27,19 +27,20 @@ logger.setLevel(logging.DEBUG)
 load_dotenv(".env")
 
 app = FastAPI()
-origins = ["http://localhost", "http://localhost:3001"]
+origins = ["http://localhost", "http://localhost:3001",
+        "https://n-2mbzycnxd-allie-trans-projects.vercel.app",
+           "https://mysceal.computing.dcu.ie", "vercel.app", "mysceal.computing.dcu.ie"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 # app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.include_router(submit_router, prefix="/submit")
 app.include_router(timeline_router, prefix="/timeline")
 app.include_router(map_router, prefix="/location")
-
 
 @app.post(
     "/search",
@@ -111,6 +112,18 @@ async def answer_this(request: AnswerThisRequest):
         answers.append(answer)
     return answers
 
+@app.post(
+    "/query_to_csv",
+    description="Given a query, return the results in CSV format",
+    status_code=200,
+    response_model=str
+)
+async def query_to_csv(query: GeneralQueryRequest):
+    """
+    Given a query, return the results in CSV format
+    """
+    csv: str = await to_csv(query.main)
+    return csv
 
 @app.get("/health", description="Health check endpoint", status_code=200)
 async def health():

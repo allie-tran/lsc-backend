@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Dict, Optional, Self, Sequence
+from typing import Optional, Self, Sequence
 
 from database.main import es_collection
 from myeachtra.dependencies import ObjectId
@@ -25,42 +25,24 @@ from query_parse.types import (
     VisualInfo,
 )
 from query_parse.types.elasticsearch import ESEmbedding, ESFilter
-from query_parse.types.lifelog import Mode
+from query_parse.types.lifelog import Mode, SingleQuery
 from query_parse.visual import search_for_visual
 
 time_tagger = TimeTagger()
 
 
 class Query(BaseModel):
-    original_text: str = ""
-    is_question: bool = False
-    query_parts: Optional[Dict[str, str]] = {}
+    query_parts: Optional[SingleQuery] = None
 
     time: TimeInfo = TimeInfo()
     location: LocationInfo = LocationInfo()
     visual: VisualInfo = VisualInfo()
 
-    oid: Optional[SkipValidation[ObjectId]] = None
-    extracted: bool = False
-
     location_queries: Sequence[ESCombineFilters] = []
     temporal_queries: Sequence[ESCombineFilters] = []
     visual_queries: Sequence[ESCombineFilters] = []
+
     es: Optional[ESBoolQuery] = None
-
-    @model_validator(mode="after")
-    def insert_request(self) -> Self:
-        if not self.oid:
-            inserted = es_collection.insert_one(self.model_dump(exclude={"responses"}))
-            self.oid = inserted.inserted_id
-        return self
-
-    def mark_extracted(self, es: ESBoolQuery):
-        self.extracted = True
-        self.es = es
-        es_collection.update_one(
-            {"_id": self.oid}, {"$set": {"extracted": True}}, upsert=True
-        )
 
     def print_info(self):
         return {
@@ -70,64 +52,105 @@ class Query(BaseModel):
         }
 
 
-async def extract_info(text: str, is_question: bool) -> Query:
-    query_parts = await parse_query(text)
+class ComboQuery(BaseModel):
+    original_text: str = ""
+    is_question: bool = False
 
-    extracted_parts = None
-    if query_parts:
-        extracted_parts = query_parts
+    main: Optional[Query] = None
+    before: Optional[Query] = None
+    after: Optional[Query] = None
+    must_not: Optional[Query] = None
 
-    # =================================================================== #
-    # LOCATIONS
-    # =================================================================== #
-    parsed = defaultdict(lambda: [])  # deprecated
-    clean_query, locationinfo, loc_visualisation = search_for_locations(
-        query_parts["location"].lower(), parsed
-    )
+    extracted: bool = False
+    oid: Optional[SkipValidation[ObjectId]] = None
+    es: Optional[ESBoolQuery] = None
 
-    # =================================================================== #
-    # TIME
-    # =================================================================== #
-    time_str = ""
-    if "time" in query_parts and "date" in query_parts:
-        time_str = f"{query_parts['time']} {query_parts['date']}"
-    elif "time" in query_parts:
-        time_str = query_parts["time"]
-    elif "date" in query_parts:
-        time_str = query_parts["date"]
+    @model_validator(mode="after")
+    def insert_request(self) -> Self:
+        if not self.oid:
+            inserted = es_collection.insert_one(self.model_dump(exclude={"responses"}))
+            self.oid = inserted.inserted_id
+        return self
 
-    if not time_str:
-        time_str = clean_query
-    clean_query, timeinfo, time_visualisation = search_for_time(
-        time_tagger, time_str.lower()
-    )
+    def print_info(self):
+        return {
+            "main": self.main.print_info() if self.main else None,
+            "before": self.before.print_info() if self.before else None,
+            "after": self.after.print_info() if self.after else None,
+            "must_not": self.must_not.print_info() if self.must_not else None,
+        }
 
-    # =================================================================== #
-    # VISUALISATION
-    # =================================================================== #
-    query_visualisation = loc_visualisation
-    query_visualisation.update(time_visualisation)
+    def mark_extracted(self, es: ESBoolQuery):
+        self.extracted = True
+        self.es = es
+        es_collection.update_one(
+            {"_id": self.oid}, {"$set": {"extracted": True}}, upsert=True
+        )
 
-    # =================================================================== #
-    # VISUAL INFO
-    # =================================================================== #
-    visualinfo = search_for_visual(text)
 
-    # =================================================================== #
-    # END
-    # =================================================================== #
-    query = Query(
+async def extract_info(text: str, is_question: bool) -> ComboQuery:
+    query_parts = await parse_query(text, is_question)
+
+    def extract_part(part: SingleQuery | None) -> Query | None:
+        if not part:
+            return
+        # =================================================================== #
+        # LOCATIONS
+        # =================================================================== #
+        parsed = defaultdict(lambda: [])  # deprecated
+        clean_query, locationinfo, loc_visualisation = search_for_locations(
+            part.location.lower(), parsed
+        )
+
+        # =================================================================== #
+        # TIME
+        # =================================================================== #
+        time_str = ""
+        if part.time and part.date:
+            time_str = f"{part.time} {part.date}"
+        elif part.time:
+            time_str = part.time
+        elif part.date:
+            time_str = part.date
+
+        if not time_str:
+            time_str = clean_query
+        clean_query, timeinfo, time_visualisation = search_for_time(
+            time_tagger, time_str.lower()
+        )
+
+        # =================================================================== #
+        # VISUALISATION
+        # =================================================================== #
+        query_visualisation = loc_visualisation
+        query_visualisation.update(time_visualisation)
+
+        # =================================================================== #
+        # VISUAL INFO
+        # =================================================================== #
+        visualinfo = search_for_visual(text)
+
+        # =================================================================== #
+        # END
+        # =================================================================== #
+        return Query(
+            query_parts=part,
+            time=timeinfo,
+            location=locationinfo,
+            visual=visualinfo,
+        )
+
+    return ComboQuery(
+        main=extract_part(query_parts.main),
+        before=extract_part(query_parts.before),
+        after=extract_part(query_parts.after),
+        must_not=extract_part(query_parts.must_not),
         original_text=text,
-        query_parts=extracted_parts,
         is_question=is_question,
-        time=timeinfo,
-        location=locationinfo,
-        visual=visualinfo,
     )
-    return query
 
 
-async def create_query(search_text: str, is_question: bool) -> Query:
+async def create_query(search_text: str, is_question: bool) -> ComboQuery:
     return await extract_info(search_text, is_question)
 
 
@@ -201,9 +224,12 @@ async def create_es_query(
                 field = "images"
             else:
                 field = "image_path"
+
             # Hack for the tour
-            if not "marklin" in query.original_text.lower():
-                es.should.append(ESFilter(field=field, value=relevant_images.tolist(), boost=0.1))
+            if not "marklin" in query.visual.text.lower():
+                es.should.append(
+                    ESFilter(field=field, value=relevant_images.tolist(), boost=0.5)
+                )
 
         # Filter queries (no scores)
         es.filter.append(time)
@@ -239,8 +265,32 @@ async def create_es_query(
         es.min_score = min_score
         es.max_score = max_score
         query.es = es
-        query.mark_extracted(es)
 
+    return query.es
+
+
+async def create_es_combo_query(
+    query: ComboQuery,
+    ignore_limit_score: bool = False,
+    overwrite: bool = False,
+    mode: Mode = Mode.event,
+) -> ESBoolQuery:
+    es = ESBoolQuery()
+    # Create the main query
+    if query.main:
+        query.main.es = await create_es_query(
+            query.main, ignore_limit_score, overwrite, mode
+        )
+        es = query.main.es.model_copy(deep=True)
+
+    if query.must_not:
+        query.must_not.es = await create_es_query(
+            query.must_not, ignore_limit_score, overwrite, mode
+        )
+        es.must_not.append(query.must_not.es)
+
+    query.es = es
+    query.mark_extracted(es)
     return query.es
 
 

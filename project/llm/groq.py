@@ -21,7 +21,8 @@ class GroqLLM(LLM):
         Generate completions from a list of messages
         """
         request = self.client.chat.completions.create(
-            model=self.model_name, messages=messages, stream=True
+            model=self.model_name, messages=messages, stream=True,
+            temperature=0.1,
         )
 
         buffer = []

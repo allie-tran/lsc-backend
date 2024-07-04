@@ -94,9 +94,8 @@ async def answer_visual_one_event(
     if len(image_paths) < 3:
         loops = [image_paths]
     else:
-        for _ in range(3):
-            samples = random.sample(image_paths, k=2)
-            loops.append(samples)
+        samples = random.sample(image_paths, k=2)
+        loops.append(samples)
 
     for samples in loops:
         async for answer_list in answer_visual_with_text(

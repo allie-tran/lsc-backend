@@ -20,11 +20,32 @@ def deriving_fields(
     """
     Derive the fields
     """
+    # get from mongodb first
+    scenes = [event.scene for event in events]
+
+    try:
+        documents = scene_collection.find({"scene": {"$in": scenes}}, projection=fields + ["scene"])
+    except Exception as e:
+        print("[red]Error in convert_to_events[/red]", e)
+        documents = []
+
+    # Create a dictionary of the fields
+    field_dict = {}
+    for document in documents:
+        scene = document["scene"]
+        for field in fields:
+            if field not in field_dict:
+                field_dict[field] = {}
+            field_dict[field][scene] = document[field]
+
     derived_events = []
     for event in events:
         derived_event = event.copy_to_derived_event()
         for field in fields:
-            setattr(derived_event, field, DERIVABLE_FIELDS[field](event))
+            if field in field_dict[field]:
+                setattr(derived_event, field, field_dict[field][event.scene])
+            else:
+                setattr(derived_event, field, DERIVABLE_FIELDS[field](event))
         derived_events.append(derived_event)
     return derived_events
 
@@ -425,7 +446,10 @@ def create_event_label(
                 if "start_time" in all_fields and "end_time" in all_fields:
                     start_time = event.start_time.strftime("%H:%M")
                     end_time = event.end_time.strftime("%H:%M")
-                    label["time"] = f"{start_time} - {end_time}"
+                    if start_time == end_time:
+                        label["time"] = f"{start_time}"
+                    else:
+                        label["time"] = f"{start_time} - {end_time}"
                     done.update(["start_time", "end_time", "hour", "minute", "time"])
                 elif "start_time" in all_fields:
                     start_time = event.start_time.strftime("%H:%M")
@@ -440,7 +464,7 @@ def create_event_label(
                     label["time"] = f"{time}"
                     done.update(["hour", "minute", "time"])
 
-                if "city" in all_fields and "country" in all_fields:
+                if "city" in all_fields and event.city and "country" in all_fields:
                     city = ", ".join(event.city).title()
                     label["city"] = f"{city}, {event.country.title()}"
                     done.update(["city", "country"])
