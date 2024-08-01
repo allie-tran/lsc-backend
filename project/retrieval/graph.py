@@ -3,17 +3,21 @@ import logging
 from typing import Optional
 
 import pandas as pd
+from llm import gpt_llm_model
+from llm.prompts import GRAPH_QUERY
+from pydantic import ValidationError
 from query_parse.extract_info import create_es_combo_query, create_query
 from query_parse.question import detect_question, question_to_retrieval
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
 from query_parse.types.requests import Step, Task
+from results.models import AsyncioTaskResult
 from results.utils import (
     RelevantFields,
     create_event_label,
     limit_images_per_event,
     merge_events,
 )
-from rich import print
+from rich import print as rprint
 
 from retrieval.async_utils import async_timer
 from retrieval.search import get_search_tasks
@@ -99,7 +103,7 @@ async def to_csv(
             field_extractor.add_output(relevant_fields.model_dump())
 
     if results is None:
-        print("[red]No results found[/red]")
+        print("[red]to_csv: No results found[/red]")
         return ""
 
     # ============================= #
@@ -177,3 +181,20 @@ async def to_csv(
     print(len(events), "events found")
     df.head()
     return df.to_csv(index=False)
+
+
+@async_timer("get_vegalite")
+async def get_vegalite(query: str):
+    """
+    Get the relevant fields from the query
+    """
+    prompt = GRAPH_QUERY.format(question=query)
+    data = {}
+    while True:
+        try:
+            data = await gpt_llm_model.generate_from_text(prompt)
+            if data:
+                rprint("Vegetalite data found", data)
+                return data
+        except ValidationError as e:
+            rprint(e)

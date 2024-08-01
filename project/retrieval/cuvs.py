@@ -13,7 +13,7 @@ from rmm.allocators.cupy import rmm_cupy_allocator
 
 from retrieval.common_nn import norm_photo_features, photo_ids
 
-mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaMemoryResource(), initial_pool_size=2**30)
+mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaMemoryResource(), initial_pool_size=2 ** 15)
 rmm.mr.set_current_device_resource(mr)
 cp.cuda.set_allocator(rmm_cupy_allocator)
 handle = DeviceResources()

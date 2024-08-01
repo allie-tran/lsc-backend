@@ -23,7 +23,7 @@ from results.models import (
 from results.utils import create_event_label, deriving_fields
 from rich import print
 
-from retrieval.async_utils import async_generator_timer, async_timer, timer
+from retrieval.async_utils import async_generator_timer, timer
 from retrieval.types import ESResponse
 
 logger = logging.getLogger(__name__)
@@ -31,15 +31,30 @@ logger = logging.getLogger(__name__)
 json_headers = {"Content-Type": "application/json"}
 
 
+def clean(data: dict) -> dict:
+    """
+    Print the data in a clean format
+    If any array is found, print only the first 5 elements
+    """
+    if not isinstance(data, dict):
+        return data
+    for key, value in data.items():
+        if isinstance(value, list):
+            data[key] = [clean(d) for d in value[:5]]
+        elif isinstance(value, dict):
+            data[key] = clean(value)
+    return data
+
+
 # ======================== #
 # MAIN REQUEST FUNCTIONS
 # ======================== #
-@async_timer("send_search_request")
 async def send_search_request(query: ESSearchRequest) -> ESResponse:
     """
     Send a new search request
     """
     json_query = query.to_query()
+    print(clean(json_query))
 
     # Use normal search
     response = requests.post(
@@ -113,7 +128,6 @@ def delete_scroll_id(scroll_id) -> None:
 # ======================================== #
 # PRE-PROCESSING FUNCTIONS
 # ======================================== #
-@timer("get_search_request")
 def get_search_request(
     main_query: ESBoolQuery,
     size: int,
@@ -132,6 +146,7 @@ def get_search_request(
     )
     return search_request
 
+
 async def get_raw_search_results(
     request: ESSearchRequest, tag: str = ""
 ) -> AsyncioTaskResult[List[str]]:
@@ -149,13 +164,12 @@ async def get_raw_search_results(
     )
 
 
-@async_timer("get_search_results")
 async def get_search_results(request: ESSearchRequest) -> EventResults | None:
     es_response = await send_search_request(request)
     results = process_es_results(es_response, request.test, request.mode)
 
     if results is None:
-        print("[red]No results found[/red]")
+        print("[red]get_search_results: No results found[/red]")
         return None
 
     print(f"[green]Found {len(results)} events[/green]")
@@ -165,10 +179,10 @@ async def get_search_results(request: ESSearchRequest) -> EventResults | None:
     # Just send the raw results first (unmerged, with full info)
     return results
 
+
 # ======================================== #
 # POST-PROCESSING FUNCTIONS
 # ======================================== #
-@timer("process_es_results")
 def process_es_results(
     response: ESResponse,
     test: bool = False,
@@ -177,7 +191,7 @@ def process_es_results(
     important_field = "scene" if mode == "event" else "image_path"
     ids = [doc.source[important_field] for doc in response.hits.hits]
     if len(ids) == 0:
-        print("[red]No results found![/red]")
+        print("[red]process_es_results: No results found![/red]")
     scores = [doc.score for doc in response.hits.hits]
 
     # Get the relevant fields and form the EventResults object
@@ -313,7 +327,10 @@ def process_search_results(results: GenericEventResults) -> List[TripletEvent]:
 
 @async_generator_timer("get_search_function")
 def get_search_function(
-    request: GeneralQueryRequest, single_query: Callable, two_queries: Callable, task_type: Task
+    request: GeneralQueryRequest,
+    single_query: Callable,
+    two_queries: Callable,
+    task_type: Task,
 ) -> AsyncGenerator:
     search_function = None
     before, main, after = request.before, request.main, request.after

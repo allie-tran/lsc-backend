@@ -36,7 +36,7 @@ QUERY_PARSER = True
 FILTER_FIELDS = (not ALL_OFF) and True
 
 # Maximum number of images per event (0 for no limit)
-MAX_IMAGES_PER_EVENT = (not ALL_OFF) and 5
+MAX_IMAGES_PER_EVENT = 20
 
 # Whether to merge events based on the relevant fields
 MERGE_EVENTS = (not ALL_OFF) and True

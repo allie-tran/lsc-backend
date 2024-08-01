@@ -15,7 +15,7 @@ from database.encode_blurhash import batch_encode
 from myeachtra import map_router, timeline_router
 from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest
 from results.models import AnswerResultWithEvent
-from retrieval.graph import to_csv
+from retrieval.graph import get_vegalite, to_csv
 from retrieval.search import answer_single_event, streaming_manager
 from submit.router import submit_router
 
@@ -131,3 +131,16 @@ async def health():
     Health check endpoint
     """
     return {"status": "ok"}
+
+@app.post(
+    "/query_to_vegalite",
+    description="Given a query, return the results in Vega-Lite format",
+    status_code=200,
+    response_model=dict
+)
+async def query_to_vegalite(query: GeneralQueryRequest):
+    """
+    Given a query, return the results in Vega-Lite format
+    """
+    data = await get_vegalite(query.main)
+    return data

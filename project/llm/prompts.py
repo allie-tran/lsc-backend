@@ -241,9 +241,7 @@ Reply with a JSON object in the following format:
 ```
 """
 
-
-# Filter relevant fields from the query
-RELEVANT_FIELDS_PROMPT = """My database has this schema:
+SCHEMA = """My database has this schema:
 
 ```
 # Valid location fields
@@ -265,6 +263,12 @@ end_time: datetime # same as above
 # Visual information
 ocr: List[str] # text extracted from images
 ```
+"""
+
+# Filter relevant fields from the query
+RELEVANT_FIELDS_PROMPT = (
+    SCHEMA
+    + """
 
 And these are valid gap units:
 - time_gap: hour, day, week, month, year
@@ -298,6 +302,7 @@ Answer in this format.
 }}
 ```
 """
+)
 
 ANSWER_MODEL_CHOOSING_PROMPT = """
 I have two models here to answer the question.
@@ -324,3 +329,34 @@ Answer in a valid JSON format:
 }}
 ```
 """
+
+GRAPH_QUERY = (
+    SCHEMA
+    + """
+Generate a vegalite schema (with encoding, without data) to answer this lifelog question:
+{question}
+
+Remember to include a time field in order to visualize the data over time.
+
+Answer in this format:
+```json
+{{
+    "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+    "title": "Vega-Lite Schema",
+    "description": "Vega-Lite Schema to answer the lifelog question",
+    "mark": "bar",
+    "encoding": {{
+        "x": {{"field": "date", "type": "temporal"}},
+        "y": {{"field": "count", "type": "quantitative"}}
+    }},
+    "data": {{ // example data
+        "values": [
+            "date": "2022-01-01",
+            "count": 10
+            ]
+    }}
+    ... // other fields
+}}
+```
+"""
+)

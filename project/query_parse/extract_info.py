@@ -24,7 +24,7 @@ from query_parse.types import (
     TimeInfo,
     VisualInfo,
 )
-from query_parse.types.elasticsearch import ESEmbedding, ESFilter
+from query_parse.types.elasticsearch import ESAndFilters, ESEmbedding, ESFilter
 from query_parse.types.lifelog import Mode, SingleQuery
 from query_parse.visual import search_for_visual
 
@@ -287,6 +287,7 @@ async def create_es_combo_query(
         query.must_not.es = await create_es_query(
             query.must_not, ignore_limit_score, overwrite, mode
         )
+        query.must_not.es.must_not = ESAndFilters()
         es.must_not.append(query.must_not.es)
 
     query.es = es

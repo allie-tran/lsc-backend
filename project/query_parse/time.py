@@ -224,7 +224,6 @@ class TimeTagger:
         separator="_"
         times = self.find_time(sent)
         tag_dict = dict([(time.text, time.tag) for time in times])
-        rprint("Tag dict:", tag_dict)
 
         tuples = [tuple(re.findall(r'\w+', a.text)) for a in times if a.text]
         tokenizer = MWETokenizer(tuples, separator=separator)

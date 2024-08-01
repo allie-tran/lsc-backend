@@ -1,0 +1,6282 @@
+[{
+  "_id": {
+    "$oid": "666718c4a456bc7bbb3f70d2"
+  },
+  "original_text": "eating avocado at breakfast",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:16:20.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66671905a456bc7bbb3f70d4"
+  },
+  "original_text": "eating avocado at breakfast at home",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast at home",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:17:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666719cca456bc7bbb3f70d6"
+  },
+  "original_text": "eating avocado at breakfast at home",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast at home",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:20:44.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66671b0da456bc7bbb3f70d8"
+  },
+  "original_text": "eating avocado at breakfast at home",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast at home",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:26:05.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666720c7a456bc7bbb3f70da"
+  },
+  "original_text": "eating avocado",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado",
+    "concepts": [
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:50:31.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667228da456bc7bbb3f70dc"
+  },
+  "original_text": "eating avocado",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado",
+    "concepts": [
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:58:05.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666722b3a456bc7bbb3f70de"
+  },
+  "original_text": "I was using an ATM in Dublin in 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "dublin"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was using an ATM in Dublin in 2019",
+    "concepts": [
+      "using"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T15:58:43.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672387a456bc7bbb3f70e0"
+  },
+  "original_text": "I was buying a train model of Marklin...",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was buying a train model of Marklin...",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:02:15.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672397a456bc7bbb3f70e2"
+  },
+  "original_text": "I was buying a train model of Marklin...",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was buying a train model of Marklin...",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:02:31.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672418a456bc7bbb3f70e4"
+  },
+  "original_text": "I spent days in Vietnam in the year before last.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "spent days Vietnam",
+    "date": "2021",
+    "location": "Vietnam"
+  },
+  "time": {
+    "time": [
+      7272000,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "vietnam"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I spent days in Vietnam in the year before last.",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:04:40.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666724a7a456bc7bbb3f70e6"
+  },
+  "original_text": "I was looking at a mirror in my kitchen and noticed the gray shirt I was wearing at the start of covid time.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "looking at a mirror, wearing a gray shirt kitchen",
+    "date": "March 2020",
+    "location": "kitchen"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was looking at a mirror in my kitchen and noticed the gray shirt I was wearing at the start of covid time.",
+    "concepts": [
+      "kitchen",
+      "wearing",
+      "shirt",
+      "looking",
+      "mirror",
+      "gray",
+      "time"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:07:03.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667270da456bc7bbb3f70e8"
+  },
+  "original_text": "japanese pens i bought some",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "japanese pens i bought some",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:17:17.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667271ca456bc7bbb3f70ea"
+  },
+  "original_text": "japanese pens i bought some that evening",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      61200,
+      75600
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "japanese pens i bought some that evening",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:17:32.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667274da456bc7bbb3f70ec"
+  },
+  "original_text": "buying japanese pen in a stationery store in the evening",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      61200,
+      75600
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "buying japanese pen in a stationery store in the evening",
+    "concepts": [
+      "store",
+      "pen"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:18:21.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667290da456bc7bbb3f70ee"
+  },
+  "original_text": "at the start of covid time, waiting for security guard to let me into the office building",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office building",
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "at the start of covid time, waiting for security guard to let me into the office building",
+    "concepts": [
+      "building",
+      "office",
+      "waiting",
+      "time"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:25:49.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672984a456bc7bbb3f70f0"
+  },
+  "original_text": "march 2020 waiting for security guard to let me into the office building",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office building",
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "march 2020 waiting for security guard to let me into the office building",
+    "concepts": [
+      "building",
+      "office",
+      "waiting"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:27:48.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666729b5a456bc7bbb3f70f2"
+  },
+  "original_text": "march 2020 waiting for security guard to let me into the office building",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office building",
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "march 2020 waiting for security guard to let me into the office building",
+    "concepts": [
+      "building",
+      "office",
+      "waiting"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:28:37.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672acca456bc7bbb3f70f4"
+  },
+  "original_text": "Zone of the car in the airport dublin",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "dublin"
+    ],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "Zone of the car in the airport dublin",
+    "concepts": [
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:33:16.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672ad5a456bc7bbb3f70f6"
+  },
+  "original_text": "Zone of the car in the airport dublin 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "dublin"
+    ],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "Zone of the car in the airport dublin 2019",
+    "concepts": [
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:33:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672af3a456bc7bbb3f70f8"
+  },
+  "original_text": "airport in paris",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "airport in paris",
+    "concepts": [
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:33:55.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672b0ba456bc7bbb3f70fa"
+  },
+  "original_text": "airport in france",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "france"
+    ],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "airport in france",
+    "concepts": [
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:34:19.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672b1aa456bc7bbb3f70fc"
+  },
+  "original_text": "airport in france",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "france"
+    ],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "airport in france",
+    "concepts": [
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:34:34.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672b39a456bc7bbb3f70fe"
+  },
+  "original_text": "zone of",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "zone of",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:35:05.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672b3da456bc7bbb3f7100"
+  },
+  "original_text": "Zone of the car park in the airport dublin 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "dublin"
+    ],
+    "location_types": [
+      "park",
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "Zone of the car park in the airport dublin 2019",
+    "concepts": [
+      "park",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:35:09.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672bbba456bc7bbb3f7102"
+  },
+  "original_text": "Zone of the car park in the dublin airport dublin 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "dublin airport"
+    ],
+    "regions": [
+      "dublin"
+    ],
+    "location_types": [
+      "park",
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "Zone of the car park in the dublin airport dublin 2019",
+    "concepts": [
+      "park",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:37:15.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c08a456bc7bbb3f7104"
+  },
+  "original_text": "closed back door",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door",
+    "concepts": [
+      "door"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:38:32.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c32a456bc7bbb3f7106"
+  },
+  "original_text": "closed back door. someone trying to get in",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in",
+    "concepts": [
+      "door",
+      "someone"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:39:14.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c56a456bc7bbb3f7108"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs",
+    "concepts": [
+      "door",
+      "someone"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:39:50.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c62a456bc7bbb3f710a"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport",
+    "concepts": [
+      "door",
+      "someone",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:40:02.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c80a456bc7bbb3f710c"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport spring 1029",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      3700800,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport spring 1029",
+    "concepts": [
+      "door",
+      "someone",
+      "airport",
+      "spring"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:40:32.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c84a456bc7bbb3f710e"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport spring 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 3,
+        "day": null
+      },
+      {
+        "year": 2019,
+        "month": 4,
+        "day": null
+      },
+      {
+        "year": 2019,
+        "month": 5,
+        "day": null
+      },
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport spring 2019",
+    "concepts": [
+      "door",
+      "someone",
+      "airport",
+      "spring"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:40:36.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672c8ba456bc7bbb3f7110"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport may april march 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 5,
+        "day": null
+      },
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport may april march 2019",
+    "concepts": [
+      "door",
+      "someone",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:40:43.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672ca3a456bc7bbb3f7112"
+  },
+  "original_text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport may april march 2019 boeing 737",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      2649600,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 5,
+        "day": null
+      },
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "closed back door. someone trying to get in. I was at the bottom of the stairs airport may april march 2019 boeing 737",
+    "concepts": [
+      "door",
+      "someone",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:41:07.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672cb1a456bc7bbb3f7114"
+  },
+  "original_text": "stairs of boeing 737",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      2649600,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "stairs of boeing 737",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:41:21.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672d21a456bc7bbb3f7116"
+  },
+  "original_text": "eating avocado at breakfast at home",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast at home",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:43:13.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672d2ea456bc7bbb3f7118"
+  },
+  "original_text": "eating avocado at breakfast",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      18000,
+      43200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [
+        "breakfast"
+      ],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating avocado at breakfast",
+    "concepts": [
+      "breakfast",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:43:26.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672ddea456bc7bbb3f711d"
+  },
+  "original_text": "a blue notice board for in my office with various livelogging designs",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a blue notice board for in my office with various livelogging designs",
+    "concepts": [
+      "office",
+      "various",
+      "blue"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:46:22.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672e00a456bc7bbb3f711f"
+  },
+  "original_text": "a blue notice board for in my office with various livelogging designs with my hands",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a blue notice board for in my office with various livelogging designs with my hands",
+    "concepts": [
+      "office",
+      "various",
+      "blue"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:46:56.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672e38a456bc7bbb3f7121"
+  },
+  "original_text": "interacting with a blue notice board for in my office with various livelogging designs with my hands",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "interacting with a blue notice board for in my office with various livelogging designs with my hands",
+    "concepts": [
+      "office",
+      "various",
+      "blue"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:47:52.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672eb5a456bc7bbb3f7123"
+  },
+  "original_text": "I was viewing the terminal map at Ottawa airport and noticed a shop next to it. I'm curious about the name of that shop.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "viewing the terminal map, noticed a shop Ottawa airport",
+    "location": "Ottawa airport"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "ottawa"
+    ],
+    "location_types": [
+      "airport"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was viewing the terminal map at Ottawa airport and noticed a shop next to it. I'm curious about the name of that shop.",
+    "concepts": [
+      "shop",
+      "map",
+      "airport"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:49:57.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66672f2ca456bc7bbb3f7125"
+  },
+  "original_text": "stairs of boeing 737",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      2649600,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "stairs of boeing 737",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T16:51:56.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673199a456bc7bbb3f7127"
+  },
+  "original_text": "I visited Vietnam.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "visited Vietnam",
+    "location": "Vietnam"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "vietnam"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I visited Vietnam.",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:02:17.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666731d9a456bc7bbb3f7129"
+  },
+  "original_text": "the meeting to place on a starship enterprise",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the meeting to place on a starship enterprise",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:03:21.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666731faa456bc7bbb3f712b"
+  },
+  "original_text": "the meeting to place on a starship enterprise with a wall with yellow lighter shapes and design",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the meeting to place on a starship enterprise with a wall with yellow lighter shapes and design",
+    "concepts": [
+      "wall",
+      "yellow",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:03:54.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673212a456bc7bbb3f712d"
+  },
+  "original_text": "l",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "l",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:04:18.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673219a456bc7bbb3f712f"
+  },
+  "original_text": "meeting with yellow lighter shapes and design and yellow lights on",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "meeting with yellow lighter shapes and design and yellow lights on",
+    "concepts": [
+      "yellow",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:04:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673223a456bc7bbb3f7131"
+  },
+  "original_text": "meeting with yellow lighter shapes and design and yellow lights on the ceilinh",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "meeting with yellow lighter shapes and design and yellow lights on the ceilinh",
+    "concepts": [
+      "yellow",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:04:35.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673228a456bc7bbb3f7133"
+  },
+  "original_text": "meeting with yellow lighter shapes and design and yellow lights on the ceiling",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "meeting with yellow lighter shapes and design and yellow lights on the ceiling",
+    "concepts": [
+      "yellow",
+      "ceiling",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:04:40.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673340a456bc7bbb3f7135"
+  },
+  "original_text": "meeting with yellow lighter shapes and design and yellow lights on the ceiling in bangkok",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "bangkok"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "meeting with yellow lighter shapes and design and yellow lights on the ceiling in bangkok",
+    "concepts": [
+      "yellow",
+      "ceiling",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:09:20.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673380a456bc7bbb3f7137"
+  },
+  "original_text": "meeting room with yellow lighter shapes and design and yellow lights on the ceiling in bangkok",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "bangkok"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "meeting room with yellow lighter shapes and design and yellow lights on the ceiling in bangkok",
+    "concepts": [
+      "room",
+      "yellow",
+      "ceiling",
+      "lighter"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:10:24.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666733dba456bc7bbb3f7139"
+  },
+  "original_text": "I remember that the shows were nearly empty you should sing the word was ending by examples of when I was shopping and the shows were nearly empty the",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I remember that the shows were nearly empty you should sing the word was ending by examples of when I was shopping and the shows were nearly empty the",
+    "concepts": [
+      "word",
+      "empty"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:11:55.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666733eaa456bc7bbb3f713b"
+  },
+  "original_text": "empty shelves in the shop",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "empty shelves in the shop",
+    "concepts": [
+      "shop",
+      "empty"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:12:10.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666733f6a456bc7bbb3f713d"
+  },
+  "original_text": "empty shelves in the shopping mall",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "shopping mall"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "empty shelves in the shopping mall",
+    "concepts": [
+      "empty"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:12:22.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667340ea456bc7bbb3f713f"
+  },
+  "original_text": "empty shout without any empty product",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "empty shout without any empty product",
+    "concepts": [
+      "empty"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:12:46.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673417a456bc7bbb3f7141"
+  },
+  "original_text": "empty shelf without any empty product at a store",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "empty shelf without any empty product at a store",
+    "concepts": [
+      "shelf",
+      "store",
+      "empty"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:12:55.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667346aa456bc7bbb3f7143"
+  },
+  "original_text": "no food on the shelf at a shop store",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "no food on the shelf at a shop store",
+    "concepts": [
+      "shop",
+      "shelf",
+      "food",
+      "store"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:14:18.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666734bba456bc7bbb3f7145"
+  },
+  "original_text": "both brand is my large black guitar amplifier",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "both brand is my large black guitar amplifier",
+    "concepts": [
+      "black",
+      "guitar"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:15:39.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673612a456bc7bbb3f7147"
+  },
+  "original_text": "it was a problem with my dreams at home so I called out on",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "it was a problem with my dreams at home so I called out on",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:21:22.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673617a456bc7bbb3f7149"
+  },
+  "original_text": "it was a problem with my drains at home so I called out on",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "it was a problem with my drains at home so I called out on",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:21:27.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667361da456bc7bbb3f714b"
+  },
+  "original_text": "it was a problem with my drains at home so I called out an expert",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "home"
+    ],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "it was a problem with my drains at home so I called out an expert",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:21:33.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673625a456bc7bbb3f714d"
+  },
+  "original_text": "it was a problem with my drains so I called out an expert",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "it was a problem with my drains so I called out an expert",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:21:41.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667365aa456bc7bbb3f714f"
+  },
+  "original_text": "a man fixing drains with a portable camera and a screen",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a man fixing drains with a portable camera and a screen",
+    "concepts": [
+      "camera",
+      "screen",
+      "man"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:22:34.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673676a456bc7bbb3f7151"
+  },
+  "original_text": "a man fixing drains with a portable camera and a yellow screen at the side of a house",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a man fixing drains with a portable camera and a yellow screen at the side of a house",
+    "concepts": [
+      "camera",
+      "screen",
+      "yellow",
+      "house",
+      "man"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:23:02.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667373aa456bc7bbb3f7153"
+  },
+  "original_text": "it was a problem with my drains so I called out an expert",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "it was a problem with my drains so I called out an expert",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:26:18.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667377ca456bc7bbb3f7155"
+  },
+  "original_text": "we always ready I cannot find my electronic violin I left it with my cream coloured electric guitar telecaster can you find images of them together",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "we always ready I cannot find my electronic violin I left it with my cream coloured electric guitar telecaster can you find images of them together",
+    "concepts": [
+      "can",
+      "electronic",
+      "guitar"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:27:24.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666737a9a456bc7bbb3f7157"
+  },
+  "original_text": "electric violin with cream colour electric guitar of telecaster",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "electric violin with cream colour electric guitar of telecaster",
+    "concepts": [
+      "guitar"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:28:09.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666738b6a456bc7bbb3f7159"
+  },
+  "original_text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "having a meal in a restaurant restaurant",
+    "date": "before March 2020",
+    "location": "restaurant"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+    "concepts": [
+      "meal"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:32:38.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673973a456bc7bbb3f715b"
+  },
+  "original_text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "having a meal in a restaurant restaurant",
+    "date": "before March 2020",
+    "location": "restaurant"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+    "concepts": [
+      "meal"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:35:47.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673a2ea456bc7bbb3f715d"
+  },
+  "original_text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "having a meal in a restaurant restaurant",
+    "date": "before March 2020",
+    "location": "restaurant"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was having a meal in a restaurant before covent lockdowns started in March 2020.",
+    "concepts": [
+      "meal"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:38:54.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673bdaa456bc7bbb3f7160"
+  },
+  "original_text": "she was wearing a hat and taking photo of a lake",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "lake"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "she was wearing a hat and taking photo of a lake",
+    "concepts": [
+      "wearing",
+      "hat",
+      "lake"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:46:02.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673bf7a456bc7bbb3f7162"
+  },
+  "original_text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      43200,
+      61200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "lake"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon",
+    "concepts": [
+      "wearing",
+      "hat",
+      "lake"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:46:31.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673c2ba456bc7bbb3f7164"
+  },
+  "original_text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      43200,
+      61200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "lake"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon",
+    "concepts": [
+      "wearing",
+      "hat",
+      "lake"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:47:23.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673c49a456bc7bbb3f7166"
+  },
+  "original_text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon in Scotland",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      43200,
+      61200
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "scotland"
+    ],
+    "location_types": [
+      "lake"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "she was wearing a hat and taking photo of a lake in a cold and winter afternoon in Scotland",
+    "concepts": [
+      "wearing",
+      "hat",
+      "lake"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:47:53.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673d7aa456bc7bbb3f7168"
+  },
+  "original_text": "eating with chopsticks",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating with chopsticks",
+    "concepts": [
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:52:58.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673eafa456bc7bbb3f716a"
+  },
+  "original_text": "I was photographing the first two characters of my blue Ford car's licence plate, which were off, in part outside of my property.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "photographing the first two characters of my blue Ford car's licence plate outside of my property",
+    "location": "outside of my property"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was photographing the first two characters of my blue Ford car's licence plate, which were off, in part outside of my property.",
+    "concepts": [
+      "plate",
+      "blue"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:58:07.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66673ebda456bc7bbb3f716c"
+  },
+  "original_text": "I was noticing the first two digits of my blue Ford car's licence plate, which was parked partially outside of my property.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "noticing the first two digits of my blue Ford car's licence plate outside of my property",
+    "location": "outside of my property"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was noticing the first two digits of my blue Ford car's licence plate, which was parked partially outside of my property.",
+    "concepts": [
+      "parked",
+      "plate",
+      "blue"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T17:58:21.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667458da456bc7bbb3f716e"
+  },
+  "original_text": "I had an old gray laptop in the 1990s, which was kept on a shelf in my office and was clearly visible as a laptop.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "old gray laptop on a shelf in my office",
+    "date": "1990s",
+    "location": "on a shelf in my office"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": 1990,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": [
+        "1990s"
+      ]
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I had an old gray laptop in the 1990s, which was kept on a shelf in my office and was clearly visible as a laptop.",
+    "concepts": [
+      "laptop",
+      "office",
+      "old",
+      "shelf",
+      "gray"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:27:25.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667459da456bc7bbb3f7170"
+  },
+  "original_text": "I had an old gray laptop in the 1990s, which was kept on a shelf in my office and was clearly visible as a laptop.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "old gray laptop on a shelf in my office",
+    "date": "1990s",
+    "location": "on a shelf in my office"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": 1990,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": [
+        "1990s"
+      ]
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I had an old gray laptop in the 1990s, which was kept on a shelf in my office and was clearly visible as a laptop.",
+    "concepts": [
+      "laptop",
+      "office",
+      "old",
+      "shelf",
+      "gray"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:27:41.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666745b9a456bc7bbb3f7172"
+  },
+  "original_text": "stairs of boeing 737",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      2649600,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "stairs of boeing 737",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:28:09.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666745f6a456bc7bbb3f7174"
+  },
+  "original_text": "a non grey laptop in 1990 and it's on the shelf in my office this is actually a laptop",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      7160400,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a non grey laptop in 1990 and it's on the shelf in my office this is actually a laptop",
+    "concepts": [
+      "laptop",
+      "office",
+      "shelf",
+      "grey"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:29:10.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674619a456bc7bbb3f7176"
+  },
+  "original_text": "a non grey laptop in 1990 and it's on the shelf in my office this is actually a laptop",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      7160400,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "a non grey laptop in 1990 and it's on the shelf in my office this is actually a laptop",
+    "concepts": [
+      "laptop",
+      "office",
+      "shelf",
+      "grey"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:29:45.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666748aca456bc7bbb3f7178"
+  },
+  "original_text": "desire an LSC search engine",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "desire an LSC search engine",
+    "concepts": [
+      "engine"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:40:44.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666748b8a456bc7bbb3f717a"
+  },
+  "original_text": "designing an LSC search engine",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "designing an LSC search engine",
+    "concepts": [
+      "engine"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:40:56.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666748c9a456bc7bbb3f717c"
+  },
+  "original_text": "designing an LSC search engine with a colleage in office",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "office",
+      "office"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "designing an LSC search engine with a colleage in office",
+    "concepts": [
+      "office",
+      "engine"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:41:13.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674a49a456bc7bbb3f717e"
+  },
+  "original_text": "",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:47:37.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674a69a456bc7bbb3f7180"
+  },
+  "original_text": "but sometimes I fail I tried it healthy but fell assemble when I eat fast food",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "but sometimes I fail I tried it healthy but fell assemble when I eat fast food",
+    "concepts": [
+      "food"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:48:09.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674a7da456bc7bbb3f7182"
+  },
+  "original_text": "eating fast food",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "eating fast food",
+    "concepts": [
+      "food",
+      "eating"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:48:29.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674b60a456bc7bbb3f7184"
+  },
+  "original_text": "assuming today is 20 June 2020 the last day I changing a block on an electrical device",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      },
+      {
+        "year": 2020,
+        "month": 6,
+        "day": 20
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "assuming today is 20 June 2020 the last day I changing a block on an electrical device",
+    "concepts": [
+      "device",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:52:16.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674b6aa456bc7bbb3f7186"
+  },
+  "original_text": "assuming today is 20 June 2020 the last day I changing a plug on an electrical device",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      },
+      {
+        "year": 2020,
+        "month": 6,
+        "day": 20
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "assuming today is 20 June 2020 the last day I changing a plug on an electrical device",
+    "concepts": [
+      "device",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:52:26.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674b78a456bc7bbb3f7188"
+  },
+  "original_text": "assuming today is 30 June 2020 the last day I changing a plug on an electrical device",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      },
+      {
+        "year": 2020,
+        "month": 6,
+        "day": 30
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "assuming today is 30 June 2020 the last day I changing a plug on an electrical device",
+    "concepts": [
+      "device",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:52:40.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674beba456bc7bbb3f718a"
+  },
+  "original_text": "assuming today is 20 June 2020 the last day I changing a block on an electrical device",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      },
+      {
+        "year": 2020,
+        "month": 6,
+        "day": 20
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "assuming today is 20 June 2020 the last day I changing a block on an electrical device",
+    "concepts": [
+      "device",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:54:35.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674c0aa456bc7bbb3f718c"
+  },
+  "original_text": "before June 2020 when is the last day I was changing a plug for an electrical device",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 6,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "before June 2020 when is the last day I was changing a plug for an electrical device",
+    "concepts": [
+      "device",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T18:55:06.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674d37a456bc7bbb3f718e"
+  },
+  "original_text": "running in front of us swimming pool",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "running in front of us swimming pool",
+    "concepts": [
+      "swimming",
+      "pool"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:00:07.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674d48a456bc7bbb3f7190"
+  },
+  "original_text": "running in front of a swimming pool",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "running in front of a swimming pool",
+    "concepts": [
+      "swimming",
+      "pool"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:00:24.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674d60a456bc7bbb3f7192"
+  },
+  "original_text": "running in front of a swimming pool I was on a treadmill in a gym",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "running in front of a swimming pool I was on a treadmill in a gym",
+    "concepts": [
+      "swimming",
+      "pool"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:00:48.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674da4a456bc7bbb3f7194"
+  },
+  "original_text": "I was running on a treadmill nearby a pool",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was running on a treadmill nearby a pool",
+    "concepts": [
+      "pool"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:01:56.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66674eb9a456bc7bbb3f7196"
+  },
+  "original_text": "I visited an outdoor farmers market during February 2020.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "visited an outdoor farmers market ",
+    "date": "February 2020",
+    "location": ""
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 2,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I visited an outdoor farmers market during February 2020.",
+    "concepts": [
+      "outdoor"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:06:33.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667500aa456bc7bbb3f7198"
+  },
+  "original_text": "I left literacy when I was taking a photo of the sea with my smartphone",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I left literacy when I was taking a photo of the sea with my smartphone",
+    "concepts": [
+      "sea"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:12:10.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675076a456bc7bbb3f719a"
+  },
+  "original_text": "taking a photo I have to see where's my smartphone",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "taking a photo I have to see where's my smartphone",
+    "concepts": [
+      "see"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:13:58.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667508ba456bc7bbb3f719c"
+  },
+  "original_text": "taking a photo of the sea with my smartphone",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "taking a photo of the sea with my smartphone",
+    "concepts": [
+      "sea"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:14:19.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675295a456bc7bbb3f719e"
+  },
+  "original_text": "he had a white beard that researcher",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "he had a white beard that researcher",
+    "concepts": [
+      "white"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:23:01.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666752c1a456bc7bbb3f71a0"
+  },
+  "original_text": "he had a white beard that researcher and what's showing me something on his computer",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "he had a white beard that researcher and what's showing me something on his computer",
+    "concepts": [
+      "something",
+      "computer",
+      "white"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:23:45.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666753fea456bc7bbb3f71a2"
+  },
+  "original_text": "at what time did I go to the cafe in the helix on the day in January 2020 after returning from my trip to MMM and to Bangkok",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 1,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "the helix"
+    ],
+    "regions": [
+      "bangkok"
+    ],
+    "location_types": [
+      "cafe",
+      "cafe"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "at what time did I go to the cafe in the helix on the day in January 2020 after returning from my trip to MMM and to Bangkok",
+    "concepts": [
+      "day",
+      "time"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:29:02.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675452a456bc7bbb3f71a4"
+  },
+  "original_text": "The day I go to the cafe in the helix after 15 January 2020",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [
+      [
+        1579046400,
+        "after"
+      ]
+    ],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "the helix"
+    ],
+    "regions": [],
+    "location_types": [
+      "cafe",
+      "cafe"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "The day I go to the cafe in the helix after 15 January 2020",
+    "concepts": [
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:30:26.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675457a456bc7bbb3f71a6"
+  },
+  "original_text": "",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:30:31.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667545aa456bc7bbb3f71a8"
+  },
+  "original_text": "The day I go to the cafe in the helix after 15 January 2020",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [
+      [
+        1579046400,
+        "after"
+      ]
+    ],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [
+      "the helix"
+    ],
+    "regions": [],
+    "location_types": [
+      "cafe",
+      "cafe"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "The day I go to the cafe in the helix after 15 January 2020",
+    "concepts": [
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:30:34.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667546aa456bc7bbb3f71aa"
+  },
+  "original_text": "the time I go to the cafe after 50 in January 2020",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 1,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "cafe",
+      "cafe"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the time I go to the cafe after 50 in January 2020",
+    "concepts": [
+      "time"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:30:50.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667547aa456bc7bbb3f71ac"
+  },
+  "original_text": "the time I go to the cafe after 15 in January 2020",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2020,
+        "month": 1,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [
+      "cafe",
+      "cafe"
+    ],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the time I go to the cafe after 15 in January 2020",
+    "concepts": [
+      "time"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:31:06.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667556fa456bc7bbb3f71ae"
+  },
+  "original_text": "I was wearing my red football shirt in Vietnam.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "wearing my red football shirt Vietnam",
+    "location": "Vietnam"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [
+      "vietnam"
+    ],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was wearing my red football shirt in Vietnam.",
+    "concepts": [
+      "wearing",
+      "shirt",
+      "red"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:35:11.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675595a456bc7bbb3f71b0"
+  },
+  "original_text": "I was wearing my red Vietnam football shirt.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "wearing my red Vietnam football shirt ",
+    "time": "",
+    "date": "",
+    "location": ""
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was wearing my red Vietnam football shirt.",
+    "concepts": [
+      "wearing",
+      "shirt",
+      "red"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:35:49.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666755a7a456bc7bbb3f71b2"
+  },
+  "original_text": "I was wearing my red Vietnam football shirt.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "wearing my red Vietnam football shirt ",
+    "time": "",
+    "date": "",
+    "location": ""
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was wearing my red Vietnam football shirt.",
+    "concepts": [
+      "wearing",
+      "shirt",
+      "red"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:36:07.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675643a456bc7bbb3f71b4"
+  },
+  "original_text": "find a moment when I was shopping for ozo",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "find a moment when I was shopping for ozo",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:38:43.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667564aa456bc7bbb3f71b6"
+  },
+  "original_text": "find a moment when I was shopping for ouzo",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "find a moment when I was shopping for ouzo",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:38:50.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675677a456bc7bbb3f71b8"
+  },
+  "original_text": "I drank a lot a glass of wine after I bought an ouzo",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I drank a lot a glass of wine after I bought an ouzo",
+    "concepts": [
+      "glass",
+      "wine"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:39:35.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666756aba456bc7bbb3f71ba"
+  },
+  "original_text": "I bought an uzo on 21 October  2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 10,
+        "day": 21
+      },
+      {
+        "year": 2019,
+        "month": null,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I bought an uzo on 21 October  2019",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:40:27.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666756cfa456bc7bbb3f71bc"
+  },
+  "original_text": "I'm going shopping on 21 October 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 10,
+        "day": 21
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I'm going shopping on 21 October 2019",
+    "concepts": [],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:41:03.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667571ca456bc7bbb3f71be"
+  },
+  "original_text": "I bought a alcohol on 21 October 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 10,
+        "day": 21
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I bought a alcohol on 21 October 2019",
+    "concepts": [
+      "alcohol"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:42:20.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667572da456bc7bbb3f71c0"
+  },
+  "original_text": "I bought an Ouzo alcohol on 21 October 2019",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 10,
+        "day": 21
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I bought an Ouzo alcohol on 21 October 2019",
+    "concepts": [
+      "alcohol"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:42:37.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "6667579da456bc7bbb3f71c2"
+  },
+  "original_text": "on which day are in march 2019 did the cafeteria offer a sweet potato coconut and chilli soup",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "on which day are in march 2019 did the cafeteria offer a sweet potato coconut and chilli soup",
+    "concepts": [
+      "soup",
+      "potato",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:44:29.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666757cea456bc7bbb3f71c4"
+  },
+  "original_text": "I was having potato coconut and chilli soup in the cafeteria in March 2019.",
+  "is_question": true,
+  "query_parts": {
+    "visual": "having potato coconut and chilli soup cafeteria",
+    "date": "March 2019",
+    "location": "cafeteria"
+  },
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "I was having potato coconut and chilli soup in the cafeteria in March 2019.",
+    "concepts": [
+      "soup",
+      "potato"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:45:18.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "66675838a456bc7bbb3f71c6"
+  },
+  "original_text": "the day in march 2019 offers with potato coconut and chili soup",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the day in march 2019 offers with potato coconut and chili soup",
+    "concepts": [
+      "soup",
+      "potato",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:47:04.000Z"
+  }
+},
+{
+  "_id": {
+    "$oid": "666758b2a456bc7bbb3f71c8"
+  },
+  "original_text": "the day in march 2019 offers with potato coconut and chili soup in one dish",
+  "is_question": false,
+  "query_parts": null,
+  "time": {
+    "time": [
+      0,
+      86400
+    ],
+    "timestamps": [],
+    "duration": null,
+    "weekdays": [],
+    "dates": [
+      {
+        "year": 2019,
+        "month": 3,
+        "day": null
+      }
+    ],
+    "original_texts": {
+      "WEEKDAY": [],
+      "TIMEOFDAY": [],
+      "DURATION": []
+    }
+  },
+  "location": {
+    "locations": [],
+    "regions": [],
+    "location_types": [],
+    "gps_bounds": null,
+    "original_texts": {},
+    "from_center": null
+  },
+  "visual": {
+    "text": "the day in march 2019 offers with potato coconut and chili soup in one dish",
+    "concepts": [
+      "soup",
+      "potato",
+      "dish",
+      "day"
+    ],
+    "OCR": []
+  },
+  "oid": null,
+  "extracted": true,
+  "location_queries": [],
+  "temporal_queries": [],
+  "visual_queries": [],
+  "es": null,
+  "date": {
+    "$date": "2024-06-10T19:49:06.000Z"
+  }
+}]

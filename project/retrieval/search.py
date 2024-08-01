@@ -318,7 +318,7 @@ async def single_query(
             field_extractor.add_output(relevant_fields.model_dump())
 
     if results is None:
-        print("[red]No results found[/red]")
+        print("[red]single_query: No results found[/red]")
         return
 
     # ============================= #
@@ -544,7 +544,7 @@ async def two_queries(
         or conditional_query is None
         or main_query is None
     ):
-        print("[red]No results found[/red]")
+        print("[red]two queries: No results found[/red]")
         return
 
     # Add the conditional filters
@@ -557,7 +557,7 @@ async def two_queries(
     msearch_results = await send_multiple_search_request(msearch_query)
 
     if not msearch_results:
-        print("[red]No results found[/red]")
+        print("[red]two queries - msearch: No results found[/red]")
         return
 
     # Merge the two results
@@ -676,7 +676,7 @@ async def search_location_again(request: MapRequest) -> Optional[List[Event]]:
         results = await simple_search(new_query, size=20, tag="location")
         if results.results:
             return results.results.events
-    print("[red]No results found[/red]")
+    print("[red]search_location_again: No results found[/red]")
     return []
 
 

@@ -157,6 +157,9 @@ class SingleQuery(CamelCaseModel):
     time: str = ""
     date: str = ""
 
+    def __bool__(self) -> bool:
+        return any([self.visual, self.location, self.time, self.date])
+
 class ParsedQuery(CamelCaseModel):
     main: SingleQuery
     after: SingleQuery | None = None

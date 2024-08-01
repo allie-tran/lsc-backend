@@ -1,5 +1,6 @@
 from datetime import timedelta
 from typing import List, Sequence, Tuple
+from rich import print
 
 from results.models import EventResults
 
@@ -339,6 +340,7 @@ def get_visual_filters(visual_info: VisualInfo) -> Sequence[ESCombineFilters]:
     ocr = ESFuzzyMatch(field="ocr", boost=0.001)
     concepts = ESMatch(field="descriptions", boost=0.01)
     if visual_info.text:
+        print("Visual info text:", visual_info.text)
         encoded_query = encode_text(visual_info.text).tolist()
         embedding.embedding = encoded_query
         ocr.query = visual_info.text
