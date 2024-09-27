@@ -75,8 +75,7 @@ from retrieval.search_utils import (
     get_search_request,
     merge_msearch_with_main_results,
     organize_by_relevant_fields,
-    process_es_results,
-    process_search_results,
+    process_es_results, process_search_results,
     send_multiple_search_request,
     send_search_request,
 )
@@ -125,6 +124,10 @@ async def streaming_manager(request: GeneralQueryRequest) -> AsyncGenerator[str,
                 response.oid = cached_responses.oid
                 cached_responses.add(response)
 
+                print("[red]" + "-" * 50 + "[/red]")
+                print(f"[red]Yielding response[/red]", response.type)
+                print(f"[red]Size of the response[/red]", len(response.response))
+                print("[red]" + "-" * 50 + "[/red]")
                 data = response.model_dump_json(by_alias=True)
                 yield f"data: {data}\n\n"
 

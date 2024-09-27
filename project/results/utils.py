@@ -97,7 +97,7 @@ def index_derived_fields():
 # index_derived_fields()
 
 def custom_compare_function(
-    event1: Event, event2: Event, fields: Iterable[str], max_gap: MaxGap
+    event1: Event, event2: Event, fields: Iterable[str], max_gap: MaxGap | None = None
 ) -> int:
     """
     Custom compare function
@@ -108,7 +108,7 @@ def custom_compare_function(
     ignore_fields = []
 
     # Check the time gap
-    if max_gap.time_gap is not None and max_gap.time_gap.unit == "none":
+    if max_gap and max_gap.time_gap is not None and max_gap.time_gap.unit == "none":
         time_gap = max_gap.time_gap
         ignore_fields.append(time_gap.unit)
         match time_gap.unit:
@@ -149,7 +149,7 @@ def custom_compare_function(
                 pass
 
     # Check the location gap
-    if max_gap.gps_gap is not None and max_gap.gps_gap.unit == "none":
+    if max_gap and max_gap.gps_gap is not None and max_gap.gps_gap.unit == "none":
         pass
 
     for field in fields:
@@ -158,7 +158,18 @@ def custom_compare_function(
         cmp_field = field
         if field not in ISEQUAL:
             cmp_field = "*"
-        if not ISEQUAL[cmp_field](getattr(event1, field), getattr(event2, field)):
+
+        attr1 = ""
+        attr2 = ""
+        try:
+            attr1 = getattr(event1, field)
+        except AttributeError:
+            pass
+        try:
+            attr2 = getattr(event2, field)
+        except AttributeError:
+            pass
+        if not ISEQUAL[cmp_field](attr1, attr2):
             equal = False
             break
 
@@ -206,6 +217,8 @@ def merge_events(
     if not groupby:
         groupby = set(["group"])
 
+    groupby.add("date")
+
     cmp = lambda x, y: custom_compare_function(x, y, groupby, relevant_fields.max_gap)
 
     # Group the events using the ISEQUAL criteria from configs
@@ -220,6 +233,7 @@ def merge_events(
     grouped_scores = {0: [scores[0]]}
 
     print(f"[blue]Grouping {len(events)} events by {groupby}[/blue]")
+    print("Example:", events[0])
     for event, score in zip(events[1:], scores[1:]):
         found = False
         for group in grouped_events:

@@ -49,13 +49,13 @@ class ESSearchRequest(ESQuery):
     index: str = SCENE_INDEX
     main_field: str = "scene"
     size: int = DEFAULT_SIZE
-    includes: List[str] = [main_field]
+    includes: List[str] = [main_field, "clip_vector"]
 
     @model_validator(mode="after")
     def get_fields_based_on_mode(self) -> Self:
         if self.mode == "image":
             self.main_field = "image_path"
-            self.includes = [self.main_field]
+            self.includes = [self.main_field, "clip_vector"]
             self.index = IMAGE_INDEX
             self.size *= 3
             if self.sort_field in ["start_timestamp", "end_timestamp"]:
@@ -414,6 +414,9 @@ class ESListQuery(ESQuery):
         return
 
     def to_query(self) -> Optional[Union[Dict, List[Dict]]]:
+        if len(self.queries) == 1:
+            return self.queries[0].to_query()
+
         # case 1: it has children -> call them recursively
         if self.has_child:
             queries = []

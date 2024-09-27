@@ -1,4 +1,5 @@
 import json
+import numpy as np
 import logging
 from collections.abc import AsyncGenerator
 from typing import Any, Callable, List, Optional, Sequence, Union
@@ -22,6 +23,7 @@ from results.models import (
 )
 from results.utils import create_event_label, deriving_fields
 from rich import print
+from copy import deepcopy
 
 from retrieval.async_utils import async_generator_timer, timer
 from retrieval.types import ESResponse
@@ -36,6 +38,7 @@ def clean(data: dict) -> dict:
     Print the data in a clean format
     If any array is found, print only the first 5 elements
     """
+    data = deepcopy(data)
     if not isinstance(data, dict):
         return data
     for key, value in data.items():
@@ -49,13 +52,35 @@ def clean(data: dict) -> dict:
 # ======================== #
 # MAIN REQUEST FUNCTIONS
 # ======================== #
+async def send_explain_request(query: ESSearchRequest, doc_id: str):
+    """
+    Send an explain request
+    """
+    json_query = query.to_query()["query"]
+    json_query = {"query": json_query}
+
+    # encode "/" in the doc_id
+    doc_id = doc_id.replace("/", "%2F")
+
+    # Use normal search
+    response = requests.post(
+        f"{ES_URL}/{query.index}/_explain/{doc_id}",
+        data=json.dumps(json_query),
+        headers=json_headers,
+    )
+    if response.status_code != 200:
+        handle_failed_request(response, json_query)
+        raise HTTPException(
+            status_code=500, detail="Error with the Elasticsearch request"
+        )
+    print(response.json())
+
+
 async def send_search_request(query: ESSearchRequest) -> ESResponse:
     """
     Send a new search request
     """
     json_query = query.to_query()
-    print(clean(json_query))
-
     # Use normal search
     response = requests.post(
         f"{ES_URL}/{query.index}/_search{'?scroll=5m' if query.scroll else ''}",
@@ -67,6 +92,23 @@ async def send_search_request(query: ESSearchRequest) -> ESResponse:
         raise HTTPException(
             status_code=500, detail="Error with the Elasticsearch request"
         )
+    if "bool" in json_query["query"]:
+        print(clean(json_query))
+        # await send_explain_request(query, response.json()["hits"]["hits"][0]["_id"])
+        # if "clip_vector" in response.json()["hits"]["hits"][0]["_source"]:
+        #     text_vector = None
+        #     query_vector = json_query["query"]["bool"]["should"]
+        #     if isinstance(query_vector, list):
+        #         for q in query_vector:
+        #             if "elastiknn" in q:
+        #                 query_vector = q
+        #     else:
+        #         text_vector = query_vector["elastiknn_nearest_neighbors"]["vec"]["values"]
+        #     if text_vector:
+        #         image_vector = response.json()["hits"]["hits"][0]["_source"]["clip_vector"]
+        #         similarity = np.dot(text_vector, image_vector)
+        #         similarity = similarity / (np.linalg.norm(text_vector) * np.linalg.norm(image_vector))
+        #         print(f"Similarity: {similarity:.2f}")
     return ESResponse.model_validate(response.json())
 
 
@@ -143,6 +185,7 @@ def get_search_request(
         size=size,
         mode=mode,
         sort_field="start_timestamp" if mode == Mode.event else "timestamp",
+        sort_order="asc",
     )
     return search_request
 
@@ -288,10 +331,7 @@ def merge_msearch_with_main_results(
 
 @timer("organize_by_relevant_fields")
 def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
-    # scene_ids = [event.scene for event in results.events]
-    # results.relevant_fields = relevant_fields
-    # results.events = convert_to_events(scene_ids, relevant_fields, key="image")
-    # TODO: Implement this
+    print(f"[green]Organizing by relevant fields: {relevant_fields}[/green]")
     images = [image.src for event in results.events for image in event.images]
     results.events = convert_to_events(images, relevant_fields, key="image")
     results.relevant_fields = relevant_fields
@@ -306,7 +346,7 @@ def organize_by_relevant_fields(results, relevant_fields) -> EventResults:
 def process_search_results(results: GenericEventResults) -> List[TripletEvent]:
     # This is the search results
     if not results:
-        raise HTTPException(status_code=404, detail="No results found")
+        return []
     assert not isinstance(results, str)
 
     # Format into EventTriplets

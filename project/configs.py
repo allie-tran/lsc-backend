@@ -16,7 +16,7 @@ memory = Memory(location="cache", verbose=0)
 # ====================== #
 # These could be adjusted in the frontend with settings
 DEV_MODE = False
-USE_GROQ = True
+USE_GROQ = False
 IMAGE_SEARCH = True
 DEBUG = False
 CACHE = True
@@ -33,14 +33,14 @@ ALL_OFF = False
 QUERY_PARSER = True
 
 # Whether to use the LLM for relevant fields or not
-FILTER_FIELDS = (not ALL_OFF) and True
+FILTER_FIELDS = True
 
 # Maximum number of images per event (0 for no limit)
 MAX_IMAGES_PER_EVENT = 20
 
 # Whether to merge events based on the relevant fields
-MERGE_EVENTS = (not ALL_OFF) and True
-MAXIMUM_EVENT_TO_GROUP = (not ALL_OFF) and 5
+MERGE_EVENTS = True
+MAXIMUM_EVENT_TO_GROUP = 20
 
 # Timeout for the MLMM model in seconds
 TIMEOUT = 60
@@ -107,12 +107,19 @@ INCLUDE_IMAGE = ["image_path", "time", "gps", "scene", "group", "location"]
 # Functions to derive fields #
 # ========================== #
 ESSENTIAL_FIELDS = ["images", "scene", "group", "start_time", "end_time", "gps", "time"]
-IMAGE_ESSENTIAL_FIELDS = ["image", "time", "gps", "scene", "group", "location", "aspect_ratio", "hash_code", "icon"]
+IMAGE_ESSENTIAL_FIELDS = [
+    "image",
+    "time",
+    "gps",
+    "scene",
+    "group",
+    "location",
+    "aspect_ratio",
+    "hash_code",
+    "icon",
+]
 
-DEPENDENCIES = {
-    "place": ["location"],
-    "place_info": ["location"]
-}
+DEPENDENCIES = {"place": ["location"], "place_info": ["location"]}
 
 DERIVABLE_FIELDS = {
     "time": lambda x: x.start_time,
@@ -133,7 +140,14 @@ DERIVABLE_FIELDS = {
     "place_info": lambda x: x.location_info,
 }
 
-ISEQUAL = {"*": lambda x, y: x == y, "city": lambda x, y: set(x).intersection(set(y))}
+
+def get_city_equal(x, y):
+    if not x or not y:
+        return x == y
+    return set(x).intersection(set(y))
+
+
+ISEQUAL = {"*": lambda x, y: x == y, "city": get_city_equal}
 # Fields in ORDER in the textual description
 TIME_FIELDS = [
     "minute",
@@ -149,7 +163,16 @@ TIME_FIELDS = [
 LOCATION_FIELDS = ["location", "location_info", "city", "region", "country"]
 DURATION_FIELDS = ["months", "weeks", "days", "hours", "minutes"]
 VISUAl_FIELDS = ["images", "ocr"]
-EXCLUDE_FIELDS = ["images", "gps", "scene", "group", "start_time", "end_time", "timestamp", "ocr"]
+EXCLUDE_FIELDS = [
+    "images",
+    "gps",
+    "scene",
+    "group",
+    "start_time",
+    "end_time",
+    "timestamp",
+    "ocr",
+]
 
 # ====================== #
 # QA Configurations #

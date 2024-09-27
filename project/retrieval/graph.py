@@ -10,7 +10,6 @@ from query_parse.extract_info import create_es_combo_query, create_query
 from query_parse.question import detect_question, question_to_retrieval
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
 from query_parse.types.requests import Step, Task
-from results.models import AsyncioTaskResult
 from results.utils import (
     RelevantFields,
     create_event_label,
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 @async_timer("to_csv")
 async def to_csv(
     text: str, pipeline: Optional[SearchPipeline] = None, task_type: Task = Task.NONE
-) -> str:
+) -> pd.DataFrame:
     """
     Search (and answer) a single query
     """
@@ -104,7 +103,7 @@ async def to_csv(
 
     if results is None:
         print("[red]to_csv: No results found[/red]")
-        return ""
+        return pd.DataFrame()
 
     # ============================= #
     # 3. Processing the results
@@ -168,10 +167,15 @@ async def to_csv(
     # 4. To CSV
     # ============================= #
     events = results.events
+
+    # Add number of images
+    for event in events:
+        event.duration = len(event.images) // 2
+
     df = pd.json_normalize(
         [
             e.model_dump(
-                exclude=["images", "start_time", "end_time", "location", "markers"],
+                exclude=["images", "markers"],
                 exclude_none=True,
                 exclude_defaults=True,
             )
@@ -179,22 +183,26 @@ async def to_csv(
         ]
     )
     print(len(events), "events found")
-    df.head()
-    return df.to_csv(index=False)
+    return df
 
 
 @async_timer("get_vegalite")
 async def get_vegalite(query: str):
     """
-    Get the relevant fields from the query
+    Get the vegalite data for a query
     """
-    prompt = GRAPH_QUERY.format(question=query)
+    # Get data
+    df = await to_csv(query)
+    prompt = GRAPH_QUERY.format(question=query, data=df.to_dict(orient="records"))
+
     data = {}
     while True:
         try:
             data = await gpt_llm_model.generate_from_text(prompt)
             if data:
                 rprint("Vegetalite data found", data)
+                if "data" not in data:
+                    data["data"] = {"values": df.to_dict(orient="records")}
                 return data
         except ValidationError as e:
             rprint(e)

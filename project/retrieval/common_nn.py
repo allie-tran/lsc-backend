@@ -82,12 +82,8 @@ def encode_query(main_query: str) -> np.ndarray:
         sentences = _split_text(main_query, 77)
         tokenized_text = tokenizer(sentences).to(device)
         text_encoded = clip_model.encode_text(tokenized_text)  # type: ignore
-
-        if len(sentences) > 1:
-            print("multiple sentences")
-            text_encoded = text_encoded.mean(dim=0, keepdim=True)
-
-        # text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
+        text_encoded = text_encoded.mean(dim=0, keepdim=True)
+        text_encoded /= text_encoded.norm(dim=-1, keepdim=True)
     text_features = text_encoded.cpu().numpy()
     return text_features
 

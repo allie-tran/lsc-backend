@@ -336,7 +336,8 @@ GRAPH_QUERY = (
 Generate a vegalite schema (with encoding, without data) to answer this lifelog question:
 {question}
 
-Remember to include a time field in order to visualize the data over time.
+Here is the data:
+{data}
 
 Answer in this format:
 ```json

@@ -27,9 +27,14 @@ logger.setLevel(logging.DEBUG)
 load_dotenv(".env")
 
 app = FastAPI()
-origins = ["http://localhost", "http://localhost:3001",
-        "https://n-2mbzycnxd-allie-trans-projects.vercel.app",
-           "https://mysceal.computing.dcu.ie", "vercel.app", "mysceal.computing.dcu.ie"]
+origins = [
+    "http://localhost",
+    "http://localhost:3001",
+    "https://n-2mbzycnxd-allie-trans-projects.vercel.app",
+    "https://mysceal.computing.dcu.ie",
+    "vercel.app",
+    "mysceal.computing.dcu.ie",
+]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -41,6 +46,7 @@ app.add_middleware(
 app.include_router(submit_router, prefix="/submit")
 app.include_router(timeline_router, prefix="/timeline")
 app.include_router(map_router, prefix="/location")
+
 
 @app.post(
     "/search",
@@ -75,7 +81,7 @@ async def get_stream_results(session_id: str, token: str):
     r.delete(token)
 
     if not message:
-        raise HTTPException(status_code=404, detail="No results found")
+        raise HTTPException(status_code=404, detail="Token not found")
 
     print("Starting search")
     request_body = json.loads(message.decode("utf-8"))  # type: ignore
@@ -97,11 +103,12 @@ async def encode():
     batch_encode()
     return {"message": "ok"}
 
+
 @app.post(
     "/answer-this",
     description="Answer a question on a scene",
     status_code=200,
-    response_model=List[AnswerResultWithEvent]
+    response_model=List[AnswerResultWithEvent],
 )
 async def answer_this(request: AnswerThisRequest):
     """
@@ -112,18 +119,20 @@ async def answer_this(request: AnswerThisRequest):
         answers.append(answer)
     return answers
 
+
 @app.post(
     "/query_to_csv",
     description="Given a query, return the results in CSV format",
     status_code=200,
-    response_model=str
+    response_model=str,
 )
 async def query_to_csv(query: GeneralQueryRequest):
     """
     Given a query, return the results in CSV format
     """
-    csv: str = await to_csv(query.main)
-    return csv
+    csv = await to_csv(query.main)
+    return csv.to_csv(index=False)
+
 
 @app.get("/health", description="Health check endpoint", status_code=200)
 async def health():
@@ -132,11 +141,12 @@ async def health():
     """
     return {"status": "ok"}
 
+
 @app.post(
     "/query_to_vegalite",
     description="Given a query, return the results in Vega-Lite format",
     status_code=200,
-    response_model=dict
+    response_model=dict,
 )
 async def query_to_vegalite(query: GeneralQueryRequest):
     """
