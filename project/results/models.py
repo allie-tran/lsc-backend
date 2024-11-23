@@ -213,6 +213,12 @@ class Event(CamelCaseModel):
         if lats and lons:
             return GPS(lat=sum(lats) / len(lats), lon=sum(lons) / len(lons))
 
+    @computed_field
+    def score(self) -> float:
+        if self.image_scores:
+            return max(self.image_scores)
+        return 0.0
+
     def merge_with_one(self, other: "Event", scores: List[float]):
         score, other_score = scores
         # IDS
@@ -486,6 +492,7 @@ class PartialEvent(DerivedEvent):
 class LocationInfoResult(Marker):
     fsq_info: FourSquarePlace | Dict = {}
     related_events: List[PartialEvent] = []
+    address: str = ""
 
 ResultT = TypeVar("ResultT", EventResults, RelevantFields, List[str])
 

@@ -2,6 +2,7 @@
 Configs for the project
 """
 
+from datetime import datetime
 import os
 
 from dotenv import load_dotenv
@@ -174,6 +175,14 @@ EXCLUDE_FIELDS = [
     "ocr",
 ]
 
+SORT_VALUES = {
+    "date": lambda x: datetime.strptime(x, "%d-%m-%Y"),
+    "month": lambda x: datetime.strptime(x, "%B %Y"),
+    "weekdays": lambda x: datetime.strptime(x, "%A"),
+    "hour": lambda x: datetime.strptime(x, "%H %p"),
+    "year": lambda x: int(x),
+    "duration": lambda x: int(x),
+}
 # ====================== #
 # QA Configurations #
 # ====================== #

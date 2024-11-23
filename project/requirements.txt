@@ -33,3 +33,4 @@ scikit_learn
 tensorflow
 tqdm
 auto_gptq
+geopy

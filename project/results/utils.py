@@ -1,9 +1,9 @@
 from datetime import datetime
 from functools import cmp_to_key
 from typing import Dict, Iterable, List
-from database.main import image_collection, scene_collection
 
-from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP
+from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP, SORT_VALUES
+from database.main import image_collection, scene_collection
 from pydantic import BaseModel, InstanceOf, validate_call
 from query_parse.types.lifelog import MaxGap, RelevantFields
 from query_parse.visual import score_images
@@ -24,7 +24,9 @@ def deriving_fields(
     scenes = [event.scene for event in events]
 
     try:
-        documents = scene_collection.find({"scene": {"$in": scenes}}, projection=fields + ["scene"])
+        documents = scene_collection.find(
+            {"scene": {"$in": scenes}}, projection=fields + ["scene"]
+        )
     except Exception as e:
         print("[red]Error in convert_to_events[/red]", e)
         documents = []
@@ -94,7 +96,9 @@ def index_derived_fields():
         scene_collection.update_one({"_id": scene["_id"]}, {"$set": scene})
     print("[green]Indexed derived fields for scenes[/green]")
 
+
 # index_derived_fields()
+
 
 def custom_compare_function(
     event1: Event, event2: Event, fields: Iterable[str], max_gap: MaxGap | None = None
@@ -268,17 +272,42 @@ def merge_events(
 
         new_event.merge_with_many(scores[0], to_merge, to_merge_scores)
         new_results.append(new_event)
-        new_scores.append(grouped_scores[group][0])
+        new_scores.append(max(scores))
+
+    print("[green]Merged into[/green]", len(new_results), "events")
+    print("[blue]Sorting by[/blue]", relevant_fields.sort_by)
 
     if relevant_fields.sort_by:
-        for sort in relevant_fields.sort_by[::-1]:
-            new_results, new_scores = zip(
-                *sorted(
-                    zip(new_results, new_scores),
-                    key=lambda x: getattr(x[0], sort.field),
-                    reverse=sort.order == "desc",
-                )
-            )
+
+        def get_sort_value(event: Event) -> List:
+            values = []
+            for sort in relevant_fields.sort_by:
+                val = getattr(event, sort.field)
+                if sort.field in SORT_VALUES:
+                    values.append(SORT_VALUES[sort.field](val))
+                else:
+                    values.append(val)
+            return values
+
+        def comp_func(tup1, tup2):
+            values1 = get_sort_value(tup1[0])
+            values2 = get_sort_value(tup2[0])
+            for value1, value2, sort in zip(values1, values2, relevant_fields.sort_by):
+                if sort.order == "asc":
+                    if value1 < value2:
+                        return -1
+                    elif value1 > value2:
+                        return 1
+                else:
+                    if value1 < value2:
+                        return 1
+                    elif value1 > value2:
+                        return -1
+            return 0
+        # for sort in relevant_fields.sort_by[::-1]:
+        new_results, new_scores = zip(
+            *sorted(zip(new_results, new_scores), key=cmp_to_key(comp_func))
+        )
 
     print("[green]Merged into[/green]", len(new_results), "events")
     return EventResults(
@@ -338,6 +367,7 @@ def merge_scenes_and_images(scenes: EventResults, images: EventResults) -> Event
         min_score=min(scenes.min_score, images.min_score),
         max_score=max(scenes.max_score, images.max_score),
     )
+
 
 @timer("limit_images_per_event")
 def limit_images_per_event(

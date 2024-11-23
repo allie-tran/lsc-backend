@@ -29,7 +29,7 @@ load_dotenv(".env")
 app = FastAPI()
 origins = [
     "http://localhost",
-    "http://localhost:3001",
+    "http://localhost:3000",
     "https://n-2mbzycnxd-allie-trans-projects.vercel.app",
     "https://mysceal.computing.dcu.ie",
     "vercel.app",
@@ -56,6 +56,7 @@ async def search(request: GeneralQueryRequest):
     if not request.session_id and not DEV_MODE:
         raise HTTPException(status_code=401, detail="Please log in")
 
+    print(request)
     # Save to redis
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     token = uuid4().hex

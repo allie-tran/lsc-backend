@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException
 from fastapi import HTTPException
 from rich import print
 
-from database.utils import get_location_info
+from database.utils import get_location_info, reverse_geomapping
+from query_parse.types.elasticsearch import GPS
 from query_parse.types.requests import (
     MapRequest,
 )
@@ -41,5 +42,14 @@ async def location(request: MapRequest):  # type: ignore
     if related_events:
         info["related_events"] = related_events
 
+    if not info["location"] or info["location"] == "---":
+
+        info["location"] = "Unknown Place"
+
+    display_name = reverse_geomapping(GPS.model_validate(info["center"]))
+    if display_name:
+        info["address"] = display_name
+
     res = LocationInfoResult.model_validate(info, from_attributes=True)
+
     return res

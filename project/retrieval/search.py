@@ -15,70 +15,42 @@ from llm import llm_model
 from llm.prompts import ANSWER_MODEL_CHOOSING_PROMPT
 from pydantic import BaseModel, InstanceOf, RootModel
 from pympler import asizeof
-from query_parse.es_utils import get_conditional_time_filters, get_location_filters
-from query_parse.extract_info import (
-    Query,
-    create_es_combo_query,
-    create_es_query,
-    create_query,
-    modify_es_query,
-)
+from query_parse.es_utils import (get_conditional_time_filters,
+                                  get_location_filters)
+from query_parse.extract_info import (Query, create_es_combo_query,
+                                      create_es_query, create_query,
+                                      modify_es_query)
 from query_parse.question import detect_question, question_to_retrieval
-from query_parse.types.elasticsearch import (
-    ESBoolQuery,
-    ESEmbedding,
-    LocationInfo,
-    MSearchQuery,
-    TimeInfo,
-)
+from query_parse.types.elasticsearch import (ESBoolQuery, ESEmbedding,
+                                             ESFilter, LocationInfo,
+                                             MSearchQuery, TimeInfo)
 from query_parse.types.lifelog import DateTuple, Mode, TimeCondition
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
-from query_parse.types.requests import (
-    AnswerThisRequest,
-    GeneralQueryRequest,
-    MapRequest,
-    Step,
-    Task,
-    TimelineDateRequest,
-)
+from query_parse.types.requests import (AnswerThisRequest, GeneralQueryRequest,
+                                        MapRequest, Step, Task,
+                                        TimelineDateRequest)
 from query_parse.visual import encode_image, encode_text, score_images
 from question_answering.text import answer_text_only, get_specific_description
-from question_answering.video import answer_visual_only, answer_visual_with_text
-from results.models import (
-    AnswerListResult,
-    AnswerResult,
-    AnswerResultWithEvent,
-    AsyncioTaskResult,
-    DerivedEvent,
-    Event,
-    EventResults,
-    GenericEventResults,
-    Image,
-    PartialEvent,
-    TimelineGroup,
-    TimelineResult,
-    TimelineScene,
-    TripletEvent,
-)
-from results.utils import (
-    RelevantFields,
-    create_event_label,
-    limit_images_per_event,
-    merge_events,
-)
+from question_answering.video import (answer_visual_only,
+                                      answer_visual_with_text)
+from results.models import (AnswerListResult, AnswerResult,
+                            AnswerResultWithEvent, AsyncioTaskResult,
+                            DerivedEvent, Event, EventResults,
+                            GenericEventResults, Image, PartialEvent,
+                            TimelineGroup, TimelineResult, TimelineScene,
+                            TripletEvent)
+from results.utils import (RelevantFields, create_event_label,
+                           limit_images_per_event, merge_events)
 from rich import print
 
 from retrieval.async_utils import async_generator_timer, async_timer
-from retrieval.search_utils import (
-    get_raw_search_results,
-    get_search_function,
-    get_search_request,
-    merge_msearch_with_main_results,
-    organize_by_relevant_fields,
-    process_es_results, process_search_results,
-    send_multiple_search_request,
-    send_search_request,
-)
+from retrieval.search_utils import (get_raw_search_results,
+                                    get_search_function, get_search_request,
+                                    merge_msearch_with_main_results,
+                                    organize_by_relevant_fields,
+                                    process_es_results, process_search_results,
+                                    send_multiple_search_request,
+                                    send_search_request)
 
 logger = logging.getLogger(__name__)
 
@@ -453,7 +425,7 @@ async def get_answer_tasks(
         return
 
     print(f"[yellow]Answering the question with configs[/yellow]", options)
-    print("[green]Textual description sample[/green]", textual_descriptions[0])
+    print(f"[green]Textual description sample out of k={k}[/green]", textual_descriptions[0])
 
     async_tasks: Sequence = [
         answer_text_only(text, textual_descriptions, text_model.top_k),
@@ -658,20 +630,37 @@ async def search_location_again(request: MapRequest) -> Optional[List[Event]]:
     query_doc["oid"] = query_doc.pop("_id")
     query = Query.model_validate(query_doc)
     location, center = request.location, request.center
-    print("Location", location)
-    print("Center", center)
+    ids = []
+    filters = []
+    location_info = None
 
-    assert location, "Location should not be empty"
+    if location and location != "---":
+        print("Location", location)
+        print("Center", center)
+        location = location.lower()
+        location_info = LocationInfo(locations=[location], from_center=center)
+        location_filters, *_ = get_location_filters(location_info)
+        filters = [location_filters]
 
-    location = location.lower()
-    location_info = LocationInfo(locations=[location], from_center=center)
-    location_filters, *_ = get_location_filters(location_info)
+    if request.image:
+        location_filters = ids.append(
+            ESFilter(field="images", value=request.image)
+        )
+    if request.scene:
+        location_filters = ids.append(
+            ESFilter(field="scene", value=request.scene)
+        )
+    if request.group:
+        location_filters = ids.append(
+            ESFilter(field="group", value=request.group)
+        )
 
     # Modify the query
     new_query = await modify_es_query(
         query,
         location=location_info,
-        extra_filters=[location_filters],
+        extra_filters=filters + ids,
+        extra_shoulds=ids,
         mode=Mode.event,
         overwrite=True,
     )

@@ -164,7 +164,7 @@ Query: {query}
 QA_PROMPT = """Answer the following question based on the text provided: {question}
 There are {num_events} retrieved using the lifelog retrieval system. Here are the non-visual information of each event. Bear in mind that some location data might be wrong, but the order of relevance is mostly correct (using the system's best guess).
 {events}
-Give one or more of your best, educated guesses to the question in the following format, with each answer being the key. The explanation should be brief. You don't have to give a full sentence, just list the reasons. If you can't answer the question, return an empty array for "answers".
+Give one or more of your best, educated guesses to the question in the following format, with each answer being the key. Remember the retrieval system is not perfect, so the information might not be 100% accurate. The explanation should be brief. You don't have to give a full sentence, just list the reasons. If you can't answer the question, return an empty array for "answers".
 
 Reminder of the question: {question}
 
@@ -287,6 +287,10 @@ Query: "In which city did I spend the most time in 2019?"
 Merge by: city, month. Max gap: 1 week
 Reason: Events that happen in the same city within a month are considered the same occasion. If two events are in the same city but 1 week apart, they are considered different occasions.
 
+Query: "What is my car's brand and model?"
+Merge by: none. Max gap: none
+Sort by: score<desc>, time<desc>
+
 Reminder of the query: {query}
 
 Answer in this format.
@@ -298,7 +302,7 @@ Answer in this format.
                     "gps_gap": {{"unit": "km", "value": 1}}
                 }},
     "merge_by": ["day", "country"], // or any other relevant fields
-    "sort_by": [{{"field": "time", "order": "desc"}}],
+    "sort_by": [{{ "field": "score", "order": "desc" }}, {{ "field": "time", "order": "desc" }}]
 }}
 ```
 """
@@ -316,7 +320,7 @@ Provide your answer in the following schema:
 answer_models: Dict[str, AnswerModel]
 AnswerModel:
 - enabled: bool
-- top_k: int # number of top results to consider for answering, 0 means none, -1 means all
+- top_k: int # number of top results to consider for answering, 0 means none, -1 means all, default to 10 to consider inaccuracy in the retrieval system
 
 Considering this question: "{question}.
 Answer in a valid JSON format:

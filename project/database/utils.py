@@ -14,6 +14,7 @@ from results.models import AsyncioTaskResult, Event, Icon, Image, Marker
 from results.utils import RelevantFields
 from retrieval.async_utils import async_timer, timer
 from rich import print as rprint
+from geopy.geocoders import Nominatim
 
 import requests
 from database.main import image_collection, location_collection, scene_collection
@@ -161,6 +162,12 @@ def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
 
     if location and request.center:
         return location, request.center
+
+    if request.image:
+        doc = image_collection.find_one({"image.src": request.image})
+        if doc:
+            return doc["location"], GPS(**doc["gps"])
+
     scene = scene_collection.find_one(
         {
             "$or": [
@@ -184,6 +191,11 @@ def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
 
     raise ValueError("No location found")
 
+def get_image_center(image: str) -> Optional[GPS]:
+    doc = image_collection.find_one({"image.src": image})
+    if doc:
+        return GPS(**doc["gps"])
+    return None
 
 def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
     """
@@ -192,6 +204,15 @@ def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
     If there are multiple locations with the same name, then check other parameters
     """
     location, center = get_location_name(request)
+    if not location or location == "---":
+        return "---", {
+            "location": location,
+            "location_info": "",
+            "fsq_id": "",
+            "fsq_info": {},
+            "gps": center.model_dump() if center else request.center,
+            "icon": None,
+        }
 
     locations = location_collection.find({"location": location})
     locations = list(locations)
@@ -364,3 +385,11 @@ def get_all_images_from_same_scene(image: str) -> List[Image]:
     if scene:
         return [Image(**img) for img in scene["images"]]
     return []
+
+geolocator = Nominatim(user_agent="myeachtra")
+def reverse_geomapping(center: GPS) -> Optional[str]:
+    location = geolocator.reverse((center.lat, center.lon), exactly_one=True, language="en")  # type: ignore
+    print(location)
+    if location:
+        return location.address  # type: ignore
+    return None

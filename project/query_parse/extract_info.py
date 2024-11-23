@@ -302,6 +302,7 @@ async def modify_es_query(
     time: Optional[TimeInfo] = None,
     visual: Optional[VisualInfo] = None,
     extra_filters: Optional[Sequence[ESCombineFilters]] = None,
+    extra_shoulds: Optional[Sequence[ESCombineFilters]] = None,
     mode: Mode = Mode.event,
     overwrite: bool = False,
 ) -> Optional[ESBoolQuery]:
@@ -334,5 +335,9 @@ async def modify_es_query(
     if query.es and extra_filters:
         for extra_filter in extra_filters:
             query.es.filter.append(extra_filter)
+
+    if query.es and extra_shoulds:
+        for extra_should in extra_shoulds:
+            query.es.should.append(extra_should)
 
     return query.es
