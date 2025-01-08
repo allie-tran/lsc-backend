@@ -1,0 +1,42 @@
+[tool.pyright]
+include = ["project"]
+defineConstant = { DEBUG = true }
+stubPath = "src/stubs"
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUnnecessaryTypeIgnoreComments = "information"
+reportImportCycles = "warning"
+reportMatchNotExhaustive = "warning"
+reportShadowedImports = "warning"
+
+pythonVersion = "3.10"
+pythonPlatform = "Linux"
+python.pythonPath="/opt/anaconda3/envs/myeachtra/bin/python"
+
+executionEnvironment = [{
+    "root": "project/"
+}]
+
+verboseOutput = true
+
+[project]
+name = "MyEachtraX"
+version = "0.1.0"
+dependencies = ["./environment.yml"]
+authors = [
+{ name = "Allie", email = "ly.duyentran@dcu.ie" }
+]
+license = {text = "MIT License"}
+description = "A lifelog retrieval system with generative QA capabilities"
+readme = "README.md"
+keywords = ["lifelogging", "QA", "generative"]
+
+[project.optionalDependencies]
+cli = ["gitmoji-cli"]
+
+[project.scripts]
+start-cli="sh start.sh"
+
+[python]
+pythonPath = "/opt/anaconda3/envs/myeachtra/bin/python"
