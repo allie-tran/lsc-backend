@@ -4,6 +4,7 @@
 
 from enum import Enum
 from typing import List, Literal, Optional, Self, Tuple
+from query_parse.types.eating import EatingActivity, EatingLocationPosition, EatingLocationSetting, FoodGroup, Mood, SocialContact
 
 from myeachtra.dependencies import CamelCaseModel
 from pydantic import field_validator, model_validator
@@ -159,11 +160,43 @@ class RelevantFields(CamelCaseModel):
         self.relevant_fields = list(set(self.relevant_fields))
         return self
 
+
+class EatingFilters(CamelCaseModel):
+    mood: List[Mood] = []
+    location_setting: List[EatingLocationSetting] = []
+    location_position: List[EatingLocationPosition] = []
+    social_contact: List[SocialContact] = []
+    eating_activity: List[EatingActivity] = []
+    food: List[FoodGroup] = []
+
+    def __bool__(self) -> bool:
+        return any(
+            [
+                self.mood,
+                self.location_setting,
+                self.location_position,
+                self.social_contact,
+                self.eating_activity,
+                self.food,
+            ]
+        )
+
+    def iter_fields(self):
+        return {
+            "mood": self.mood,
+            "location_setting": self.location_setting,
+            "location_position": self.location_position,
+            "social_contact": self.social_contact,
+            "eating_activity": self.eating_activity,
+            "food": self.food,
+        }.items()
+
 class SingleQuery(CamelCaseModel):
     visual: str = ""
     location: str = ""
     time: str = ""
     date: str = ""
+    filters: EatingFilters = EatingFilters()
 
     def __bool__(self) -> bool:
         return any([self.visual, self.location, self.time, self.date])

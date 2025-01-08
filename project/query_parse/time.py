@@ -11,7 +11,8 @@ from nltk import MWETokenizer, pos_tag
 from parsedatetime import Constants
 from results.models import Visualisation
 
-from .types import DateTuple, RegexInterval, Tags, TimeInfo
+from .types.elasticsearch import TimeInfo
+from .types.lifelog import DateTuple, RegexInterval, Tags
 from .utils import find_regex, get_visual_text
 
 YEARS = ["2015", "2016", "2018", "2019", "2020"]
@@ -220,14 +221,14 @@ class TimeTagger:
         return self.merge_interval(results)
 
     def tag(self, sent: str) -> List[Tags]:
-        separator="_"
+        separator = "_"
         times = self.find_time(sent)
         tag_dict = dict([(time.text, time.tag) for time in times])
 
-        tuples = [tuple(re.findall(r'\w+', a.text)) for a in times if a.text]
+        tuples = [tuple(re.findall(r"\w+", a.text)) for a in times if a.text]
         tokenizer = MWETokenizer(tuples, separator=separator)
 
-        tokens = tokenizer.tokenize(re.findall(r'\w+|\S', sent))
+        tokens = tokenizer.tokenize(re.findall(r"\w+|\S", sent))
         tags = pos_tag(tokens)
 
         original_tags = copy.deepcopy(tags)
@@ -244,6 +245,7 @@ class TimeTagger:
                 tag = [t[1] for t in original_tags if t[0] == word][0]  # FIXED
                 new_tags.append((word, tag))
         return new_tags
+
 
 def get_day_month(
     date_string: str,

@@ -3,7 +3,7 @@
 # ====================== #
 
 from datetime import datetime
-from enum import Enum
+from enum import Enum, StrEnum
 from typing import List, Optional, Union
 
 from myeachtra.dependencies import CamelCaseModel, ObjectId
@@ -14,7 +14,9 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
 from query_parse.types.elasticsearch import GPS
+from query_parse.types.lifelog import EatingFilters
 from query_parse.types.options import SearchPipeline
 
 
@@ -34,6 +36,10 @@ class LoginResponse(CamelCaseModel):
 # Search
 # ====================== #
 
+class Data(StrEnum):
+    LSC23 = "LSC23"
+    Deakin = "Deakin"
+
 
 class Step(CamelCaseModel):
     step: PositiveInt
@@ -50,6 +56,7 @@ class Step(CamelCaseModel):
 
 
 class TemplateRequest(CamelCaseModel):
+    data: Data = Data.LSC23
     session_id: Optional[str] = None
 
     def find_one(self):
@@ -76,6 +83,7 @@ class Task(str, Enum):
 
 
 class GeneralQueryRequest(TemplateRequest):
+
     task_type: Task
     session_id: Optional[str] = None
     main: str
@@ -86,6 +94,9 @@ class GeneralQueryRequest(TemplateRequest):
 
     after: str = ""
     after_time: str = "1h"
+
+    # Optional filters
+    filters: Optional[EatingFilters] = None
 
     # Optional spatial queries
     gps_bounds: Optional[List[float]] = None
@@ -126,6 +137,8 @@ class TimelineDateRequest(TemplateRequest):
             return value
         raise ValueError("Invalid date format, should be 'dd-mm-yyyy'")
 
+class ImageInfoRequest(TemplateRequest):
+    images: List[str]
 
 # ====================== #
 # MAP REQUESTS

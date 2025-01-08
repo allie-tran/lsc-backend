@@ -5,7 +5,7 @@ from typing import Counter, Generator, Iterable, List, Tuple, TypeVar, Union
 import nltk
 
 from query_parse.constants import STOP_WORDS, TRANSPORT_MODES
-from query_parse.types import RegexInterval, Tags
+from query_parse.types.lifelog import RegexInterval, Tags
 
 
 def find_regex(regex, text) -> Generator[RegexInterval, None, None]:

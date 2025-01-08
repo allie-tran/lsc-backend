@@ -1,4 +1,3 @@
-from configs import DEV_MODE
 from database.models import GeneralRequestModel, Response
 from fastapi import APIRouter, Depends, HTTPException
 from myeachtra.auth_models import get_user
@@ -26,7 +25,7 @@ async def timeline(request: TimelineRequest):
     #     return cached_request.responses[-1].response
 
     print("Getting timeline")
-    result = get_timeline(request.image)
+    result = get_timeline(request.image, request.data)
     if not result:
         raise HTTPException(status_code=404, detail="No results found")
     # cached_request.add(Response(response=result, type="timeline"))
@@ -50,7 +49,7 @@ async def timeline_date(request: TimelineDateRequest):
         return cached_request.responses[-1]
 
     date = request.date
-    result = get_timeline_for_date(date)
+    result = get_timeline_for_date(date, request.data)
     # result = await search_from_time(request)
 
     cached_request.add(Response(response=result, type="timeline"))

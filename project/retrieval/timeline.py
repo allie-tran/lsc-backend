@@ -1,8 +1,10 @@
 from datetime import datetime
 from typing import List, Optional
 
-from database.main import group_collection, image_collection, scene_collection
+from database.main import LSC_DB, get_db, group_collection, image_collection, scene_collection
 from pydantic import validate_call
+from pymongo.synchronous.database import Database
+from query_parse.types.requests import Data
 from results.models import (
     HighlightItem,
     Image,
@@ -12,7 +14,7 @@ from results.models import (
 )
 
 
-def get_timeline(image: str) -> Optional[TimelineResult]:
+def get_timeline(image: str, data: Data = Data.LSC23) -> Optional[TimelineResult]:
     """
     For a given image, get the timeline of the group it belongs to
     The start of timeline is the start of the first group of the day,
@@ -22,8 +24,10 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
     or the first group of the next day if it lasts over midnight
     """
     print("Getting image info")
+    db = get_db(data)
+
     try:
-        image_info = image_collection.find_one({"image": image})
+        image_info = image_collection(db).find_one({"image": image})
         if not image_info:
             return None
 
@@ -33,7 +37,7 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
         end_time = image_date.replace(hour=23, minute=59, second=59)
 
         # Get all groups of the same day
-        group_ids = group_collection.find(
+        group_ids = group_collection(db).find(
             {
                 "$or": [
                     {"start_time": {"$gte": start_time, "$lte": end_time}},
@@ -53,9 +57,10 @@ def get_timeline(image: str) -> Optional[TimelineResult]:
 
 @validate_call
 def get_scene_for_group_ids(
-    group_range_ids: List[str]
+    group_range_ids: List[str], data: Data = Data.LSC23
 ) -> List[TimelineGroup]:
-    grouped_results = scene_collection.aggregate(
+    db = get_db(data)
+    grouped_results = scene_collection(db).aggregate(
         [
             {"$match": {"group": {"$in": group_range_ids}}},
             {"$sort": {"start_time": 1, "group": 1, "scene": 1}},
@@ -74,7 +79,7 @@ def get_scene_for_group_ids(
         ]
     )
 
-    results : List[TimelineGroup] = []
+    results: List[TimelineGroup] = []
     for group in grouped_results:
         scenes: List[TimelineScene] = []
 
@@ -90,19 +95,19 @@ def get_scene_for_group_ids(
 
 @validate_call
 def get_timeline_for_date(
-    str_date: str
+    str_date: str, data: Data = Data.LSC23
 ) -> Optional[TimelineResult]:
     """
     Get all scenes for a given date
     Exclude the images that are not in the keep_only list
     """
-
+    db = get_db(data)
     date = datetime.strptime(str_date, "%d-%m-%Y")
     start_time = date.replace(hour=0, minute=0, second=0)
     end_time = date.replace(hour=23, minute=59, second=59)
 
     # Get all groups of the same day
-    group_ids = group_collection.find(
+    group_ids = group_collection(db).find(
         {
             "$or": [
                 {"start_time": {"$gte": start_time, "$lte": end_time}},
@@ -118,22 +123,23 @@ def get_timeline_for_date(
 
 
 def get_more_scenes(
-    group_id: str, direction: str = "before"
+    group_id: str, direction: str = "before", data: Data = Data.LSC23
 ) -> Optional[TimelineResult]:
     """
     Get more scenes before or after the given group id
     """
-    group_info = group_collection.find_one({"group": group_id})
+    db = get_db(data)
+    group_info = group_collection(db).find_one({"group": group_id})
     if not group_info:
         return None
 
     group_date = group_info["start_time"]
     if direction == "before":
-        group_ids = group_collection.find(
+        group_ids = group_collection(db).find(
             {"end_time": {"$lt": group_date}}, {"group": 1}
         )
     else:
-        group_ids = group_collection.find(
+        group_ids = group_collection(db).find(
             {"start_time": {"$gt": group_date}}, {"group": 1}
         )
 

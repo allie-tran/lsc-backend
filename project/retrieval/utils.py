@@ -4,16 +4,18 @@ from datetime import datetime
 from typing import List
 
 from configs import FILES_DIRECTORY
-from database.main import image_collection, scene_collection
+from database.main import get_db, image_collection, scene_collection
+from query_parse.types.requests import Data
 from query_parse.utils import cache
 
 time_info = json.load(open(f"{FILES_DIRECTORY}/backend/time_info.json"))
 
 
-def get_dict(image: str) -> dict:
+def get_dict(image: str, data: Data = Data.LSC23) -> dict:
     if "/" not in image:
         image = f"{image[:6]}/{image[6:8]}/{image}"
-    info = image_collection.find_one({"image": image})
+    db = get_db(data)
+    info = image_collection(db).find_one({"image": image})
     assert info, f"Image {image} not found"
     return info
 
@@ -28,12 +30,13 @@ def get_location(image: str) -> str:
     return get_dict(image)["location"]
 
 
-def get_gps(images) -> List[dict]:
+def get_gps(images, data: Data = Data.LSC23) -> List[dict]:
+    db = get_db(data)
     if images:
         if isinstance(images[0], tuple):  # images with weights
             images = [image[0] for image in images]
         if isinstance(images[0], str):
-            images = image_collection.find(
+            images = image_collection(db).find(
                 {"image": {"$in": images}}, {"gps": 1, "_id": 0}
             )
         sorted_by_time = [
@@ -43,7 +46,10 @@ def get_gps(images) -> List[dict]:
     return []
 
 
-def group_scene_results(results, group_factor="group", query_info=[]):
+def group_scene_results(
+    results, group_factor="group", query_info=[], data: Data = Data.LSC23
+):
+    db = get_db(data)
     size = len(results)
     if size == 0:
         return [], []
@@ -69,7 +75,7 @@ def group_scene_results(results, group_factor="group", query_info=[]):
         new_group = []
         for scene, score in grouped_results[group]:
             num_images = 0
-            images = scene_collection.find_one({"scene": scene["scene"]})
+            images = scene_collection(db).find_one({"scene": scene["scene"]})
             if images:
                 num_images = len(images)
             if (

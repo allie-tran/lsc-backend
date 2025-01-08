@@ -1,18 +1,13 @@
-from fastapi import APIRouter, HTTPException
-
-from fastapi import HTTPException
-from rich import print
-
 from database.utils import get_location_info, reverse_geomapping
+from fastapi import APIRouter, HTTPException
 from query_parse.types.elasticsearch import GPS
-from query_parse.types.requests import (
-    MapRequest,
-)
+from query_parse.types.requests import MapRequest
 from results.models import LocationInfoResult
 from retrieval.search import search_from_location
-
+from rich import print
 
 map_router = APIRouter()
+
 
 @map_router.post(
     "",

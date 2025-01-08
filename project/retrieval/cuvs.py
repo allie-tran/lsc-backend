@@ -1,24 +1,25 @@
 import os
 from datetime import datetime
 
-from myeachtra.dependencies import memory
 import cupy as cp
 import numpy as np
 import rmm
-from pylibraft.neighbors import cagra, ivf_flat
-
 from pylibraft.common import DeviceResources
+from pylibraft.neighbors import cagra, ivf_flat
 from rmm.allocators.cupy import rmm_cupy_allocator
 
+from myeachtra.dependencies import memory
+from query_parse.types.requests import Data
 from query_parse.visual import norm_photo_features, photo_ids
 
-mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaMemoryResource(), initial_pool_size=2 ** 15)
+mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaMemoryResource(), initial_pool_size=2**15)
 rmm.mr.set_current_device_resource(mr)
 cp.cuda.set_allocator(rmm_cupy_allocator)
 handle = DeviceResources()
 
 # Load the photo features and image IDs
-vectors = cp.asarray(norm_photo_features, dtype=np.float32)
+lsc_vectors = cp.asarray(norm_photo_features(Data.LSC23), dtype=np.float32)
+deakin_vectors = cp.asarray(norm_photo_features(Data.Deakin), dtype=np.float32)
 
 ALGO = "ivf_flat"
 if ALGO == "ivf_flat":
@@ -43,32 +44,40 @@ else:
 
 # Build the index (this step is necessary before performing searches)
 rebuild = False
-path = os.path.join("cachedir", ALGO + ".index")
-if os.path.exists(path) and not rebuild:
-    index = algo.load(path, handle=handle)
+lsc_path = os.path.join("cachedir", ALGO + ".index")
+deakin_path = os.path.join("cachedir", ALGO + "_deakin.index")
+if os.path.exists(lsc_path) and not rebuild:
+    lsc_index = algo.load(lsc_path, handle=handle)
+    deakin_index = algo.load(deakin_path, handle=handle)
     handle.sync()
 else:
     print("Building RAFT index...")
     start_time = datetime.now()
-    index = algo.build(index_params, vectors, handle=handle)
+    lsc_index = algo.build(index_params, lsc_vectors, handle=handle)
+    deakin_index = algo.build(index_params, deakin_vectors, handle=handle)
     handle.sync()
     print("Time taken:", (datetime.now() - start_time).total_seconds(), "seconds")
     print("Saving RAFT index...")
-    algo.save(path, index)
+    algo.save(lsc_path, lsc_index)
+    algo.save(deakin_path, deakin_index)
+
 
 # Function to perform a search
 @memory.cache
-def search(query_vector, top_k=5):
+def search(query_vector, data: Data, top_k=5):
     query_vector = cp.asarray(query_vector, dtype=np.float32).reshape(1, -1)
-
-
-
     # Perform the search
     handle = DeviceResources()
-    distances, indices = algo.search(search_params, index, query_vector, k=top_k, handle=handle)
+    if data == Data.LSC23:
+        index = lsc_index
+    else:
+        index = deakin_index
+    distances, indices = algo.search(
+        search_params, index, query_vector, k=top_k, handle=handle
+    )
     handle.sync()
     # Convert the indices to image IDs
     indices = cp.asnumpy(indices).flatten()
-    images = np.array(photo_ids)[indices]
+    images = np.array(photo_ids(data))[indices]
     distances = cp.asnumpy(distances).reshape(-1)
     return {image: distance for image, distance in zip(images, distances)}, images

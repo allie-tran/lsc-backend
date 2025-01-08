@@ -1,11 +1,16 @@
 from datetime import datetime
-from typing import Any, Generic, List, Optional, Self, TypeVar
+from typing import Generic, List, Optional, Self, TypeVar
 
-from pydantic import (Field, InstanceOf, SkipValidation, computed_field,
-                      field_serializer, model_validator)
+from pydantic import (
+    Field,
+    SkipValidation,
+    computed_field,
+    field_serializer,
+    model_validator,
+)
 
 from configs import CACHE
-from database.main import request_collection
+from database.main import get_db, request_collection
 from database.requests import find_request
 from myeachtra.dependencies import CamelCaseModel, ObjectId
 from query_parse.types.requests import AnyRequest
@@ -74,7 +79,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
                 self.oid = existing_request["_id"]
                 self.finished = existing_request["finished"]
             else:
-                inserted = request_collection.insert_one(
+                db = get_db(self.request.data)
+                inserted = request_collection(db).insert_one(
                     self.model_dump(exclude={"responses"})
                 )
                 self.oid = inserted.inserted_id
@@ -85,7 +91,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
             return response
         response.oid = self.oid
         response.index = len(self.responses) - 1
-        request_collection.update_one(
+        db = get_db(self.request.data)
+        request_collection(db).update_one(
             {"_id": self.oid},
             {"$push": {"responses": response.model_dump(exclude={"oid"})}},
             upsert=True,
@@ -97,7 +104,8 @@ class GeneralRequestModel(TimeStampModel, Generic[RequestT, ResponseT]):
         if not CACHE:
             return
         self.finished = True
-        request_collection.update_one(
+        db = get_db(self.request.data)
+        request_collection(db).update_one(
             {"_id": self.oid}, {"$set": {"finished": True}}, upsert=True
         )
 

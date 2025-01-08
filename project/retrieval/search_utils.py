@@ -4,19 +4,15 @@ from collections.abc import AsyncGenerator
 from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Union
 
-import numpy as np
 import requests
+from configs import DERIVABLE_FIELDS, ES_URL
+from database.utils import convert_to_events
 from elastic_transport import ObjectApiResponse
 from fastapi import HTTPException
-from requests import Response
-from rich import print
-
-from configs import DERIVABLE_FIELDS, ES_URL, IMAGE_DIRECTORY
-from database.utils import convert_to_events
 from query_parse.types.elasticsearch import ESBoolQuery, ESSearchRequest, MSearchQuery
 from query_parse.types.lifelog import Mode, TimeCondition
 from query_parse.types.requests import GeneralQueryRequest, Task
-from query_parse.visual import encode_text, score_images
+from requests import Response
 from results.models import (
     AsyncioTaskResult,
     DoubletEvent,
@@ -26,8 +22,9 @@ from results.models import (
     TripletEvent,
 )
 from results.utils import create_event_label, deriving_fields
+from rich import print
+
 from retrieval.async_utils import async_generator_timer, timer
-from retrieval.rerank import reranker
 from retrieval.types import ESResponse
 
 logger = logging.getLogger(__name__)
@@ -189,7 +186,7 @@ def get_search_request(
         mode=mode,
         sort_field="start_timestamp" if mode == Mode.event else "timestamp",
         sort_order="asc",
-        mongo_match=main_query.to_mongo()
+        mongo_match=main_query.to_mongo(),
     )
     return search_request
 
@@ -383,7 +380,9 @@ def get_search_function(
     size = request.pipeline.size if request.pipeline else 200
     match (before, main, after):
         case ("", main, ""):
-            search_function = single_query(request.main, request.pipeline, task_type)
+            search_function = single_query(
+                request.main, request.filters, request.data, request.pipeline, task_type
+            )
         case (before, main, ""):
             search_function = two_queries(
                 main,
@@ -391,6 +390,7 @@ def get_search_function(
                 TimeCondition(condition="before", time_limit_str=request.before_time),
                 size=size,
                 task_type=task_type,
+                data=request.data,
             )
         case ("", main, after):
             search_function = two_queries(
@@ -399,6 +399,7 @@ def get_search_function(
                 TimeCondition(condition="after", time_limit_str=request.after_time),
                 size=size,
                 task_type=task_type,
+                data=request.data,
             )
         case (before, main, after):
             raise NotImplementedError("Triplet is not implemented yet")

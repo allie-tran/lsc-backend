@@ -1,26 +1,35 @@
 from collections.abc import Set
 from typing import Optional
+
 import numpy as np
 import pandas as pd
-from configs import FILES_DIRECTORY
-from query_parse.visual import clip_model, siglip_model
+from configs import CLIP_EMBEDDINGS
+from query_parse.types.requests import Data
+from query_parse.visual import clip_model, clipa_model, siglip_model
 from tqdm.auto import tqdm
 
-photo_ids = siglip_model.photo_ids
-
-blurred = pd.read_csv(f"/home/allie/highres/LSC23/blurred.csv")
-
+lsc_blurred = pd.read_csv(f"{CLIP_EMBEDDINGS}/LSC23/blurred.csv")
+deakin_blurred = pd.read_csv(f"{CLIP_EMBEDDINGS}/Deakin/blurred.csv")
 
 def to_key(image):
     return "/".join(image.split("/")[-3:])
 
 
-blurred["laplacian_var"] = blurred["laplacian_var"].fillna(0)
-blurred_images = blurred[blurred["laplacian_var"] < 100]["image"].apply(to_key).tolist()
-blurred_images = set(blurred_images)
-blurred_indices = [i for i, image in enumerate(photo_ids) if image in blurred_images]
-blurred_indices = set(blurred_indices)
+def get_blurred_indices(blurred_df):
+    blurred_df["laplacian_var"] = blurred_df["laplacian_var"].fillna(0)
+    blurred_images = (
+        blurred_df[blurred_df["laplacian_var"] < 100]["image"].apply(to_key).tolist()
+    )
+    blurred_images = set(blurred_images)
+    blurred_indices = [
+        i for i, image in enumerate(siglip_model.photo_ids) if image in blurred_images
+    ]
+    return set(blurred_indices)
 
+blurred_indices = {
+    Data.LSC23: get_blurred_indices(lsc_blurred),
+    Data.Deakin: get_blurred_indices(deakin_blurred),
+}
 
 def detect_noise(scores1, scores2, method="absolute", threshold=None, percentile=95):
     """
@@ -105,50 +114,45 @@ def estimate_variance_threshold(
         raise ValueError(f"Unknown method: {method}")
 
 
-blurred = pd.read_csv("/home/allie/highres/LSC23/blurred.csv")
-
-
-def get_siglip_model_scores(query):
-    encoded_query = siglip_model.encode_text(query)
-    scores = siglip_model.norm_photo_features @ encoded_query.T
-    return scores, encoded_query
-
-
-def get_clip_scores(query):
-    encoded_query = clip_model.encode_text(query)
-    scores = clip_model.norm_photo_features @ encoded_query.T
-    return scores, encoded_query
-
-
 lambda1 = 0.75
 lambda2 = 1 - lambda1
 
 
-def get_group_score(segment, encoded_query, clip_encoded_query):
-    siglip_model_score = siglip_model.norm_photo_features[segment] @ encoded_query.T
-    clip_score = clip_model.norm_photo_features[segment] @ clip_encoded_query.T
-    return np.mean(lambda1 * siglip_model_score + lambda2 * clip_score)
-
-
 def get_segments(
     query: str,
+    data: Data = Data.LSC23,
     score_percentile: int = 90,
     variance_percentile: int = 75,
     max_gap: int = 2,
     max_length: int = 100,
     filters: Optional[Set[str]] = None,
 ):
-    scores, encoded_query = get_siglip_model_scores(query)
-    clip_scores, clip_encoded_query = get_clip_scores(query)
-    scores = lambda1 * scores + lambda2 * clip_scores
+    if data == Data.LSC23:
+        scores, encoded_query = siglip_model.score_all_images(query)
+        clip_scores, clip_encoded_query = clip_model.score_all_images(query)
+        scores = [lambda1 * s + lambda2 * c for s, c in zip(scores, clip_scores)]
+        photo_ids = siglip_model.photo_ids
+
+        def get_group_score(segment):
+            siglip_model_score = (
+                siglip_model.norm_photo_features[segment] @ encoded_query.T
+            )
+            clip_score = clip_model.norm_photo_features[segment] @ clip_encoded_query.T
+            return np.mean(lambda1 * siglip_model_score + lambda2 * clip_score)
+
+    elif data == Data.Deakin:
+        print("Using CLIP-A model")
+        scores, encoded_query = clipa_model.score_all_images(query)
+        photo_ids = clipa_model.photo_ids
+
+        def get_group_score(segment):
+            return np.mean(clipa_model.norm_photo_features[segment] @ encoded_query.T)
 
     # Filter indices based on filters
     if filters is None:
         filter_indices = set(range(len(photo_ids)))
     else:
-        filter_indices = set(
-            i for i, image in enumerate(photo_ids) if image in filters
-        )
+        filter_indices = set(i for i, image in enumerate(photo_ids) if image in filters)
 
     # Dynamically determine the score threshold
     score_threshold = np.percentile(scores, score_percentile)
@@ -158,12 +162,10 @@ def get_segments(
     high_score_indices = np.where(scores >= score_threshold)[0]
     # Filter out blurred images
     high_score_indices = [
-        idx for idx in high_score_indices if idx not in blurred_indices
+        idx for idx in high_score_indices if idx not in blurred_indices[data]
     ]
     # Keep only filtered indices
-    high_score_indices = [
-        idx for idx in high_score_indices if idx in filter_indices
-    ]
+    high_score_indices = [idx for idx in high_score_indices if idx in filter_indices]
     if len(high_score_indices) == 0:
         print("No high-scoring images found.")
         return [], []
@@ -196,7 +198,7 @@ def get_segments(
                 segment.append(next_idx)
                 if (
                     scores[next_idx] < score_threshold
-                    or next_idx in blurred_indices
+                    or next_idx in blurred_indices[data]
                 ):
                     gap_count += 1
             else:
@@ -225,9 +227,7 @@ def get_segments(
         # Calculate segment score
         segment_scores = normalized_scores[full_segment]
         segment_length = len(full_segment)
-        group_score = (
-            get_group_score(full_segment, encoded_query, clip_encoded_query) / max_score
-        )
+        group_score = get_group_score(full_segment) / max_score
         variance = np.var(segment_scores)
         if segment_length == 1:
             length_reward = 0.0

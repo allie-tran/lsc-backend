@@ -4,8 +4,8 @@ from bson import ObjectId as _ObjectId
 from pydantic import AfterValidator, Field, BaseModel
 from pydantic.alias_generators import to_camel
 from joblib import Memory
-memory = Memory("cachedir")
 
+memory = Memory("cachedir")
 
 def check_object_id(value: str) -> str:
     if not _ObjectId.is_valid(value):

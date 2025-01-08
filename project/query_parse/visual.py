@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Tuple
 
 import numpy as np
 import open_clip
@@ -17,11 +17,12 @@ from numpy import linalg as LA
 from open_clip.model import CLIP
 from open_clip.tokenizer import _tokenizer
 from PIL import Image as PILImage
+from query_parse.types.requests import Data
 from results.models import Image
 from transformers import AutoModel, AutoProcessor
 
 from .constants import DESCRIPTIONS
-from .types import VisualInfo
+from .types.elasticsearch import VisualInfo
 from .utils import search_keywords
 
 # Load CLIP Model
@@ -34,6 +35,8 @@ def load_features(paths):
     # Load pre-embedded photo features
     photo_features = np.zeros((0, EMBEDDING_DIM))
     photo_ids = []
+    if not paths:
+        return photo_features, {}, []
 
     for path in paths:
         print(path)
@@ -107,12 +110,37 @@ class ClipModel:
         self.preprocess = preprocess
         self.tokenizer = tokenizer
 
-        self.norm_photo_features, self.image_to_id, self.photo_ids = load_features(
-            [
-                f"{CLIP_EMBEDDINGS}/{year}/{MODEL_NAME}_{PRETRAINED_DATASET}_nonorm"
-                for year in DATA_YEARS
-            ]
-        )
+        # LSC23 dataset
+        lsc_paths = [
+            f"{CLIP_EMBEDDINGS}/{year}/ViT-L-14-336_openai_nonorm"
+            for year in DATA_YEARS
+        ]
+
+        # Deakin dataset (None for now)
+        deakin_paths = []
+
+        # Both datasets
+        self.combine_datasets(lsc_paths, deakin_paths)
+
+    def combine_datasets(self, lsc_paths, deakin_paths):
+        lsc_norm_photo_features, lsc_image_to_id, lsc_photo_ids = load_features(lsc_paths)
+        deakin_norm_photo_features, deakin_image_to_id, deakin_photo_ids = load_features(deakin_paths)
+
+        # Both datasets
+        self.norm_photo_features = {
+            Data.LSC23: lsc_norm_photo_features,
+            Data.Deakin: deakin_norm_photo_features,
+        }
+
+        self.image_to_id = {
+            Data.LSC23: lsc_image_to_id,
+            Data.Deakin: deakin_image_to_id,
+        }
+
+        self.photo_ids = {
+            Data.LSC23: lsc_photo_ids,
+            Data.Deakin: deakin_photo_ids,
+        }
 
     def encode_text(self, main_query: str) -> np.ndarray:
         with torch.no_grad():
@@ -138,7 +166,7 @@ class ClipModel:
         return image_feat.cpu().numpy()
 
     def score_images(
-        self, image_objs: List[Image], encoded_query: np.ndarray
+        self, image_objs: List[Image], encoded_query: np.ndarray, data: Data
     ) -> List[float]:
         images = [image.src for image in image_objs]
         try:
@@ -146,8 +174,8 @@ class ClipModel:
         except TypeError:
             return [0 for _ in images]
         if images:
-            image_features = self.norm_photo_features[
-                np.array([self.image_to_id[image] for image in images])
+            image_features = self.norm_photo_features[data][
+                np.array([self.image_to_id[data][image] for image in images])
             ]
             similarity = image_features @ encoded_query.T  # B x D @ D x 1 = B x 1
             similarity = similarity.reshape(-1)
@@ -155,8 +183,19 @@ class ClipModel:
             return similarity.astype("float").tolist()
         return []
 
+    def score_all_images(self, query: str, data: Data) -> Tuple[List[float], np.ndarray]:
+        encoded_query = self.encode_text(query)
+        try:
+            encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
+        except TypeError:
+            return [0.0 for _ in self.photo_ids[data]], encoded_query
+        similarity = self.norm_photo_features[data] @ encoded_query.T
+        similarity = similarity.reshape(-1)
+        similarity[np.where(similarity < 0.1)] = 0
+        return similarity.astype("float").tolist(), encoded_query
 
-class SIGLIP:
+
+class SIGLIP(ClipModel):
     def __init__(self):
         model = AutoModel.from_pretrained(
             "google/siglip-so400m-patch14-384",
@@ -169,15 +208,22 @@ class SIGLIP:
         self.model = model
         self.processor = processor
 
-        self.norm_photo_features, self.image_to_id, self.photo_ids = load_features(
-            [
+        # LSC23 dataset
+        lsc_paths = [
                 f"{CLIP_EMBEDDINGS}/{year}/google-siglip-so400m-patch14-384_nonorm"
                 for year in DATA_YEARS
             ]
-        )
 
-    def encode_text(self, text: str) -> np.ndarray:
-        inputs = self.processor(text=[text], return_tensors="pt", padding=True, truncation=True
+        # Deakin dataset
+        deakin_paths = [f"{CLIP_EMBEDDINGS}/Deakin/google-siglip-so400m-patch14-384"]
+
+        # Both datasets
+        self.combine_datasets(lsc_paths, deakin_paths)
+
+
+    def encode_text(self, main_query: str) -> np.ndarray:
+        inputs = self.processor(
+            text=[main_query], return_tensors="pt", padding=True, truncation=True
         )
         with torch.no_grad():
             outputs = self.model.get_text_features(**inputs).mean(dim=0)
@@ -190,24 +236,31 @@ class SIGLIP:
             outputs = self.model.get_image_features(**photo_preprocessed)
         return outputs.cpu().numpy().astype("float")
 
-    def score_images(
-        self, image_objs: List[Image], encoded_query: np.ndarray
-    ) -> List[float]:
-        images = [image.src for image in image_objs]
-        try:
-            encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
-        except TypeError:
-            return [0 for _ in images]
-        if images:
-            image_features = self.norm_photo_features[
-                np.array([self.image_to_id[image] for image in images])
-            ]
-            similarity = image_features @ encoded_query.T
-            similarity = similarity.reshape(-1)
-            similarity[np.where(similarity < 0.1)] = 0
-            return similarity.astype("float").tolist()
-        return []
 
+# This is for Deakin dataset
+class CLIPA(ClipModel):
+    def __init__(
+        self, model_name: str = "hf-hub:UCSC-VLAA/ViT-L-14-CLIPA-336-datacomp1B"
+    ):
+        clip_model, _, preprocess = open_clip.create_model_and_transforms(
+            model_name, device=device
+        )
+
+        assert isinstance(clip_model, CLIP), "Model is not CLIP"
+        tokenizer = open_clip.get_tokenizer(model_name)
+
+        self.clip_model = clip_model
+        self.preprocess = preprocess
+        self.tokenizer = tokenizer
+
+        # LSC23 dataset
+        lsc_paths = []
+
+        # Deakin dataset
+        deakin_paths = [f"{CLIP_EMBEDDINGS}/Deakin/clipa"]
+
+        # Both datasets
+        self.combine_datasets(lsc_paths, deakin_paths)
 
 
 def search_for_visual(text: str) -> VisualInfo:
@@ -221,13 +274,30 @@ def search_for_visual(text: str) -> VisualInfo:
     )
     return visual_info
 
+
 clip_model = ClipModel()
 siglip_model = SIGLIP()
+clipa_model = CLIPA()
 
-chosen_model = siglip_model
-encode_text = chosen_model.encode_text
-encode_image = chosen_model.encode_image
-score_images = chosen_model.score_images
-norm_photo_features = chosen_model.norm_photo_features
-image_to_id = chosen_model.image_to_id
-photo_ids = chosen_model.photo_ids
+def get_model(data: Data):
+    if data == Data.LSC23:
+        return siglip_model
+    elif data == Data.Deakin:
+        return clipa_model
+
+def encode_text(*args, chosen_model: ClipModel = siglip_model, **kwargs):
+    return chosen_model.encode_text(*args, **kwargs)
+
+def encode_image(*args, chosen_model: ClipModel = siglip_model, **kwargs):
+    return chosen_model.encode_image(*args, **kwargs)
+
+def score_images(*args, chosen_model: ClipModel = siglip_model, **kwargs):
+    return chosen_model.score_images(*args, **kwargs)
+
+def norm_photo_features(data: Data):
+    chosen_model = get_model(data)
+    return chosen_model.norm_photo_features[data]
+
+def photo_ids(data: Data):
+    chosen_model = get_model(data)
+    return chosen_model.photo_ids[data]

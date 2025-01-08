@@ -2,9 +2,6 @@ from datetime import datetime
 from functools import cmp_to_key
 from typing import Dict, Iterable, List
 
-from pydantic import BaseModel, InstanceOf, validate_call
-from rich import print
-
 from configs import (
     DERIVABLE_FIELDS,
     EXCLUDE_FIELDS,
@@ -13,25 +10,30 @@ from configs import (
     RERANK,
     SORT_VALUES,
 )
-from database.main import image_collection, scene_collection
+from database.main import get_db, image_collection, scene_collection
+from pydantic import BaseModel, InstanceOf, validate_call
 from query_parse.types.lifelog import MaxGap, RelevantFields
-from query_parse.visual import encode_text, score_images
-from results.models import Event, EventResults, GenericEventResults, Image
+from query_parse.types.requests import Data
+from query_parse.visual import encode_text, get_model, score_images
 from retrieval.async_utils import timer
 from retrieval.rerank import reranker
+from rich import print
+
+from results.models import Event, EventResults, GenericEventResults, Image
 
 
 def deriving_fields(
-    events: List[InstanceOf[Event]], fields: List[str]
+    events: List[InstanceOf[Event]], fields: List[str], data: Data = Data.LSC23
 ) -> List[InstanceOf[Event]]:
     """
     Derive the fields
     """
     # get from mongodb first
     scenes = [event.scene for event in events]
+    db = get_db(data)
 
     try:
-        documents = scene_collection.find(
+        documents = scene_collection(db).find(
             {"scene": {"$in": scenes}}, projection=fields + ["scene"]
         )
     except Exception as e:
@@ -68,11 +70,14 @@ class FakeEvent(BaseModel):
     location_info: str
 
 
-def index_derived_fields():
+def index_derived_fields(
+    data: Data = Data.LSC23,
+):
     """
     Index the derived fields
     """
-    for image in image_collection.find():
+    db = get_db(data)
+    for image in image_collection(db).find():
         for field in DERIVABLE_FIELDS:
             fake_event = FakeEvent(
                 start_time=image["time"],
@@ -85,9 +90,9 @@ def index_derived_fields():
             if field in image:
                 continue
             image[field] = DERIVABLE_FIELDS[field](fake_event)
-        image_collection.update_one({"_id": image["_id"]}, {"$set": image})
+        image_collection(db).update_one({"_id": image["_id"]}, {"$set": image})
     print("[green]Indexed derived fields for images[/green]")
-    for scene in scene_collection.find():
+    for scene in scene_collection(db).find():
         for field in DERIVABLE_FIELDS:
             fake_event = FakeEvent(
                 start_time=scene["start_time"],
@@ -100,7 +105,7 @@ def index_derived_fields():
             if field in scene:
                 continue
             scene[field] = DERIVABLE_FIELDS[field](fake_event)
-        scene_collection.update_one({"_id": scene["_id"]}, {"$set": scene})
+        scene_collection(db).update_one({"_id": scene["_id"]}, {"$set": scene})
     print("[green]Indexed derived fields for scenes[/green]")
 
 
@@ -196,11 +201,17 @@ def custom_compare_function(
 @validate_call
 def merge_events(
     text: str,
-    results: EventResults, relevant_fields: RelevantFields = RelevantFields()
+    data: Data,
+    results: EventResults,
+    relevant_fields: RelevantFields = RelevantFields(),
 ) -> EventResults:
     """
     Merge the events
     """
+    if not results.events:
+        return results
+
+
     # Check if any of the groupby should be calculated
     available_fields = set(type(results.events[0]).model_fields)
     derive_fields = []
@@ -215,8 +226,6 @@ def merge_events(
             else:
                 print("[red]Cannot derive field[/red]", criteria)
                 to_remove.add(criteria)
-
-
 
     # Remove the fields that cannot be derived
     groupby = set(relevant_fields.merge_by)
@@ -287,23 +296,30 @@ def merge_events(
     if RERANK:
         threshold = 0.5
         # Get the best image for each event
-        encoded_query = encode_text(text)
+        encoded_query = encode_text(text, get_model(data))
         events = new_results
 
         images = [img for event in events for img in event.images]
-        image_scores = score_images(images, encoded_query)
+        image_scores = score_images(images, encoded_query, get_model(data))
         image_to_scores = {img.src: score for img, score in zip(images, image_scores)}
-        best_images = [max(event.images, key=lambda img: image_to_scores[img.src]).src for event in events]
+        best_images = [
+            max(event.images, key=lambda img: image_to_scores[img.src]).src
+            for event in events
+        ]
         # print([(best_image, event.images) for best_image, event in zip(best_images, events)])
         reranker_scores = reranker.rerank(text, best_images)
 
         # remove events with score < 0.5
-        events = [event for event, score in zip(events, reranker_scores) if score >= threshold]
+        events = [
+            event for event, score in zip(events, reranker_scores) if score >= threshold
+        ]
         reranker_scores = [score for score in reranker_scores if score >= threshold]
         print(f"Reranker: {len(events)} events with score >= {threshold} for {text}")
         if events:
             # Sort the scores
-            events, scores = zip(*sorted(zip(events, reranker_scores), key=lambda x: x[1], reverse=True))
+            events, scores = zip(
+                *sorted(zip(events, reranker_scores), key=lambda x: x[1], reverse=True)
+            )
             new_results = events
             new_scores = scores
 
@@ -344,6 +360,7 @@ def merge_events(
                     elif value1 > value2:
                         return -1
             return 0
+
         # for sort in relevant_fields.sort_by[::-1]:
         new_results, new_scores = zip(
             *sorted(zip(new_results, new_scores), key=cmp_to_key(comp_func))
@@ -411,7 +428,10 @@ def merge_scenes_and_images(scenes: EventResults, images: EventResults) -> Event
 
 @timer("limit_images_per_event")
 def limit_images_per_event(
-    results: GenericEventResults, text_query: str, max_images: int
+    results: GenericEventResults,
+    text_query: str,
+    max_images: int,
+    data: Data = Data.LSC23,
 ) -> GenericEventResults:
     """
     Limit the number of images per event
@@ -428,7 +448,9 @@ def limit_images_per_event(
             if len(images) <= max_images:
                 continue
 
-            visual_scores = score_images(images, encoded_query)
+            visual_scores = score_images(
+                images, encoded_query, chosen_model=get_model(data)
+            )
 
             # Sort the images by the visual score and the original score
             ensembled_scores = [

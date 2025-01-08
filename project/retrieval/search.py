@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional
 
 from configs import FILTER_FIELDS, MAX_IMAGES_PER_EVENT, MERGE_EVENTS
-from database.main import group_collection, image_collection, scene_collection
+from database.main import get_db, group_collection, image_collection, scene_collection
 from database.models import GeneralRequestModel, Response
 from database.requests import get_es, get_request
 from database.utils import get_relevant_fields, segments_to_events
@@ -32,17 +32,24 @@ from query_parse.types.elasticsearch import (
     MSearchQuery,
     TimeInfo,
 )
-from query_parse.types.lifelog import DateTuple, Mode, TimeCondition
+from query_parse.types.lifelog import DateTuple, EatingFilters, Mode, TimeCondition
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
 from query_parse.types.requests import (
     AnswerThisRequest,
+    Data,
     GeneralQueryRequest,
     MapRequest,
     Step,
     Task,
     TimelineDateRequest,
 )
-from query_parse.visual import encode_image, encode_text, score_images, siglip_model
+from query_parse.visual import (
+    encode_image,
+    encode_text,
+    get_model,
+    score_images,
+    photo_ids,
+)
 from question_answering.text import answer_text_only, get_specific_description
 from question_answering.video import answer_visual_only, answer_visual_with_text
 from results.models import (
@@ -158,6 +165,7 @@ async def streaming_manager(request: GeneralQueryRequest) -> AsyncGenerator[str,
 @async_timer("simple_search")
 async def simple_search(
     main_query: ESBoolQuery,
+    data: Data,
     size: int,
     tag: str = "",
     mode: Mode = Mode.event,
@@ -169,10 +177,12 @@ async def simple_search(
     results = None
 
     # test
+    db = get_db(data)
     mongo_query = request.mongo_match
+    print("[green]Data[/green]", data)
     print("[green]Mongo Query[/green]", mongo_query)
     if mongo_query:
-        images_cursor = image_collection.find(
+        images_cursor = image_collection(db).find(
             mongo_query, {"image": 1}
         )  # Project only the required field
         images = {
@@ -182,12 +192,12 @@ async def simple_search(
     else:
         images = None
 
-    segments, scores = get_segments(main_query.query, max_gap=5, filters=images)
+    segments, scores = get_segments(main_query.query, data, max_gap=5, filters=images)
     if not segments:
         print("[red]No segments found[/red]")
         return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
-    events = segments_to_events(segments, scores, siglip_model.photo_ids)
+    events = segments_to_events(data, segments, scores, photo_ids(data))
     es_results = EventResults(events=events, scores=scores)
 
     # # end test
@@ -265,7 +275,11 @@ async def get_answer_models(question: str) -> AnswerModelOption:
 
 @async_generator_timer("single_query")
 async def single_query(
-    text: str, pipeline: Optional[SearchPipeline] = None, task_type: Task = Task.NONE
+    text: str,
+    filters: EatingFilters,
+    data: Data,
+    pipeline: Optional[SearchPipeline] = None,
+    task_type: Task = Task.NONE,
 ):
     """
     Search (and answer) a single query
@@ -275,6 +289,7 @@ async def single_query(
         pipeline = SearchPipeline()
 
     step = Step(step=1, total=2)
+    print("[green]Filters[/green]", filters)
     # ============================= #
     # 1. Query Parser (no skipping but modifiable)
     # ============================= #
@@ -292,6 +307,7 @@ async def single_query(
             ),
             FunctionWithArgs(
                 function=create_query,
+                kwargs={"filters": filters, "data": data},
                 use_previous_output=True,
                 output_name="query",
                 is_async=True,
@@ -322,8 +338,9 @@ async def single_query(
         output["es_query"],
         pipeline.size,
         text,
-        "single",
-        not skip_extract,
+        data,
+        tag="single",
+        filter_fields=not skip_extract,
     )
     # ----------------------------- #
     # b. Start the async tasks
@@ -373,6 +390,7 @@ async def single_query(
                 function=merge_events,
                 args=[
                     f"query: {text}, visual: {output['search_text']}",
+                    data,
                     results,
                     relevant_fields,
                 ],
@@ -450,10 +468,11 @@ def get_search_tasks(
     main_query: ESBoolQuery,
     size: int,
     text: str,
+    data: Data,
     tag: str = "",
     filter_fields: bool = FILTER_FIELDS,
 ) -> List[asyncio.Task]:
-    tasks = [simple_search(main_query, size, tag, mode=Mode.event)]
+    tasks = [simple_search(main_query, data, size, tag, mode=Mode.event)]
     # Starting the async tasks
     if filter_fields and text:
         tasks.append(get_relevant_fields(text, tag))
@@ -531,6 +550,7 @@ async def two_queries(
     conditional_text: str,
     condition: TimeCondition,
     size: int,
+    data: Data,
 ):
     """
     Search for two related queries based on the time condition
@@ -541,16 +561,16 @@ async def two_queries(
     else:
         search_text = main_text
 
-    query = await create_query(search_text, is_question=is_question)
+    query = await create_query(search_text, is_question, data)
     es_query = await create_es_combo_query(query, ignore_limit_score=False)
-    conditional = await create_query(conditional_text, is_question=is_question)
+    conditional = await create_query(conditional_text, is_question, data)
     conditional_es_query = await create_es_combo_query(
         conditional, ignore_limit_score=False
     )
 
-    tasks = get_search_tasks(es_query, size, main_text, "main")
+    tasks = get_search_tasks(es_query, size, main_text, data, tag="main")
     tasks += get_search_tasks(
-        conditional_es_query, size, conditional_text, "conditional"
+        conditional_es_query, size, conditional_text, data, tag="conditional"
     )
 
     # Starting the async tasks
@@ -631,7 +651,7 @@ async def two_queries(
 
     if MERGE_EVENTS:
         main_results = merge_events(
-            main_text, main_results
+            main_text, data, main_results
         )  # TODO! add the relevant fields
         # conditional_results = merge_events(conditional_results)
         msearch_results = apply_msearch(merge_events)
@@ -729,7 +749,9 @@ async def search_location_again(request: MapRequest) -> Optional[List[Event]]:
         overwrite=True,
     )
     if new_query:
-        results = await simple_search(new_query, size=20, tag="location")
+        results = await simple_search(
+            new_query, size=20, data=request.data, tag="location"
+        )
         if results.results:
             return results.results.events
     print("[red]search_location_again: No results found[/red]")
@@ -782,6 +804,7 @@ async def search_from_time(request: TimelineDateRequest) -> TimelineResult:
     """
     Filter down the search from the timeline view
     """
+    db = get_db(request.data)
     all_images = []
 
     # Filter the results based on the time
@@ -793,16 +816,20 @@ async def search_from_time(request: TimelineDateRequest) -> TimelineResult:
     print("[green]Found images[/green]", len(all_images))
 
     # Just filter the results based on the time
-    filtered = image_collection.find({"image": {"$in": all_images}}).sort("time", 1)
+    filtered = image_collection(db).find({"image": {"$in": all_images}}).sort("time", 1)
     filtered = list(filtered)
     all_groups = set([image["group"] for image in filtered])
 
     # Find time info
-    group_docs = group_collection.find(
-        {
-            "group": {"$in": list(all_groups)},
-        }
-    ).sort("time", 1)
+    group_docs = (
+        group_collection(db)
+        .find(
+            {
+                "group": {"$in": list(all_groups)},
+            }
+        )
+        .sort("time", 1)
+    )
 
     group_info = {group["group"]: group for group in group_docs}
 
@@ -860,11 +887,11 @@ async def try_search_again(request, date) -> List[str]:
 
 
 @async_timer("search_similar_events")
-async def search_similar_events(image: str) -> Optional[EventResults]:
+async def search_similar_events(image: str, data: Data) -> Optional[EventResults]:
     """
     Search for similar events
     """
-    image_feat = encode_image(image)
+    image_feat = encode_image(image, get_model(data))
     if not image_feat:
         return None
 
@@ -872,7 +899,7 @@ async def search_similar_events(image: str) -> Optional[EventResults]:
     es = ESBoolQuery()
     es.must.append(ESEmbedding(embedding=image_feat.tolist()))
 
-    result = await simple_search(es, size=200, tag="similar")
+    result = await simple_search(es, size=200, data=data, tag="similar")
     if not result.results or not result.results.events:
         print("[red]No similar events found[/red]")
         return None
@@ -883,14 +910,16 @@ async def search_similar_events(image: str) -> Optional[EventResults]:
 @async_generator_timer("answer_single_event")
 async def answer_single_event(
     request: AnswerThisRequest,
+    data: Data = Data.LSC23,
 ) -> AsyncGenerator[AnswerResultWithEvent, None]:
     """
     Answer the question for a single event
     """
+    db = get_db(data)
     image = request.image
 
     # Get scene information from the image
-    scene = scene_collection.find_one(
+    scene = scene_collection(db).find_one(
         {"images": {"$elemMatch": {"src": request.image}}}
     )
 
@@ -908,8 +937,8 @@ async def answer_single_event(
     # Get 2 other highest scoring images
     if len(event.images) > 1:
         other_images = [x for x in event.images if x.src != image]
-        encoded_query = encode_text(request.question)
-        visual_scores = score_images(other_images, encoded_query)
+        encoded_query = encode_text(request.question, get_model(data))
+        visual_scores = score_images(other_images, encoded_query, get_model(data))
         sorted_images = sorted(
             zip(other_images, visual_scores), key=lambda x: x[1], reverse=True
         )

@@ -1,11 +1,12 @@
 from collections import defaultdict
 from typing import Optional, Self, Sequence
 
+from database.main import es_collection, get_db
+from myeachtra.dependencies import ObjectId
 from openai import BaseModel
 from pydantic import SkipValidation, model_validator
+from retrieval.search_utils import send_search_request
 
-from database.main import es_collection
-from myeachtra.dependencies import ObjectId
 from query_parse.es_utils import (
     get_location_filters,
     get_temporal_filters,
@@ -14,19 +15,21 @@ from query_parse.es_utils import (
 from query_parse.location import search_for_locations
 from query_parse.question import parse_query
 from query_parse.time import TimeTagger, search_for_time
-from query_parse.types import (
+from query_parse.types.eating import FoodGroup
+from query_parse.types.elasticsearch import (
+    ESAndFilters,
     ESBoolQuery,
     ESCombineFilters,
+    ESEmbedding,
+    ESFilter,
     ESSearchRequest,
     LocationInfo,
     TimeInfo,
     VisualInfo,
 )
-from query_parse.types.elasticsearch import ESAndFilters, ESEmbedding, ESFilter
-from query_parse.types.lifelog import Mode, SingleQuery
+from query_parse.types.lifelog import EatingFilters, Mode, SingleQuery
+from query_parse.types.requests import Data
 from query_parse.visual import search_for_visual
-from retrieval.cuvs import search
-from retrieval.search_utils import send_search_request
 
 time_tagger = TimeTagger()
 
@@ -37,12 +40,14 @@ class Query(BaseModel):
     time: TimeInfo = TimeInfo()
     location: LocationInfo = LocationInfo()
     visual: VisualInfo = VisualInfo()
+    eating_filters: Optional[EatingFilters] = None
 
     location_queries: Sequence[ESCombineFilters] = []
     temporal_queries: Sequence[ESCombineFilters] = []
     visual_queries: Sequence[ESCombineFilters] = []
 
     es: Optional[ESBoolQuery] = None
+    embed_model: str = "sigclip"
 
     def print_info(self):
         return {
@@ -53,6 +58,8 @@ class Query(BaseModel):
 
 
 class ComboQuery(BaseModel):
+    data: Data = Data.LSC23
+
     original_text: str = ""
     is_question: bool = False
 
@@ -67,8 +74,11 @@ class ComboQuery(BaseModel):
 
     @model_validator(mode="after")
     def insert_request(self) -> Self:
+        db = get_db(self.data)
         if not self.oid:
-            inserted = es_collection.insert_one(self.model_dump(exclude={"responses"}))
+            inserted = es_collection(db).insert_one(
+                self.model_dump(exclude={"responses"})
+            )
             self.oid = inserted.inserted_id
         return self
 
@@ -83,15 +93,26 @@ class ComboQuery(BaseModel):
     def mark_extracted(self, es: ESBoolQuery):
         self.extracted = True
         self.es = es
-        es_collection.update_one(
+        db = get_db(self.data)
+        es_collection(db).update_one(
             {"_id": self.oid}, {"$set": {"extracted": True}}, upsert=True
         )
 
 
-async def extract_info(text: str, is_question: bool) -> ComboQuery:
+async def extract_info(
+    text: str, is_question: bool, data: Data, filters: EatingFilters | None = None
+) -> ComboQuery:
     query_parts = await parse_query(text, is_question)
 
-    def extract_part(part: SingleQuery | None) -> Query | None:
+    match data:
+        case Data.LSC23:
+            embed_model = "siglip"
+        case Data.Deakin:
+            embed_model = "clipa"
+
+    def extract_part(
+        part: SingleQuery | None, filters: EatingFilters | None = None
+    ) -> Query | None:
         if not part:
             return
         # =================================================================== #
@@ -138,20 +159,28 @@ async def extract_info(text: str, is_question: bool) -> ComboQuery:
             time=timeinfo,
             location=locationinfo,
             visual=visualinfo,
+            eating_filters=filters,
+            embed_model=embed_model,
         )
 
     return ComboQuery(
-        main=extract_part(query_parts.main),
+        main=extract_part(query_parts.main, filters),
         before=extract_part(query_parts.before),
         after=extract_part(query_parts.after),
         must_not=extract_part(query_parts.must_not),
         original_text=text,
         is_question=is_question,
+        data=data,
     )
 
 
-async def create_query(search_text: str, is_question: bool) -> ComboQuery:
-    return await extract_info(search_text, is_question)
+async def create_query(
+    search_text: str,
+    is_question: bool,
+    data: Data,
+    filters: EatingFilters | None = None,
+) -> ComboQuery:
+    return await extract_info(search_text, is_question, data, filters)
 
 
 def time_to_filters(
@@ -172,7 +201,7 @@ def location_to_filters(
 
 def text_to_visual(query: Query, overwrite: bool = False) -> Sequence[ESCombineFilters]:
     if not query.visual_queries or overwrite:
-        query.visual_queries = get_visual_filters(query.visual)
+        query.visual_queries = get_visual_filters(query.visual, query.embed_model)
     return query.visual_queries
 
 
@@ -224,18 +253,18 @@ async def create_es_query(
             es.should.append(embedding)
             # New
             assert isinstance(embedding, ESEmbedding), "Embedding is not an ESEmbedding"
-            _, relevant_images = search(embedding.embedding, top_k=10000)
+            # _, relevant_images = search(embedding.embedding, top_k=10000)
 
-            if mode == Mode.event:
-                field = "images"
-            else:
-                field = "image_path"
+            # if mode == Mode.event:
+            #     field = "images"
+            # else:
+            #     field = "image_path"
 
-            # Hack for the tour
-            if not "marklin" in query.visual.text.lower():
-                es.should.append(
-                    ESFilter(field=field, value=relevant_images.tolist(), boost=0.1)
-                )
+            # # Hack for the tour
+            # if not "marklin" in query.visual.text.lower():
+            #     es.should.append(
+            #         ESFilter(field=field, value=relevant_images.tolist(), boost=0.1)
+            #     )
 
         # Filter queries (no scores)
         es.filter.append(time)
@@ -243,6 +272,18 @@ async def create_es_query(
         es.filter.append(timestamp)
         es.filter.append(region)
         es.filter.append(weekday)
+
+        # Eating filters
+        if query.eating_filters:
+            for field, values in query.eating_filters.iter_fields():
+                if values:
+                    es.filter.append(ESFilter(field=field, value=values))
+            es.must_not.append(
+                ESFilter(
+                    field="food",
+                    value=[FoodGroup.NOT_EATING, ""],
+                )
+            )
 
         if ignore_limit_score:
             max_score = 1.0

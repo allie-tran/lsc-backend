@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from query_parse.extract_info import create_es_combo_query, create_query
 from query_parse.question import detect_question, question_to_retrieval
 from query_parse.types.options import FunctionWithArgs, SearchPipeline
-from query_parse.types.requests import Step, Task
+from query_parse.types.requests import Data, Step, Task
 from results.utils import (
     RelevantFields,
     create_event_label,
@@ -27,7 +27,10 @@ logger = logging.getLogger(__name__)
 
 @async_timer("to_csv")
 async def to_csv(
-    text: str, pipeline: Optional[SearchPipeline] = None, task_type: Task = Task.NONE
+    text: str,
+    data: Data,
+    pipeline: Optional[SearchPipeline] = None,
+    task_type: Task = Task.NONE,
 ) -> pd.DataFrame:
     """
     Search (and answer) a single query
@@ -84,8 +87,9 @@ async def to_csv(
         output["es_query"],
         pipeline.size,
         text,
-        "single",
-        not skip_extract,
+        data=data,
+        tag="single",
+        filter_fields=skip_extract,
     )
     # ----------------------------- #
     # b. Start the async tasks
@@ -187,22 +191,22 @@ async def to_csv(
 
 
 @async_timer("get_vegalite")
-async def get_vegalite(query: str):
+async def get_vegalite(query: str, data: Data):
     """
     Get the vegalite data for a query
     """
     # Get data
-    df = await to_csv(query)
+    df = await to_csv(query, data)
     prompt = GRAPH_QUERY.format(question=query, data=df.to_dict(orient="records"))
 
-    data = {}
+    graph_data = {}
     while True:
         try:
-            data = await gpt_llm_model.generate_from_text(prompt)
-            if data:
-                rprint("Vegetalite data found", data)
-                if "data" not in data:
-                    data["data"] = {"values": df.to_dict(orient="records")}
-                return data
+            graph_data = await gpt_llm_model.generate_from_text(prompt)
+            if graph_data:
+                rprint("Vegetalite data found", graph_data)
+                if "data" not in graph_data:
+                    graph_data["data"] = {"values": df.to_dict(orient="records")}
+                return graph_data
         except ValidationError as e:
             rprint(e)

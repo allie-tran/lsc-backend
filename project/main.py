@@ -12,9 +12,11 @@ from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from myeachtra import map_router, timeline_router
+from database.utils import get_full_data
+from myeachtra.timeline_router import timeline_router
+from myeachtra.map_router import map_router
 from myeachtra.auth_models import get_user, verify_user
-from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest, LoginRequest, LoginResponse
+from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest, ImageInfoRequest, LoginRequest, LoginResponse
 from results.models import AnswerResultWithEvent
 from retrieval.graph import get_vegalite, to_csv
 from retrieval.search import answer_single_event, streaming_manager
@@ -31,6 +33,7 @@ app = FastAPI()
 origins = [
     "http://localhost",
     "http://localhost:3000",
+    "http://localhost:3001",
     "https://n-2mbzycnxd-allie-trans-projects.vercel.app",
     "https://mysceal.computing.dcu.ie",
     "vercel.app",
@@ -137,7 +140,7 @@ async def query_to_csv(query: GeneralQueryRequest):
     """
     Given a query, return the results in CSV format
     """
-    csv = await to_csv(query.main)
+    csv = await to_csv(query.main, query.data)
     return csv.to_csv(index=False)
 
 
@@ -159,5 +162,16 @@ async def query_to_vegalite(query: GeneralQueryRequest):
     """
     Given a query, return the results in Vega-Lite format
     """
-    data = await get_vegalite(query.main)
+    data = await get_vegalite(query.main, query.data)
     return data
+
+@app.post(
+    "/image-dicts",
+    description="Get all information about the images in the database",
+    status_code=200,
+)
+async def get_image_dicts(request: ImageInfoRequest):
+    """
+    Get all information about the images in the database
+    """
+    return get_full_data(request.images, request.data)

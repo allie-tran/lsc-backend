@@ -1,5 +1,5 @@
 import os
-from typing import List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from configs import ESSENTIAL_FIELDS, IMAGE_ESSENTIAL_FIELDS
 from geopy.geocoders import Nominatim
@@ -7,8 +7,9 @@ from llm import gpt_llm_model
 from llm.prompt.organize import RELEVANT_FIELDS_PROMPT
 from myeachtra.dependencies import memory
 from pydantic import ValidationError
+from pydantic.alias_generators import to_camel
 from query_parse.types.elasticsearch import GPS
-from query_parse.types.requests import MapRequest
+from query_parse.types.requests import Data, MapRequest
 from query_parse.utils import extend_no_duplicates
 from results.models import AsyncioTaskResult, Event, Icon, Image, Marker
 from results.utils import RelevantFields
@@ -16,7 +17,12 @@ from retrieval.async_utils import async_timer, timer
 from rich import print as rprint
 
 import requests
-from database.main import image_collection, location_collection, scene_collection
+from database.main import (
+    get_db,
+    image_collection,
+    location_collection,
+    scene_collection,
+)
 
 
 def to_event(image: dict) -> Event:
@@ -32,7 +38,13 @@ def to_event(image: dict) -> Event:
                 hash_code=image.pop("hash_code"),
             )
         ]
-        image["gps"] = [GPS(**image.pop("gps"))]
+
+        if "gps" in image:
+            image["gps"] = [GPS(**image.pop("gps"))]
+        else:
+            # For deakin
+            image["gps"] = []
+
         if "icon" in image:
             image["icon"] = Icon(**image.pop("icon"))
         return Event(**image)
@@ -41,16 +53,18 @@ def to_event(image: dict) -> Event:
         raise e
 
 
-
 @timer("convert_to_events")
 def convert_to_events(
     key_list: List[str],
     relevant_fields: Optional[List[str]] = None,
     key: Literal["scene", "image"] = "scene",
+    data: Data = Data.LSC23,
 ) -> List[Event]:
     """
     Convert a list of event ids to a list of Event objects
     """
+    db = get_db(data)
+
     collection = scene_collection if key == "scene" else image_collection
     fields = ESSENTIAL_FIELDS if key == "scene" else IMAGE_ESSENTIAL_FIELDS
 
@@ -59,12 +73,14 @@ def convert_to_events(
     if relevant_fields:
         projection = extend_no_duplicates(relevant_fields, fields)
         try:
-            documents = collection.find({key: {"$in": key_list}}, projection=projection)
+            documents = collection(db).find(
+                {key: {"$in": key_list}}, projection=projection
+            )
         except Exception as e:
             rprint("[red]Error in convert_to_events[/red]", e)
 
     if not documents:
-        documents = collection.find({key: {"$in": key_list}})
+        documents = collection(db).find({key: {"$in": key_list}})
 
     # Sort the documents based on the order of the event_list
     documents = sorted(documents, key=lambda doc: index[doc[key]])
@@ -81,6 +97,7 @@ def convert_to_events(
 
 
 def segments_to_events(
+    data: Data,
     segments: List[Tuple[int, int]],
     scores,
     photo_ids: List[str],
@@ -89,34 +106,36 @@ def segments_to_events(
     """
     Convert the segments to events
     """
+    db = get_db(data)
     images = []
     for start, end in segments:
+        print(photo_ids[start], photo_ids[end])
         images.extend(photo_ids[start:end])
     documents = []
+
     if relevant_fields:
         projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
         try:
-            documents = image_collection.find(
+            documents = image_collection(db).find(
                 {"image": {"$in": images}}, projection=projection
             )
         except Exception as e:
             rprint("[red]Error in convert_to_events[/red]", e)
 
     if not documents:
-        documents = image_collection.find({"image": {"$in": images}})
+        documents = image_collection(db).find({"image": {"$in": images}})
 
     image_to_doc = {doc["image"]: doc for doc in documents}
     events = []
     for (start, end), score in zip(segments, scores):
-        event_images = [photo for photo in photo_ids[start:end] if photo in image_to_doc]
+        event_images = [
+            photo for photo in photo_ids[start:end] if photo in image_to_doc
+        ]
         if not event_images:
             continue
         event = to_event(image_to_doc[event_images[0]])
         if len(event_images) > 1:
-            rest = [
-                to_event(image_to_doc[photo_id])
-                for photo_id in event_images[1:]
-            ]
+            rest = [to_event(image_to_doc[photo_id]) for photo_id in event_images[1:]]
             event.merge_with_many(score, rest, [score] * len(rest))
         events.append(event)
 
@@ -206,7 +225,10 @@ def calculate_distance(point1: GPS, point2: GPS) -> float:
     return ((point1.lat - point2.lat) ** 2 + (point1.lon - point2.lon) ** 2) ** 0.5
 
 
-def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
+def get_location_name(request: MapRequest,
+                      data: Data = Data.LSC23
+                      ) -> Tuple[str, Optional[GPS]]:
+    db = get_db(data)
     location = request.location
     if location == "---":
         location = None
@@ -215,11 +237,11 @@ def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
         return location, request.center
 
     if request.image:
-        doc = image_collection.find_one({"image.src": request.image})
+        doc = image_collection(db).find_one({"image.src": request.image})
         if doc:
             return doc["location"], GPS(**doc["gps"])
 
-    scene = scene_collection.find_one(
+    scene = scene_collection(db).find_one(
         {
             "$or": [
                 {"images": {"$elemMatch": {"src": request.image}}},
@@ -243,14 +265,19 @@ def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
     raise ValueError("No location found")
 
 
-def get_image_center(image: str) -> Optional[GPS]:
-    doc = image_collection.find_one({"image.src": image})
+def get_image_center(image: str,
+                     data: Data = Data.LSC23
+                     ) -> Optional[GPS]:
+    db = get_db(data)
+    doc = image_collection(db).find_one({"image.src": image})
     if doc:
         return GPS(**doc["gps"])
     return None
 
 
-def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
+def get_location_info(request: MapRequest,
+                      data: Data = Data.LSC23
+                      ) -> Optional[Tuple[str, dict]]:
     """
     Get the location info
     If there is only one location with the same name, return that
@@ -267,7 +294,8 @@ def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
             "icon": None,
         }
 
-    locations = location_collection.find({"location": location})
+    db = get_db(data)
+    locations = location_collection(db).find({"location": location})
     locations = list(locations)
 
     info = None
@@ -309,7 +337,7 @@ def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
     if not icon:
         icon = get_icon_from_location_name(location, location_info)
 
-    data = {
+    loc = {
         "location": location,
         "location_info": location_info,
         "fsq_id": id,
@@ -318,10 +346,10 @@ def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
         "icon": icon.model_dump() if icon else None,
     }
 
-    location_collection.insert_one(
-        data,
+    location_collection(db).insert_one(
+        loc,
     )
-    return location, data
+    return location, loc
 
 
 def get_icon_from_fsq(info: dict) -> Optional[Icon]:
@@ -423,18 +451,21 @@ def get_icon(marker: Marker) -> Optional[Icon]:
     Get the icon for the marker
     """
     fsq_info = get_location_info(marker.location, marker.center)  # type: ignore
-    if fsq_info and fsq_info["fsq_info"]:
-        return get_icon_from_fsq(fsq_info["fsq_info"])
+    if fsq_info and fsq_info["fsq_info"]:  # type: ignore
+        return get_icon_from_fsq(fsq_info["fsq_info"])  # type: ignore
     return get_icon_from_location_name(marker.location, marker.location_info)
 
 
-def get_all_images_with_location(location: str) -> List[str]:
-    images = image_collection.find({"location": location})
+def get_all_images_with_location(location: str, data: Data = Data.LSC23) -> List[str]:
+    db = get_db(data)
+    images = image_collection(db).find({"location": location})
     return [image["image"] for image in images]
 
 
-def get_all_images_from_same_scene(image: str) -> List[Image]:
-    scene = scene_collection.find_one({"images": {"$elemMatch": {"src": image}}})
+def get_all_images_from_same_scene(image: str, data: Data = Data.LSC23
+                                   ) -> List[Image]:
+    db = get_db(data)
+    scene = scene_collection(db).find_one({"images": {"$elemMatch": {"src": image}}})
     if scene:
         return [Image(**img) for img in scene["images"]]
     return []
@@ -449,3 +480,17 @@ def reverse_geomapping(center: GPS) -> Optional[str]:
     if location:
         return location.address  # type: ignore
     return None
+
+def get_full_data(images: List[str], data: Data) -> Dict[str, Dict[str, Any]]:
+    """
+    Get the full data for the images
+    """
+    db = get_db(data)
+    image_data = image_collection(db).find({"image": {"$in": images}})
+    # Change key cases to camel case
+    image_data = [{to_camel(key): value for key, value in image.items()} for image in image_data]
+    image_data = {image["image"]: image for image in image_data}
+    # remove object id
+    for image in image_data.values():
+        image.pop("_id")
+    return image_data

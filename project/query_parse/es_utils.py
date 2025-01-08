@@ -6,7 +6,7 @@ from results.models import EventResults
 
 from query_parse.constants import GPS_NORMAL_CASE, MAP_VISUALISATION
 from query_parse.time import MONTHS
-from query_parse.types import (
+from query_parse.types.elasticsearch import (
     GPS,
     ESAndFilters,
     ESCombineFilters,
@@ -23,7 +23,7 @@ from query_parse.types import (
     VisualInfo,
 )
 from query_parse.types.lifelog import Mode, TimeCondition
-from query_parse.visual import encode_text
+from query_parse.visual import siglip_model, clipa_model, clip_model
 
 
 def range_filter(
@@ -335,13 +335,22 @@ def get_location_filters(locationinfo: LocationInfo) -> Sequence[ESCombineFilter
     return [place_filters, place_type_filters, region_filters]
 
 
-def get_visual_filters(visual_info: VisualInfo) -> Sequence[ESCombineFilters]:
+def get_visual_filters(visual_info: VisualInfo, embed_model: str = "sigclip"
+                       ) -> Sequence[ESCombineFilters]:
     embedding = ESEmbedding(field="google_vector")
     ocr = ESFuzzyMatch(field="ocr", boost=0.001)
     concepts = ESMatch(field="descriptions", boost=0.01)
     if visual_info.text:
         print("Visual info text:", visual_info.text)
-        encoded_query = encode_text(visual_info.text).tolist()
+        match embed_model:
+            case "sigclip":
+                encoded_query = siglip_model.encode_text(visual_info.text).tolist()
+            case "clipa":
+                encoded_query = clipa_model.encode_text(visual_info.text).tolist()
+            case _:
+                encoded_query = clip_model.encode_text(visual_info.text).tolist()
+
+
         embedding.embedding = encoded_query
         ocr.query = visual_info.text
         concepts.query = " ".join(visual_info.concepts)

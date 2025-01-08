@@ -15,7 +15,7 @@ from .constants import (
     LOWERCASE_COUNTRIES,
     REGIONS,
 )
-from .types import LocationInfo
+from .types.elasticsearch import LocationInfo
 from .utils import is_enabled, search_keywords
 
 
