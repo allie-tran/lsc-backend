@@ -1,12 +1,12 @@
 import os
 from typing import List, Literal, Optional, Tuple
 
-from pydantic import ValidationError
-
 from configs import ESSENTIAL_FIELDS, IMAGE_ESSENTIAL_FIELDS
+from geopy.geocoders import Nominatim
 from llm import gpt_llm_model
-from llm.prompts import RELEVANT_FIELDS_PROMPT
+from llm.prompt.organize import RELEVANT_FIELDS_PROMPT
 from myeachtra.dependencies import memory
+from pydantic import ValidationError
 from query_parse.types.elasticsearch import GPS
 from query_parse.types.requests import MapRequest
 from query_parse.utils import extend_no_duplicates
@@ -14,26 +14,32 @@ from results.models import AsyncioTaskResult, Event, Icon, Image, Marker
 from results.utils import RelevantFields
 from retrieval.async_utils import async_timer, timer
 from rich import print as rprint
-from geopy.geocoders import Nominatim
 
 import requests
 from database.main import image_collection, location_collection, scene_collection
 
 
 def to_event(image: dict) -> Event:
-    image["start_time"] = image.pop("time")
-    image["end_time"] = image["start_time"]
-    image["images"] = [
-        Image(
-            src=image.pop("image"),
-            aspect_ratio=image.pop("aspect_ratio"),
-            hash_code=image.pop("hash_code"),
-        )
-    ]
-    image["gps"] = [GPS(**image.pop("gps"))]
-    if "icon" in image:
-        image["icon"] = Icon(**image.pop("icon"))
-    return Event(**image)
+    if "start_time" in image:
+        return Event(**image)
+    try:
+        image["start_time"] = image.pop("time")
+        image["end_time"] = image["start_time"]
+        image["images"] = [
+            Image(
+                src=image.pop("image"),
+                aspect_ratio=image.pop("aspect_ratio"),
+                hash_code=image.pop("hash_code"),
+            )
+        ]
+        image["gps"] = [GPS(**image.pop("gps"))]
+        if "icon" in image:
+            image["icon"] = Icon(**image.pop("icon"))
+        return Event(**image)
+    except KeyError as e:
+        print(image)
+        raise e
+
 
 
 @timer("convert_to_events")
@@ -74,6 +80,52 @@ def convert_to_events(
     return events
 
 
+def segments_to_events(
+    segments: List[Tuple[int, int]],
+    scores,
+    photo_ids: List[str],
+    relevant_fields: Optional[List[str]] = None,
+) -> List[Event]:
+    """
+    Convert the segments to events
+    """
+    images = []
+    for start, end in segments:
+        images.extend(photo_ids[start:end])
+    documents = []
+    if relevant_fields:
+        projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
+        try:
+            documents = image_collection.find(
+                {"image": {"$in": images}}, projection=projection
+            )
+        except Exception as e:
+            rprint("[red]Error in convert_to_events[/red]", e)
+
+    if not documents:
+        documents = image_collection.find({"image": {"$in": images}})
+
+    image_to_doc = {doc["image"]: doc for doc in documents}
+    events = []
+    for (start, end), score in zip(segments, scores):
+        event_images = [photo for photo in photo_ids[start:end] if photo in image_to_doc]
+        if not event_images:
+            continue
+        event = to_event(image_to_doc[event_images[0]])
+        if len(event_images) > 1:
+            rest = [
+                to_event(image_to_doc[photo_id])
+                for photo_id in event_images[1:]
+            ]
+            event.merge_with_many(score, rest, [score] * len(rest))
+        events.append(event)
+
+    for event in events:
+        event.markers, event.orphans = calculate_markers(event)
+
+    return events
+
+
 def calculate_markers(event: Event) -> Tuple[List[Marker], List[GPS]]:
     """
     Calculate the markers for one event, straight from the mongo document
@@ -106,7 +158,6 @@ async def get_relevant_fields(query: str, tag: str) -> AsyncioTaskResult:
                 break
         except ValidationError as e:
             rprint(e)
-
 
     relevant_fields = RelevantFields.model_validate(data)
     return AsyncioTaskResult(results=relevant_fields, tag=tag, task_type="llm")
@@ -191,11 +242,13 @@ def get_location_name(request: MapRequest) -> Tuple[str, Optional[GPS]]:
 
     raise ValueError("No location found")
 
+
 def get_image_center(image: str) -> Optional[GPS]:
     doc = image_collection.find_one({"image.src": image})
     if doc:
         return GPS(**doc["gps"])
     return None
+
 
 def get_location_info(request: MapRequest) -> Optional[Tuple[str, dict]]:
     """
@@ -386,7 +439,10 @@ def get_all_images_from_same_scene(image: str) -> List[Image]:
         return [Image(**img) for img in scene["images"]]
     return []
 
+
 geolocator = Nominatim(user_agent="myeachtra")
+
+
 def reverse_geomapping(center: GPS) -> Optional[str]:
     location = geolocator.reverse((center.lat, center.lon), exactly_one=True, language="en")  # type: ignore
     print(location)

@@ -18,6 +18,23 @@ from query_parse.types.elasticsearch import GPS
 from query_parse.types.options import SearchPipeline
 
 
+# ====================== #
+# Authentication
+# ====================== #
+class LoginRequest(CamelCaseModel):
+    username: str
+    password: str
+
+
+class LoginResponse(CamelCaseModel):
+    session_id: str
+
+
+# ====================== #
+# Search
+# ====================== #
+
+
 class Step(CamelCaseModel):
     step: PositiveInt
     total: PositiveInt

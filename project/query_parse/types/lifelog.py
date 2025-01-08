@@ -109,12 +109,18 @@ class SortBy(CamelCaseModel):
     field: str
     order: Literal["asc", "desc"]
 
+class AggregatedAnswer(CamelCaseModel):
+    field: Optional[str] = None
+    # operation: Literal["count", "sum", "average", "argmax", "argmin", "max", "min"]
+    operation: Optional[str] = None
+
 
 class RelevantFields(CamelCaseModel):
     relevant_fields: List[str] = []
     merge_by: List[str] = []
     sort_by: List[SortBy] = []
     max_gap: Optional[MaxGap] = None
+    aggregated_answer: Optional[AggregatedAnswer] = None
 
     @field_validator("merge_by", mode="before")
     def validate_merge_by(cls, v) -> List[str]:
@@ -140,6 +146,8 @@ class RelevantFields(CamelCaseModel):
     def change_fields(self) -> Self:
         self.relevant_fields += self.merge_by
         self.relevant_fields += [sort.field for sort in self.sort_by]
+        if self.aggregated_answer and self.aggregated_answer.field:
+            self.relevant_fields.append(self.aggregated_answer.field)
 
         if self.max_gap is None:
             self.max_gap = MaxGap()

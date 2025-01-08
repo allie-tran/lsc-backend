@@ -2,16 +2,23 @@ from datetime import datetime
 from functools import cmp_to_key
 from typing import Dict, Iterable, List
 
-from configs import DERIVABLE_FIELDS, EXCLUDE_FIELDS, ISEQUAL, MAXIMUM_EVENT_TO_GROUP, SORT_VALUES
-from database.main import image_collection, scene_collection
 from pydantic import BaseModel, InstanceOf, validate_call
-from query_parse.types.lifelog import MaxGap, RelevantFields
-from query_parse.visual import score_images
-from retrieval.async_utils import timer
-from retrieval.common_nn import encode_query
 from rich import print
 
+from configs import (
+    DERIVABLE_FIELDS,
+    EXCLUDE_FIELDS,
+    ISEQUAL,
+    MAXIMUM_EVENT_TO_GROUP,
+    RERANK,
+    SORT_VALUES,
+)
+from database.main import image_collection, scene_collection
+from query_parse.types.lifelog import MaxGap, RelevantFields
+from query_parse.visual import encode_text, score_images
 from results.models import Event, EventResults, GenericEventResults, Image
+from retrieval.async_utils import timer
+from retrieval.rerank import reranker
 
 
 def deriving_fields(
@@ -167,12 +174,14 @@ def custom_compare_function(
         attr2 = ""
         try:
             attr1 = getattr(event1, field)
-        except AttributeError:
+        except AttributeError as e:
+            print("[red]Error in custom_compare_function[/red]", e)
             pass
         try:
             attr2 = getattr(event2, field)
-        except AttributeError:
+        except AttributeError as e:
             pass
+            print("[red]Error in custom_compare_function[/red]", e)
         if not ISEQUAL[cmp_field](attr1, attr2):
             equal = False
             break
@@ -186,6 +195,7 @@ def custom_compare_function(
 
 @validate_call
 def merge_events(
+    text: str,
     results: EventResults, relevant_fields: RelevantFields = RelevantFields()
 ) -> EventResults:
     """
@@ -195,7 +205,7 @@ def merge_events(
     available_fields = set(type(results.events[0]).model_fields)
     derive_fields = []
     to_remove = set()
-    for criteria in relevant_fields.merge_by:
+    for criteria in set(relevant_fields.merge_by + ["date"]):
         if criteria not in available_fields:
             # Two cases here:
             # 1. the field is derivable from the schema
@@ -205,6 +215,8 @@ def merge_events(
             else:
                 print("[red]Cannot derive field[/red]", criteria)
                 to_remove.add(criteria)
+
+
 
     # Remove the fields that cannot be derived
     groupby = set(relevant_fields.merge_by)
@@ -220,16 +232,12 @@ def merge_events(
     # If groupby is empty then group by "group"
     if not groupby:
         groupby = set(["group"])
-
-    groupby.add("date")
+    else:
+        groupby.add("date")
 
     cmp = lambda x, y: custom_compare_function(x, y, groupby, relevant_fields.max_gap)
 
     # Group the events using the ISEQUAL criteria from configs
-    temp = results.events
-    sorted(temp, key=cmp_to_key(cmp))
-
-    # Get unique keys
     unique_groups = 0
     events = results.events
     scores = results.scores
@@ -237,7 +245,6 @@ def merge_events(
     grouped_scores = {0: [scores[0]]}
 
     print(f"[blue]Grouping {len(events)} events by {groupby}[/blue]")
-    print("Example:", events[0])
     for event, score in zip(events[1:], scores[1:]):
         found = False
         for group in grouped_events:
@@ -248,10 +255,10 @@ def merge_events(
                     grouped_scores[group].append(score)
                 break
         if not found:
+            # No existing group found
             unique_groups += 1
             grouped_events[unique_groups] = [event]
             grouped_scores[unique_groups] = [score]
-
     print(f"[blue]{unique_groups + 1} unique groups[/blue]")
 
     new_results = []
@@ -267,17 +274,50 @@ def merge_events(
             continue
 
         new_event = events[0]
-        to_merge = events[1 : 1 + MAXIMUM_EVENT_TO_GROUP]
-        to_merge_scores = scores[1 : 1 + MAXIMUM_EVENT_TO_GROUP]
+        to_merge = events[1:]
+        to_merge_scores = scores[1:]
 
         new_event.merge_with_many(scores[0], to_merge, to_merge_scores)
         new_results.append(new_event)
         new_scores.append(max(scores))
-
     print("[green]Merged into[/green]", len(new_results), "events")
-    print("[blue]Sorting by[/blue]", relevant_fields.sort_by)
 
-    if relevant_fields.sort_by:
+    # ----------------------------- #
+    # rerank
+    if RERANK:
+        threshold = 0.5
+        # Get the best image for each event
+        encoded_query = encode_text(text)
+        events = new_results
+
+        images = [img for event in events for img in event.images]
+        image_scores = score_images(images, encoded_query)
+        image_to_scores = {img.src: score for img, score in zip(images, image_scores)}
+        best_images = [max(event.images, key=lambda img: image_to_scores[img.src]).src for event in events]
+        # print([(best_image, event.images) for best_image, event in zip(best_images, events)])
+        reranker_scores = reranker.rerank(text, best_images)
+
+        # remove events with score < 0.5
+        events = [event for event, score in zip(events, reranker_scores) if score >= threshold]
+        reranker_scores = [score for score in reranker_scores if score >= threshold]
+        print(f"Reranker: {len(events)} events with score >= {threshold} for {text}")
+        if events:
+            # Sort the scores
+            events, scores = zip(*sorted(zip(events, reranker_scores), key=lambda x: x[1], reverse=True))
+            new_results = events
+            new_scores = scores
+
+    print("[blue]Sorting by[/blue]", relevant_fields.sort_by)
+    if relevant_fields.sort_by and len(events) > 0:
+        # if len([sort for sort in relevant_fields.sort_by if sort.field != "score"]):
+        #     # Sort by non-score fields
+        #     # We must have a cut-off point
+        #     max_score = max(new_scores)
+        #     threshold = max_score * 0.97
+        #     print("[blue]Threshold[/blue]", threshold)
+        #     print(f"[blue]Keeping ({len([score for score in new_scores if score > threshold])})[/blue]")
+        #     new_results = [event for event, score in zip(new_results, new_scores) if score > threshold]
+        #     new_scores = [score for score in new_scores if score > threshold]
 
         def get_sort_value(event: Event) -> List:
             values = []
@@ -378,7 +418,7 @@ def limit_images_per_event(
     This is achieved by selecting the images with the highest score
     and highest relevance to the query
     """
-    encoded_query = encode_query(text_query)
+    encoded_query = encode_text(text_query)
     for generic_event in results.events:
         for event in generic_event.custom_iter():  # might be a doublet or triplet
 

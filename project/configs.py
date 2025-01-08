@@ -19,7 +19,7 @@ memory = Memory(location="cache", verbose=0)
 DEV_MODE = False
 USE_GROQ = False
 IMAGE_SEARCH = True
-DEBUG = False
+DEBUG = True
 CACHE = True
 
 # Search Configurations
@@ -49,6 +49,8 @@ TIMEOUT = 60
 # Timeline Configurations
 TIMELINE_SPAN = 9  # If they want more, submit more
 
+RERANK = False
+
 # QA Configurations
 BUILD_ON_STARTUP = True
 
@@ -67,7 +69,7 @@ CLIP_EMBEDDINGS = os.environ.get("CLIP_EMBEDDINGS")
 # ====================== #
 # Dataset Configurations #
 # ====================== #
-DATA_YEARS = ["LSC20", "LSC23"]
+DATA_YEARS = ["LSC23"]
 FILES_DIRECTORY = os.getenv("FILES_DIRECTORY")
 IMAGE_DIRECTORY = f"{CLIP_EMBEDDINGS}/LSC23/LSC23_highres_images"
 # ====================== #

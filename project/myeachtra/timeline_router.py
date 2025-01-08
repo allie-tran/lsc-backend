@@ -1,6 +1,7 @@
 from configs import DEV_MODE
 from database.models import GeneralRequestModel, Response
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from myeachtra.auth_models import get_user
 from query_parse.types.requests import TimelineDateRequest, TimelineRequest
 from results.models import TimelineResult
 from retrieval.search import search_from_time
@@ -14,14 +15,12 @@ timeline_router = APIRouter()
     description="Get the timeline of an image",
     response_model=TimelineResult,
     status_code=200,
+    dependencies=[Depends(get_user)],
 )
 async def timeline(request: TimelineRequest):
     """
     Timeline endpoint
     """
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
     # cached_request = GeneralRequestModel(request=request)
     # if cached_request.finished:
     #     return cached_request.responses[-1].response
@@ -40,14 +39,12 @@ async def timeline(request: TimelineRequest):
     description="Get the timeline of a date",
     response_model=TimelineResult,
     status_code=200,
+    dependencies=[Depends(get_user)],
 )
 async def timeline_date(request: TimelineDateRequest):
     """
     Get the timeline of a date
     """
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
     cached_request = GeneralRequestModel(request=request)
     if cached_request.finished:
         return cached_request.responses[-1]
@@ -65,14 +62,12 @@ async def timeline_date(request: TimelineDateRequest):
     description="Get the timeline of a date",
     response_model=TimelineResult,
     status_code=200,
+    dependencies=[Depends(get_user)],
 )
 async def timeline_relevant_only(request: TimelineDateRequest):
     """
     Get the timeline of a date
     """
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
     cached_request = GeneralRequestModel(request=request)
     if cached_request.finished:
         return cached_request.responses[-1]

@@ -132,6 +132,7 @@ class Event(CamelCaseModel):
 
     start_time: datetime = Field(..., exclude=True)
     end_time: datetime = Field(..., exclude=True)
+    duration: float = 30 # 30 seconds
 
     location: str = ""
     location_info: str = ""
@@ -149,6 +150,8 @@ class Event(CamelCaseModel):
 
     image_scores: List[float] = Field(default_factory=list, exclude=True)
     icon: Optional[Icon] = Icon(type="material", name="place")
+
+    count: int = 1
 
     # # Extra
     # time: Optional[datetime] = None
@@ -238,7 +241,7 @@ class Event(CamelCaseModel):
         # Time
         self.start_time = min(self.start_time, other.start_time)
         self.end_time = max(self.end_time, other.end_time)
-        # skip duration
+        self.duration = (self.end_time - self.start_time).total_seconds()
 
         # Location
         self.location = merge_str(self.location, other.location, " and ")
@@ -271,6 +274,7 @@ class Event(CamelCaseModel):
         # Time
         self.start_time = min([self.start_time] + [x.start_time for x in others])
         self.end_time = max([self.end_time] + [x.end_time for x in others])
+        self.duration = (self.end_time - self.start_time).total_seconds()
 
         # Location
         self.location = " and ".join(

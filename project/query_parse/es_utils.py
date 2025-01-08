@@ -336,7 +336,7 @@ def get_location_filters(locationinfo: LocationInfo) -> Sequence[ESCombineFilter
 
 
 def get_visual_filters(visual_info: VisualInfo) -> Sequence[ESCombineFilters]:
-    embedding = ESEmbedding()
+    embedding = ESEmbedding(field="google_vector")
     ocr = ESFuzzyMatch(field="ocr", boost=0.001)
     concepts = ESMatch(field="descriptions", boost=0.01)
     if visual_info.text:

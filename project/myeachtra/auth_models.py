@@ -1,38 +1,61 @@
-import base64
-import json
-
+import jwt
+import bcrypt
 import redis
-from rest_framework_simplejwt.serializers import TokenObtainSerializer
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework_simplejwt.views import TokenObtainPairView
+from fastapi import HTTPException, Request
+import os
+from configs import REDIS_HOST, REDIS_PORT
+from query_parse.types.requests import LoginRequest
 
-from .settings import REDIS_HOST, REDIS_PORT
+SECRET = os.getenv("JWT_SECRET", "")
+assert SECRET, "JWT_SECRET is not set"
 
+def create_user(request: LoginRequest) -> None:
+    """
+    Create a new user
+    """
+    r = redis.Redis(host=REDIS_HOST, port=6379, db=0)
+    if r.get(request.username):
+        raise HTTPException(status_code=400, detail="User already exists")
+    r.set(request.username, bcrypt.hashpw(request.password.encode(), bcrypt.gensalt()))
+    print(f"User {request.username} created")
 
-class CustomTokenObtainPairSerializer(TokenObtainSerializer):
-
-    @classmethod
-    def get_token(cls, user):
-        refresh = RefreshToken.for_user(user)
-        return refresh
-
-    def validate(self, attrs):
-        data = super().validate(attrs)
-        if self.user:
-            refresh = self.get_token(self.user)
-            data["refresh"] = str(refresh)
-            data["access"] = str(refresh.token)
-        self.update_redis_db(data)
-        return data
-
-    def update_redis_db(self, token_data):
-        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
-        access_token = token_data["access"]
-        _, payload, _ = access_token.split(".")
-        payload = json.loads(base64.b64decode(payload).decode("ascii"))
-        user_id = payload["user_id"]
-        r.set(f"user_id:{user_id}", access_token)
+def generate_token(username: str) -> str:
+    """
+    Generate a token for the user
+    """
+    return jwt.encode({"username": username}, SECRET, algorithm="HS256")
 
 
-class CustomTokenObtainPairView(TokenObtainPairView):
-    serializer_class = CustomTokenObtainPairSerializer
+def verify_user(request: LoginRequest) -> str:
+    """
+    Verify user credentials and return an access token
+    """
+    r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, decode_responses=True)
+    hashed_password = r.get(request.username)
+    if not hashed_password:
+        raise HTTPException(status_code=401, detail="User does not exist")
+    if bcrypt.checkpw(request.password.encode(), str(hashed_password).encode()):
+        return generate_token(request.username)
+    else:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+def verify_token(token: str) -> str:
+    """
+    Verify the token and return the username
+    """
+    try:
+        return jwt.decode(token, SECRET, algorithms=["HS256"])["username"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token is expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def get_user(request: Request) -> str:
+    """
+    Get the user from the request to make sure the user is authenticated
+    """
+    token = request.headers.get("Authorization") # Bearer token
+    if not token:
+        raise HTTPException(status_code=401, detail="Please log in")
+    return verify_token(token.split(" ")[1])

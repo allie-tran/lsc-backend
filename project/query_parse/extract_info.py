@@ -1,13 +1,11 @@
 from collections import defaultdict
 from typing import Optional, Self, Sequence
 
-from database.main import es_collection
-from myeachtra.dependencies import ObjectId
 from openai import BaseModel
 from pydantic import SkipValidation, model_validator
-from retrieval.cuvs import search
-from retrieval.search_utils import send_search_request
 
+from database.main import es_collection
+from myeachtra.dependencies import ObjectId
 from query_parse.es_utils import (
     get_location_filters,
     get_temporal_filters,
@@ -27,6 +25,8 @@ from query_parse.types import (
 from query_parse.types.elasticsearch import ESAndFilters, ESEmbedding, ESFilter
 from query_parse.types.lifelog import Mode, SingleQuery
 from query_parse.visual import search_for_visual
+from retrieval.cuvs import search
+from retrieval.search_utils import send_search_request
 
 time_tagger = TimeTagger()
 
@@ -189,13 +189,19 @@ async def create_es_query(
         # Get the filters
         time, date, timestamp, duration, weekday = time_to_filters(query, mode=mode)
         place, _, region = location_to_filters(query)  # type: ignore
-        embedding, ocr, _ = text_to_visual(query)  # type: ignore
+        embedding, ocr, concepts = text_to_visual(query)
 
         min_score = 0.0
         max_score = 1.0
 
         # Important
-        es = ESBoolQuery() if not query.es else query.es
+        if not query.es:
+            text = ""
+            if query.query_parts:
+                text = query.query_parts.visual
+            es = ESBoolQuery(query=text)
+        else:
+            es = query.es
 
         # Should queries:
         if place:
@@ -210,15 +216,15 @@ async def create_es_query(
         if ocr:
             es.should.append(ocr)
             min_score += 0.01
-        # if concepts:
-        #     es.should.append(concepts)
-        #     min_score += 0.05
+        if concepts:
+            es.should.append(concepts)
+            min_score += 0.05
 
         if embedding:
             es.should.append(embedding)
             # New
             assert isinstance(embedding, ESEmbedding), "Embedding is not an ESEmbedding"
-            _, relevant_images = search(embedding.embedding, top_k=1000)
+            _, relevant_images = search(embedding.embedding, top_k=10000)
 
             if mode == Mode.event:
                 field = "images"
@@ -228,7 +234,7 @@ async def create_es_query(
             # Hack for the tour
             if not "marklin" in query.visual.text.lower():
                 es.should.append(
-                    ESFilter(field=field, value=relevant_images.tolist(), boost=0.5)
+                    ESFilter(field=field, value=relevant_images.tolist(), boost=0.1)
                 )
 
         # Filter queries (no scores)
@@ -262,10 +268,10 @@ async def create_es_query(
                 max_score = test_results.hits.max_score
                 min_score = min(min_score, max_score / 2)
 
-        es.min_score = min_score
+        # es.min_score = min_score
+        es.min_score = 0
         es.max_score = max_score
         query.es = es
-
     return query.es
 
 
@@ -276,6 +282,7 @@ async def create_es_combo_query(
     mode: Mode = Mode.event,
 ) -> ESBoolQuery:
     es = ESBoolQuery()
+
     # Create the main query
     if query.main:
         query.main.es = await create_es_query(

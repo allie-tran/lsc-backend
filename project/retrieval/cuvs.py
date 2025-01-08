@@ -5,13 +5,12 @@ from myeachtra.dependencies import memory
 import cupy as cp
 import numpy as np
 import rmm
-from configs import EMBEDDING_DIM
 from pylibraft.neighbors import cagra, ivf_flat
 
 from pylibraft.common import DeviceResources
 from rmm.allocators.cupy import rmm_cupy_allocator
 
-from retrieval.common_nn import norm_photo_features, photo_ids
+from query_parse.visual import norm_photo_features, photo_ids
 
 mr = rmm.mr.PoolMemoryResource(rmm.mr.CudaMemoryResource(), initial_pool_size=2 ** 15)
 rmm.mr.set_current_device_resource(mr)
@@ -20,7 +19,6 @@ handle = DeviceResources()
 
 # Load the photo features and image IDs
 vectors = cp.asarray(norm_photo_features, dtype=np.float32)
-
 
 ALGO = "ivf_flat"
 if ALGO == "ivf_flat":
@@ -61,27 +59,16 @@ else:
 # Function to perform a search
 @memory.cache
 def search(query_vector, top_k=5):
+    query_vector = cp.asarray(query_vector, dtype=np.float32).reshape(1, -1)
+
+
+
     # Perform the search
     handle = DeviceResources()
-    query_vector = cp.asarray(query_vector, dtype=np.float32).reshape(1, -1)
     distances, indices = algo.search(search_params, index, query_vector, k=top_k, handle=handle)
     handle.sync()
     # Convert the indices to image IDs
     indices = cp.asnumpy(indices).flatten()
     images = np.array(photo_ids)[indices]
     distances = cp.asnumpy(distances).reshape(-1)
-
     return {image: distance for image, distance in zip(images, distances)}, images
-
-
-# Sample query vector (replace with your actual query vector)
-query_vector = np.random.rand(EMBEDDING_DIM).astype(np.float32)
-query_vector /= np.linalg.norm(query_vector)
-
-# Perform the search
-scores, images = search(query_vector, top_k=5)
-print(scores)
-
-# Output the results
-print("Images:", images)
-print("Distances:", scores)

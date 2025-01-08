@@ -82,6 +82,8 @@ def get_specific_description(event: Event, fields: Optional[List[str]] = None) -
     for field in DURATION_FIELDS:
         if field in fields:
             duration += f"{getattr(event, field)} {field}"
+    if "duration" in fields:
+        duration += calculate_duration(event.start_time, event.end_time)
 
     if duration:
         duration = " which lasted for " + duration + " "

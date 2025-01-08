@@ -10,7 +10,6 @@ import pytimeparse
 from nltk import MWETokenizer, pos_tag
 from parsedatetime import Constants
 from results.models import Visualisation
-from rich import print as rprint
 
 from .types import DateTuple, RegexInterval, Tags, TimeInfo
 from .utils import find_regex, get_visual_text
@@ -590,11 +589,10 @@ def search_for_time(
     return clean_query, info, query_visualisation
 
 
-def add_time(timeinfo: TimeInfo, extra_timeinfo: TimeInfo):
+def add_time(timeinfo: TimeInfo | None, extra_timeinfo: TimeInfo | None):
     """
     Add time information to a TimeInfo object
     """
-
     if timeinfo is None:
         return extra_timeinfo
     if extra_timeinfo is None:

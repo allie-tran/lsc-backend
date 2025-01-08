@@ -4,7 +4,7 @@ from typing import Optional
 
 import pandas as pd
 from llm import gpt_llm_model
-from llm.prompts import GRAPH_QUERY
+from llm.prompt.organize import GRAPH_QUERY
 from pydantic import ValidationError
 from query_parse.extract_info import create_es_combo_query, create_query
 from query_parse.question import detect_question, question_to_retrieval

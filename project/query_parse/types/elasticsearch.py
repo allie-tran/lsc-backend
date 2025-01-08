@@ -29,6 +29,9 @@ class ESQuery(BaseModel):
     def __bool__(self):
         raise NotImplementedError
 
+    def to_mongo(self) -> Any:
+        return None
+
 
 class ESSearchRequest(ESQuery):
     """
@@ -49,13 +52,14 @@ class ESSearchRequest(ESQuery):
     index: str = SCENE_INDEX
     main_field: str = "scene"
     size: int = DEFAULT_SIZE
-    includes: List[str] = [main_field, "clip_vector"]
+    includes: List[str] = [main_field, "clip_vector", "google_vector"]
+    mongo_match: Optional[Dict] = None
 
     @model_validator(mode="after")
     def get_fields_based_on_mode(self) -> Self:
         if self.mode == "image":
             self.main_field = "image_path"
-            self.includes = [self.main_field, "clip_vector"]
+            self.includes = [self.main_field, "clip_vector", "google_vector"]
             self.index = IMAGE_INDEX
             self.size *= 3
             if self.sort_field in ["start_timestamp", "end_timestamp"]:
@@ -112,6 +116,19 @@ class ESGeoDistance(ESQuery):
             }
         }
 
+    def to_mongo(self):
+        return {
+            "gps": {
+                "$near": {
+                    "$geometry": {
+                        "type": "Point",
+                        "coordinates": [self.lon, self.lat],
+                    },
+                    "$maxDistance": self.distance,
+                }
+            }
+        }
+
 
 class GPS(BaseModel):
     lat: float
@@ -161,6 +178,15 @@ class ESGeoBoundingBox(ESQuery):
                 "gps": {
                     "top_left": self.top_left.to_dict(),
                     "bottom_right": self.bottom_right.to_dict(),
+                }
+            }
+        }
+
+    def to_mongo(self):
+        return {
+            "gps": {
+                "$geoWithin": {
+                    "$box": [self.top_left.to_list(), self.bottom_right.to_list()]
                 }
             }
         }
@@ -346,6 +372,9 @@ class ESRangeFilter(ESQuery):
             }
         }
 
+    def to_mongo(self):
+        return {self.field: {"$gte": self.start, "$lte": self.end}}
+
     def __bool__(self):
         return self.start is not None and self.end is not None
 
@@ -364,6 +393,11 @@ class ESFilter(ESQuery):
         if isinstance(self.value, list):
             return {"terms": {self.field: self.value, "boost": self.boost}}
         return {"term": {self.field: {"value": self.value, "boost": self.boost}}}
+
+    def to_mongo(self):
+        if isinstance(self.value, list):
+            return {self.field: {"$in": self.value}}
+        return {self.field: self.value}  # TODO!
 
     def __bool__(self):
         return self.value is not None
@@ -464,6 +498,14 @@ class ESOrFilters(ESListQuery):
     minimum_should_match: int = 1
     logical_operator: str = "or"
 
+    def to_mongo(self) -> Optional[Union[Dict, List[Dict]]]:
+        valid_queries = [query for query in self.queries if query]
+        if not valid_queries:
+            return None
+        if len(valid_queries) == 1:
+            return valid_queries[0].to_mongo()
+        return {"$or": [query.to_mongo() for query in valid_queries]}
+
 
 class ESAndFilters(ESListQuery):
     """
@@ -471,6 +513,14 @@ class ESAndFilters(ESListQuery):
     """
 
     logical_operator: str = "and"
+
+    def to_mongo(self) -> Optional[Union[Dict, List[Dict]]]:
+        valid_queries = [query for query in self.queries if query]
+        if not valid_queries:
+            return None
+        if len(valid_queries) == 1:
+            return valid_queries[0].to_mongo()
+        return {"$and": [query.to_mongo() for query in valid_queries]}
 
 
 class ESEmbedding(ESQuery):
@@ -522,12 +572,39 @@ MUST_NOT = ESAndFilters(
 )
 
 
+class MongoQuery(BaseModel):
+    collection: str
+    match: Dict[str, Any] = {}
+    sort: List[Tuple[str, int]] = [("timestamp", -1)]
+    limit: int = 100
+    skip: int = 0
+
+    def run(self, db: Any) -> List[dict]:
+        return list(
+            db[self.collection]
+            .find(self.match)
+            .sort(self.sort)
+            .limit(self.limit)
+            .skip(self.skip)
+        )
+
+
+class MongoAggregationQuery(BaseModel):
+    collection: str
+    pipeline: Sequence[Dict[str, Any]]
+
+    def run(self, db: Any) -> List[dict]:
+        return list(db[self.collection].aggregate(self.pipeline))
+
+
 class ESBoolQuery(ESQuery):
     """
     A class to represent a boolean query in Elasticsearch
     This is the MAIN query class that is fed to Elasticsearch
     Everything is combined here
     """
+
+    query: str = ""
     # These are defined after processing the query
     must: ESAndFilters = ESAndFilters()
     must_not: ESAndFilters = MUST_NOT
@@ -574,6 +651,16 @@ class ESBoolQuery(ESQuery):
 
     def __bool__(self):
         return bool(self.must or self.must_not or self.filter or self.should)
+
+    def to_mongo(self):
+        # Only use filter for now
+        filters = self.filter.to_mongo()
+        if filters:
+            if isinstance(filters, dict):
+                return filters
+            return {"$and": filters}
+        else:
+            return {}
 
 
 class MSearchQuery(BaseModel):

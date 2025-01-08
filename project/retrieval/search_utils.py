@@ -1,18 +1,22 @@
 import json
-import numpy as np
 import logging
 from collections.abc import AsyncGenerator
+from copy import deepcopy
 from typing import Any, Callable, List, Optional, Sequence, Union
 
+import numpy as np
 import requests
-from configs import DERIVABLE_FIELDS, ES_URL
-from database.utils import convert_to_events
 from elastic_transport import ObjectApiResponse
 from fastapi import HTTPException
+from requests import Response
+from rich import print
+
+from configs import DERIVABLE_FIELDS, ES_URL, IMAGE_DIRECTORY
+from database.utils import convert_to_events
 from query_parse.types.elasticsearch import ESBoolQuery, ESSearchRequest, MSearchQuery
 from query_parse.types.lifelog import Mode, TimeCondition
 from query_parse.types.requests import GeneralQueryRequest, Task
-from requests import Response
+from query_parse.visual import encode_text, score_images
 from results.models import (
     AsyncioTaskResult,
     DoubletEvent,
@@ -22,10 +26,8 @@ from results.models import (
     TripletEvent,
 )
 from results.utils import create_event_label, deriving_fields
-from rich import print
-from copy import deepcopy
-
 from retrieval.async_utils import async_generator_timer, timer
+from retrieval.rerank import reranker
 from retrieval.types import ESResponse
 
 logger = logging.getLogger(__name__)
@@ -40,7 +42,7 @@ def clean(data: dict) -> dict:
     """
     data = deepcopy(data)
     if not isinstance(data, dict):
-        return data
+        return data  # type: ignore
     for key, value in data.items():
         if isinstance(value, list):
             data[key] = [clean(d) for d in value[:5]]
@@ -82,6 +84,7 @@ async def send_search_request(query: ESSearchRequest) -> ESResponse:
     """
     json_query = query.to_query()
     # Use normal search
+    print(f"{ES_URL}/{query.index}/_search")
     response = requests.post(
         f"{ES_URL}/{query.index}/_search{'?scroll=5m' if query.scroll else ''}",
         data=json.dumps(json_query),
@@ -186,6 +189,7 @@ def get_search_request(
         mode=mode,
         sort_field="start_timestamp" if mode == Mode.event else "timestamp",
         sort_order="asc",
+        mongo_match=main_query.to_mongo()
     )
     return search_request
 
@@ -209,7 +213,7 @@ async def get_raw_search_results(
 
 async def get_search_results(request: ESSearchRequest) -> EventResults | None:
     es_response = await send_search_request(request)
-    results = process_es_results(es_response, request.test, request.mode)
+    results = process_es_results(request.query, es_response, request.test, request.mode)
 
     if results is None:
         print("[red]get_search_results: No results found[/red]")
@@ -227,6 +231,7 @@ async def get_search_results(request: ESSearchRequest) -> EventResults | None:
 # POST-PROCESSING FUNCTIONS
 # ======================================== #
 def process_es_results(
+    query: str,
     response: ESResponse,
     test: bool = False,
     mode: Mode = Mode.event,
@@ -259,6 +264,7 @@ def process_es_results(
     # ------------------------- #
     key = "scene" if mode == "event" else "image"
     events = convert_to_events(ids, key=key)
+
     result = EventResults(events=events, scores=scores)
     return result
 

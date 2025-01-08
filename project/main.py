@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import redis
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from rich import print
@@ -13,7 +13,8 @@ from rich import print
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
 from myeachtra import map_router, timeline_router
-from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest
+from myeachtra.auth_models import get_user, verify_user
+from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest, LoginRequest, LoginResponse
 from results.models import AnswerResultWithEvent
 from retrieval.graph import get_vegalite, to_csv
 from retrieval.search import answer_single_event, streaming_manager
@@ -47,16 +48,21 @@ app.include_router(submit_router, prefix="/submit")
 app.include_router(timeline_router, prefix="/timeline")
 app.include_router(map_router, prefix="/location")
 
+@app.post("/login", description="Login endpoint")
+async def login(request: LoginRequest):
+    """
+    Login endpoint
+    """
+    verified = verify_user(request)
+    return LoginResponse(session_id=verified)
+
 
 @app.post(
     "/search",
     description="Send a search request. Returns a token to be used to stream the results",
+    dependencies=[Depends(get_user)],
 )
 async def search(request: GeneralQueryRequest):
-    if not request.session_id and not DEV_MODE:
-        raise HTTPException(status_code=401, detail="Please log in")
-
-    print(request)
     # Save to redis
     r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
     token = uuid4().hex

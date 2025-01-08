@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from configs import QUERY_PARSER
 from llm import gpt_llm_model, llm_model
-from llm.prompts import PARSE_QUERY, REWRITE_QUESTION
+from llm.prompt.parse import PARSE_QUERY, REWRITE_QUESTION
 from rich import print as rprint
 
 from query_parse.types.lifelog import ParsedQuery, SingleQuery
