@@ -109,9 +109,9 @@ def segments_to_events(
     db = get_db(data)
     images = []
     for start, end in segments:
-        print(photo_ids[start], photo_ids[end])
         images.extend(photo_ids[start:end])
     documents = []
+    print(data, images[:5])
 
     if relevant_fields:
         projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
@@ -494,3 +494,11 @@ def get_full_data(images: List[str], data: Data) -> Dict[str, Dict[str, Any]]:
     for image in image_data.values():
         image.pop("_id")
     return image_data
+
+def get_unique_values(data: Data, field: str) -> List[str]:
+    """
+    Get the unique values for a field
+    """
+    db = get_db(data)
+    values = image_collection(db).distinct(field)
+    return values

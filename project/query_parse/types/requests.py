@@ -195,6 +195,13 @@ class AnswerThisRequest(TemplateRequest):
     relevant_fields: Optional[List[str]] = None
 
 
+# ====================== #
+# Fetch Data (for UI purposes)
+# ====================== #
+class ChoicesRequest(TemplateRequest):
+    field: str
+
+
 AnyRequest = Union[
     GeneralQueryRequest, TimelineRequest, TimelineDateRequest, SortRequest, MapRequest
 ]

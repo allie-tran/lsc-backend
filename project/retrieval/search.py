@@ -47,8 +47,8 @@ from query_parse.visual import (
     encode_image,
     encode_text,
     get_model,
-    score_images,
     photo_ids,
+    score_images,
 )
 from question_answering.text import answer_text_only, get_specific_description
 from question_answering.video import answer_visual_only, answer_visual_with_text
@@ -78,6 +78,7 @@ from rich import print
 
 from retrieval.async_utils import async_generator_timer, async_timer
 from retrieval.dynamic_segmentation import get_segments
+from retrieval.graph_utils import get_heatmap_data
 from retrieval.search_utils import (
     get_raw_search_results,
     get_search_function,
@@ -192,23 +193,39 @@ async def simple_search(
     else:
         images = None
 
-    segments, scores = get_segments(main_query.query, data, max_gap=5, filters=images)
-    if not segments:
+    segment_res = get_segments(main_query.query, data, max_gap=5, filters=images)
+    if not segment_res["segments"]:
         print("[red]No segments found[/red]")
         return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
-    events = segments_to_events(data, segments, scores, photo_ids(data))
-    es_results = EventResults(events=events, scores=scores)
+    print("[green]Total segments found[/green]", len(segment_res["segments"]))
+
+    events = segments_to_events(
+        data,
+        segment_res["segments"][:size],
+        segment_res["segment_scores"][:size],
+        photo_ids(data),
+    )
+
+    print("[green]Events found[/green]", len(events))
+    es_results = EventResults(events=events, scores=segment_res["segment_scores"][:size])
+
+    # The scores are on a x-axis of time
+    # We can visualize the scores in a heatmap like git commit history
+    # of the scores
+    visualisation_data = get_heatmap_data(data, segment_res["scores"], segment_res["threshold"])
 
     # # end test
     # es_response = await send_search_request(request)
     # es_results = process_es_results(main_query.query, es_response, mode=mode)
+
     # Give some label to the results
     if es_results:
         print(f"[green]Found {len(es_results.events)} matches for {mode}[/green]")
         es_results.min_score = main_query.min_score
         es_results.max_score = main_query.max_score
         results = create_event_label(es_results)
+        results.heatmap = visualisation_data
     return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
 
@@ -358,6 +375,12 @@ async def single_query(
                 progress=step.progress(),
                 es_id=output["query"].oid,
             )
+            if results and results.heatmap:
+                yield Response(
+                    type="heatmap",
+                    response=results.heatmap,
+                    progress=step.progress(),
+                )
         elif res.task_type == "llm":
             relevant_fields = res.results
             field_extractor.add_output(relevant_fields.model_dump())

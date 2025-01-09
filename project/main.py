@@ -12,11 +12,11 @@ from rich import print
 
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
-from database.utils import get_full_data
+from database.utils import get_full_data, get_unique_values
 from myeachtra.timeline_router import timeline_router
 from myeachtra.map_router import map_router
 from myeachtra.auth_models import get_user, verify_user
-from query_parse.types.requests import AnswerThisRequest, GeneralQueryRequest, ImageInfoRequest, LoginRequest, LoginResponse
+from query_parse.types.requests import AnswerThisRequest, ChoicesRequest, Data, GeneralQueryRequest, ImageInfoRequest, LoginRequest, LoginResponse
 from results.models import AnswerResultWithEvent
 from retrieval.graph import get_vegalite, to_csv
 from retrieval.search import answer_single_event, streaming_manager
@@ -175,3 +175,19 @@ async def get_image_dicts(request: ImageInfoRequest):
     Get all information about the images in the database
     """
     return get_full_data(request.images, request.data)
+
+@app.post(
+    "/choices",
+    description="Get the choices for a dropdown",
+    status_code=200,
+)
+async def get_choices(request: ChoicesRequest):
+    """
+    Get the choices for a dropdown
+    """
+    match (request.data, request.field):
+        case Data.Deakin, "patientId":
+            return get_unique_values(request.data, "patientId")
+        case _:
+            raise HTTPException(status_code=404, detail=f"{request.field} not found for {request.data}")
+

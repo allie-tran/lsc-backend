@@ -17,9 +17,10 @@ from numpy import linalg as LA
 from open_clip.model import CLIP
 from open_clip.tokenizer import _tokenizer
 from PIL import Image as PILImage
-from query_parse.types.requests import Data
 from results.models import Image
 from transformers import AutoModel, AutoProcessor
+
+from query_parse.types.requests import Data
 
 from .constants import DESCRIPTIONS
 from .types.elasticsearch import VisualInfo
@@ -62,17 +63,27 @@ def load_features(paths):
             if new_photo_ids is not None:
                 photo_ids = np.concatenate([photo_ids, new_photo_ids])
 
-    # Add .jpg extension to photo ids if not present
-    photo_ids = [
-        photo_id + ".jpg" if "." not in photo_id else photo_id for photo_id in photo_ids
-    ]
+        assert photo_features.shape[0] == len(
+            photo_ids
+        ), f"Mismatch between photo features and photo ids {photo_features.shape[0]} != {len(photo_ids)}"
 
     # Normalize photo features
     norm_photo_features = photo_features / LA.norm(
         photo_features, keepdims=True, axis=-1
     )
-    image_to_id = {image: i for i, image in enumerate(photo_ids)}
 
+    # sort photo_ids and norm_photo_features by photo_ids
+    sort_idx = np.argsort(photo_ids)
+    photo_ids = np.array(photo_ids)[sort_idx]
+    norm_photo_features = norm_photo_features[sort_idx]
+
+    # Add .jpg extension to photo ids if not present
+    photo_ids = [
+        photo_id + ".jpg" if "." not in photo_id else photo_id for photo_id in photo_ids
+    ]
+    print(photo_ids[:5])
+
+    image_to_id = {image: i for i, image in enumerate(photo_ids)}
     return norm_photo_features, image_to_id, photo_ids
 
 
@@ -123,8 +134,12 @@ class ClipModel:
         self.combine_datasets(lsc_paths, deakin_paths)
 
     def combine_datasets(self, lsc_paths, deakin_paths):
-        lsc_norm_photo_features, lsc_image_to_id, lsc_photo_ids = load_features(lsc_paths)
-        deakin_norm_photo_features, deakin_image_to_id, deakin_photo_ids = load_features(deakin_paths)
+        lsc_norm_photo_features, lsc_image_to_id, lsc_photo_ids = load_features(
+            lsc_paths
+        )
+        deakin_norm_photo_features, deakin_image_to_id, deakin_photo_ids = (
+            load_features(deakin_paths)
+        )
 
         # Both datasets
         self.norm_photo_features = {
@@ -183,7 +198,9 @@ class ClipModel:
             return similarity.astype("float").tolist()
         return []
 
-    def score_all_images(self, query: str, data: Data) -> Tuple[List[float], np.ndarray]:
+    def score_all_images(
+        self, query: str, data: Data
+    ) -> Tuple[List[float], np.ndarray]:
         encoded_query = self.encode_text(query)
         try:
             encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
@@ -210,16 +227,15 @@ class SIGLIP(ClipModel):
 
         # LSC23 dataset
         lsc_paths = [
-                f"{CLIP_EMBEDDINGS}/{year}/google-siglip-so400m-patch14-384_nonorm"
-                for year in DATA_YEARS
-            ]
+            f"{CLIP_EMBEDDINGS}/{year}/google-siglip-so400m-patch14-384_nonorm"
+            for year in DATA_YEARS
+        ]
 
         # Deakin dataset
-        deakin_paths = [f"{CLIP_EMBEDDINGS}/Deakin/google-siglip-so400m-patch14-384"]
+        deakin_paths = [f"{CLIP_EMBEDDINGS}/Deakin/siglip-so400m-patch14-384"]
 
         # Both datasets
         self.combine_datasets(lsc_paths, deakin_paths)
-
 
     def encode_text(self, main_query: str) -> np.ndarray:
         inputs = self.processor(
@@ -279,24 +295,30 @@ clip_model = ClipModel()
 siglip_model = SIGLIP()
 clipa_model = CLIPA()
 
+
 def get_model(data: Data):
     if data == Data.LSC23:
         return siglip_model
     elif data == Data.Deakin:
-        return clipa_model
+        return siglip_model
+
 
 def encode_text(*args, chosen_model: ClipModel = siglip_model, **kwargs):
     return chosen_model.encode_text(*args, **kwargs)
 
+
 def encode_image(*args, chosen_model: ClipModel = siglip_model, **kwargs):
     return chosen_model.encode_image(*args, **kwargs)
+
 
 def score_images(*args, chosen_model: ClipModel = siglip_model, **kwargs):
     return chosen_model.score_images(*args, **kwargs)
 
+
 def norm_photo_features(data: Data):
     chosen_model = get_model(data)
     return chosen_model.norm_photo_features[data]
+
 
 def photo_ids(data: Data):
     chosen_model = get_model(data)

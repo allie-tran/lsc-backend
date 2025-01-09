@@ -4,32 +4,30 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 from configs import CLIP_EMBEDDINGS
+from database.main import get_db, image_collection
 from query_parse.types.requests import Data
-from query_parse.visual import clip_model, clipa_model, siglip_model
+from query_parse.visual import clip_model, get_model, photo_ids
 from tqdm.auto import tqdm
 
-lsc_blurred = pd.read_csv(f"{CLIP_EMBEDDINGS}/LSC23/blurred.csv")
-deakin_blurred = pd.read_csv(f"{CLIP_EMBEDDINGS}/Deakin/blurred.csv")
 
-def to_key(image):
-    return "/".join(image.split("/")[-3:])
-
-
-def get_blurred_indices(blurred_df):
+def get_blurred_indices(data: Data):
+    blurred_df = pd.read_csv(f"{CLIP_EMBEDDINGS}/{data}/blurred.csv")
     blurred_df["laplacian_var"] = blurred_df["laplacian_var"].fillna(0)
     blurred_images = (
-        blurred_df[blurred_df["laplacian_var"] < 100]["image"].apply(to_key).tolist()
+        blurred_df[blurred_df["laplacian_var"] < 100]["image"].tolist()
     )
     blurred_images = set(blurred_images)
     blurred_indices = [
-        i for i, image in enumerate(siglip_model.photo_ids) if image in blurred_images
+        i for i, image in enumerate(photo_ids(data)) if image in blurred_images
     ]
     return set(blurred_indices)
 
+
 blurred_indices = {
-    Data.LSC23: get_blurred_indices(lsc_blurred),
-    Data.Deakin: get_blurred_indices(deakin_blurred),
+    Data.LSC23: get_blurred_indices(Data.LSC23),
+    Data.Deakin: get_blurred_indices(Data.Deakin),
 }
+
 
 def detect_noise(scores1, scores2, method="absolute", threshold=None, percentile=95):
     """
@@ -118,6 +116,58 @@ lambda1 = 0.75
 lambda2 = 1 - lambda1
 
 
+def compare_images(data: Data, image1: dict, image2: dict):
+    """
+    For the LSC23 dataset, fixed boundaries are:
+    - different locations
+    - time gap where the camera is off
+    For Deakin, fixed boundaries are:
+    - different patientID
+    - time gap where the camera is off
+    """
+    time_gap = 60 * 5  # 5 minutes
+    if data == Data.LSC23:
+        if image1["location"] != image2["location"]:
+            return True
+        if (image1["utc_time"] - image2["utc_time"]).total_seconds() > time_gap:
+            return True
+    elif data == Data.Deakin:
+        if image1["patient"]["id"] != image2["patient"]["id"]:
+            return True
+        if (
+            image1["snap"]["local_time"] - image2["snap"]["local_time"]
+        ).total_seconds() > time_gap:
+            return True
+
+    return False
+
+
+def get_fixed_boundaries(data):
+    sort_criteria = None
+    if data == Data.LSC23:
+        sort_criteria = [("utc_time", 1)]
+    elif data == Data.Deakin:
+        sort_criteria = [("patient.id", 1), ("snap.local_time", 1)]
+
+    boundaries = set()
+    prev_image = None
+    for image_data in image_collection(get_db(data)).find().sort(sort_criteria):
+        if prev_image is not None:
+            if compare_images(data, prev_image, image_data):
+                try:
+                    boundaries.add(photo_ids(data).index(image_data["image"]))
+                except ValueError:
+                    pass
+        prev_image = image_data
+    return boundaries
+
+
+FIXED_BOUNDARIES = {
+    Data.LSC23: get_fixed_boundaries(Data.LSC23),
+    Data.Deakin: get_fixed_boundaries(Data.Deakin),
+}
+
+
 def get_segments(
     query: str,
     data: Data = Data.LSC23,
@@ -127,26 +177,27 @@ def get_segments(
     max_length: int = 100,
     filters: Optional[Set[str]] = None,
 ):
+    chosen_model = get_model(data)
+    scores, encoded_query = chosen_model.score_all_images(query, data)
+    photo_ids = chosen_model.photo_ids[data]
+
     if data == Data.LSC23:
-        scores, encoded_query = siglip_model.score_all_images(query)
-        clip_scores, clip_encoded_query = clip_model.score_all_images(query)
+        clip_scores, clip_encoded_query = clip_model.score_all_images(query, data)
         scores = [lambda1 * s + lambda2 * c for s, c in zip(scores, clip_scores)]
-        photo_ids = siglip_model.photo_ids
 
         def get_group_score(segment):
-            siglip_model_score = (
-                siglip_model.norm_photo_features[segment] @ encoded_query.T
+            chosen_model_score = (
+                chosen_model.norm_photo_features[data][segment] @ encoded_query.T
             )
-            clip_score = clip_model.norm_photo_features[segment] @ clip_encoded_query.T
-            return np.mean(lambda1 * siglip_model_score + lambda2 * clip_score)
+            clip_score = clip_model.norm_photo_features[data][segment] @ clip_encoded_query.T
+            return np.mean(lambda1 * chosen_model_score + lambda2 * clip_score)
 
     elif data == Data.Deakin:
-        print("Using CLIP-A model")
-        scores, encoded_query = clipa_model.score_all_images(query)
-        photo_ids = clipa_model.photo_ids
 
         def get_group_score(segment):
-            return np.mean(clipa_model.norm_photo_features[segment] @ encoded_query.T)
+            return np.mean(
+                chosen_model.norm_photo_features[data][segment] @ encoded_query.T
+            )
 
     # Filter indices based on filters
     if filters is None:
@@ -168,7 +219,12 @@ def get_segments(
     high_score_indices = [idx for idx in high_score_indices if idx in filter_indices]
     if len(high_score_indices) == 0:
         print("No high-scoring images found.")
-        return [], []
+        return {
+            "segments": [],
+            "segment_scores": [],
+            "scores": [],
+            "threshold": score_threshold,
+        }
 
     # Normalize scores for segment scoring
     max_score = np.max(scores)
@@ -191,6 +247,15 @@ def get_segments(
         gap_count = 0
         for step in range(1, max_length):
             next_idx = seed + direction * step
+
+            if direction == 1 and next_idx in FIXED_BOUNDARIES[data]:
+                # Stop expanding if fixed boundary is reached
+                break
+
+            if direction == -1 and next_idx + 1 in FIXED_BOUNDARIES[data]:
+                # Using next_idx + 1 to get the right boundary
+                break
+
             if next_idx < 0 or next_idx >= len(scores):
                 break  # Out of bounds
 
@@ -262,8 +327,12 @@ def get_segments(
                 f"Segment score: {seg_score:0.2f}, Group score: {group_score:0.2f}, Variance: {variance:0.2f}, Length reward: {length_reward:0.2f}"
             )
 
-    return result_segments[:500], result_scores[:500]
-
+    return {
+        "segments": result_segments,
+        "segment_scores": result_scores,
+        "scores": scores,
+        "threshold": score_threshold,
+    }
 
 # query = "I am running on a treadmill"
 # segments, scores = get_segments(query=query, max_gap=5)

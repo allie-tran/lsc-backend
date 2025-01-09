@@ -350,6 +350,17 @@ class TripletEvent(CamelCaseModel):
         # return only the ones that are not None
         return iter([x for x in [self.main, self.before, self.after] if x])
 
+class HeatmapResults(Results):
+    values: List[List[int | None]] = []
+    hover_info: List[List[str]] = []
+    x_labels: List[str] = []
+    x_ticks: List[float] = []
+    y_labels: List[str] = []
+
+    def __len__(self):
+        return len(self.values)
+
+
 class GenericEventResults(Results, Generic[EventT]):
     events: List[EventT]
     scores: List[float]
@@ -359,6 +370,9 @@ class GenericEventResults(Results, Generic[EventT]):
     normalized: bool = False
 
     relevant_fields: List[str] = []
+
+    # For visualisation
+    heatmap: Optional[HeatmapResults] = None
 
     def __bool__(self):
         return bool(self.events)

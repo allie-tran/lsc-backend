@@ -4,7 +4,7 @@ from query_parse.types.requests import Data
 
 client = MongoClient("localhost", 27017)
 
-LSC_DB = client["LSC_new"]
+LSC_DB = client["LSC24_new"]
 DEAKIN_DB = client["sherlock"]
 
 def get_db(db_name: Data):
