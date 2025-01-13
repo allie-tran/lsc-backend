@@ -1,4 +1,5 @@
 import os
+from rich import print
 from typing import List, Tuple
 
 import numpy as np
@@ -204,11 +205,12 @@ class ClipModel:
         encoded_query = self.encode_text(query)
         try:
             encoded_query /= LA.norm(encoded_query, keepdims=True, axis=-1)
-        except TypeError:
+        except TypeError as e:
+            print("[red]Error in encoding query[/red]", e)
             return [0.0 for _ in self.photo_ids[data]], encoded_query
         similarity = self.norm_photo_features[data] @ encoded_query.T
         similarity = similarity.reshape(-1)
-        similarity[np.where(similarity < 0.1)] = 0
+        # similarity[np.where(similarity < 0.1)] = 0
         return similarity.astype("float").tolist(), encoded_query
 
 

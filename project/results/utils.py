@@ -481,12 +481,16 @@ def basic_label(event: Event) -> str:
     """
     start_time = event.start_time.strftime("%H:%M")
     end_time = event.end_time.strftime("%H:%M")
-    location = event.location
+    if event.data == Data.LSC23:
+        location = event.location
+    else:
+        location = event.user_id
     date = event.start_time.strftime("%d, %b %Y")
     return f"<strong>{location}</strong>\n{date}, {start_time} - {end_time}"
 
 
 def create_event_label(
+    data: Data,
     results: GenericEventResults, relevant_fields: List[str] = []
 ) -> GenericEventResults:
     """
@@ -533,17 +537,24 @@ def create_event_label(
                 filtered_fields["time"].append(field)
 
         # 3rd line: location fields
-        # Location fields
-        if "city" in all_fields and "country" in all_fields:
-            all_fields.discard("region")
+        if data == Data.LSC23:
+            # Location fields
+            if "city" in all_fields and "country" in all_fields:
+                all_fields.discard("region")
 
-        if "region" in all_fields:
-            all_fields.discard("city")
-            all_fields.discard("country")
+            if "region" in all_fields:
+                all_fields.discard("city")
+                all_fields.discard("country")
 
-        for field in ["city", "region", "country"]:
-            if field in all_fields:
-                filtered_fields["location"].append(field)
+            for field in ["city", "region", "country"]:
+                if field in all_fields:
+                    filtered_fields["location"].append(field)
+
+        if data == Data.Deakin:
+            # replace location with user_id
+            if "user_id" in all_fields:
+                filtered_fields["location"].append("user_id")
+            all_fields.discard("location")
 
         for generic_event in results.events:
             for event in generic_event.custom_iter():

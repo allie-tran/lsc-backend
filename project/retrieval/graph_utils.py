@@ -25,23 +25,26 @@ def to_month(week):
 
 
 def get_heatmap_data(
-    data: Data, scores: List[float], threshold: Optional[float] = None
+    data: Data, scores: List[float], high_score_indices: List[int]
 ):
     """
     Get the heatmap data for a list of scores
     """
-    if threshold is None:
-        np_threshold = np.percentile(scores, 90)
-    else:
-        np_threshold = np.float32(threshold)
-    good_indices = np.where(scores > np_threshold)[0]
-
     if data == Data.Deakin:
-        raise NotImplementedError("Deakin data not implemented")
+        return get_deakin_heatmap_data(data, scores, high_score_indices)
+    return [get_lsc_heatmap_data(data, scores, high_score_indices)]
 
+def get_lsc_heatmap_data(
+    data: Data, scores: List[float], high_score_indices: List[int]
+):
     # Create a day-to-count mapping using Counter for efficiency
     days = ["/".join(photo_id.split("/")[0:2]) for photo_id in photo_ids(data)]
-    day_to_count = Counter([days[i] for i in good_indices])
+    # initiall all 0s
+    day_to_count = Counter()
+    for day in set(days):
+        day_to_count[day] = 0
+    for day in high_score_indices:
+        day_to_count[days[day]] += 1
 
     # Convert to datetime for easier handling
     datetimes = [datetime.strptime(day, "%Y%m/%d") for day in day_to_count.keys()]
@@ -97,9 +100,95 @@ def get_heatmap_data(
         hover_info.append(hover_text)
 
     return HeatmapResults(
+        name="Lifelogger",
         values=values,
         hover_info=hover_info,
         x_ticks=x_ticks,
         x_labels=unique_months,
         y_labels=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     )
+
+def get_deakin_heatmap_data(
+    data: Data, scores: List[float], high_score_indices: List[int]
+):
+    """
+    Deakin data has multiple users (patientID)
+    We map a heatmap of:
+    - x-axis: patientID
+    - y-axis: 2 weeks (Monday to Sunday - 14 days)
+    """
+    # For each user, create a heatmap
+    heatmaps = []
+    patient_ids = set([photo_id.split("/")[0] for photo_id in photo_ids(data)])
+    patient_ids = sorted(list(patient_ids))
+    full_photo_ids = photo_ids(data)
+    full_days = ["/".join(photo_id.split("/")[1:4]) for photo_id in full_photo_ids]
+
+    patient_counts = Counter()
+    all_patient_data = []
+    hover_info = []
+    patient_list = []
+
+    for patient_id in patient_ids:
+        # Filter the data for the patient
+        patient_photo_ids = [photo_id for photo_id in full_photo_ids if photo_id.startswith(patient_id)]
+        patient_days = ["/".join(photo_id.split("/")[1:4]) for photo_id in patient_photo_ids]
+        if len(patient_days) == 0:
+            continue
+
+        day_to_count = Counter()
+        for day in set(patient_days):
+            day_to_count[day] = 0
+
+        high_count = 0
+        for day in high_score_indices:
+            if full_days[day] in patient_days:
+                high_count += 1
+                day_to_count[full_days[day]] += 1
+
+        if high_count == 0:
+            continue
+
+        # Convert to datetime for easier handling
+        datetimes = [datetime.strptime(day, "%Y/%m/%d") for day in day_to_count.keys()]
+        first_date = min(datetimes)
+        # get the monday before (or on) the first date
+        first_monday = first_date - pd.DateOffset(days=first_date.weekday())
+        recording_days = [first_monday + pd.DateOffset(days=i) for i in range(14)]
+
+        patient_data = []
+        hover = []
+        for day in recording_days:
+            day_str = day.strftime("%Y/%m/%d")
+            count = day_to_count[day_str]
+            if count:
+                patient_data.append(count)
+            else:
+                patient_data.append(None)
+            hover.append(f"{patient_id} - {day_str} ({count})")
+
+        patient_counts[patient_id] = high_count
+        all_patient_data.append(patient_data)
+        patient_list.append(patient_id)
+        hover_info.append(hover)
+
+    # Tranpose the data
+    all_patient_data = np.array(all_patient_data).T.tolist()
+    hover_info = np.array(hover_info).T.tolist()
+
+    heatmaps.append(
+        HeatmapResults(
+            name="All Patients",
+            values=all_patient_data,
+            hover_info=hover_info,
+            x_ticks=list(range(len(patient_list))),
+            x_labels=patient_list,
+            y_labels=[f"Day {i+1}" for i in range(14)],
+        )
+    )
+
+    # Sort the heatmaps based on the number of high scores
+    return heatmaps
+
+
+

@@ -547,6 +547,17 @@ def search_for_time(
             if word in YEARS:
                 year.append(word)
 
+        elif word in ["weekend", "weekends"]:
+            weekdays.append("saturday")
+            weekdays.append("sunday")
+            matches["WEEKDAY"].append("weekend")
+
+        elif word in ["weekday", "weekdays"]:
+            weekdays.extend(
+                ["monday", "tuesday", "wednesday", "thursday", "friday"]
+            )
+            matches["WEEKDAY"].append("weekday")
+
     start = start[0] * 3600 + start[1] * 60
     end = end[0] * 3600 + end[1] * 60
 

@@ -25,7 +25,7 @@ from database.main import (
 )
 
 
-def to_event(image: dict) -> Event:
+def to_event(data: Data, image: dict) -> Event:
     if "start_time" in image:
         return Event(**image)
     try:
@@ -47,7 +47,11 @@ def to_event(image: dict) -> Event:
 
         if "icon" in image:
             image["icon"] = Icon(**image.pop("icon"))
-        return Event(**image)
+
+        if "patient" in image:
+            image["user_id"] = image["patient"]["id"]
+
+        return Event(**image, data=data)
     except KeyError as e:
         print(image)
         raise e
@@ -67,6 +71,8 @@ def convert_to_events(
 
     collection = scene_collection if key == "scene" else image_collection
     fields = ESSENTIAL_FIELDS if key == "scene" else IMAGE_ESSENTIAL_FIELDS
+    if data == Data.Deakin:
+        fields = [field for field in fields if field != "location"]
 
     documents = []
     index = {key: i for i, key in enumerate(key_list)}
@@ -87,9 +93,9 @@ def convert_to_events(
 
     events = []
     if key == "scene":
-        events = [Event(**doc) for doc in documents]
+        events = [Event(**doc, data=data) for doc in documents]
     else:
-        events = [to_event(doc) for doc in documents]
+        events = [to_event(data, doc) for doc in documents]
 
     for event in events:
         event.markers, event.orphans = calculate_markers(event)
@@ -133,9 +139,9 @@ def segments_to_events(
         ]
         if not event_images:
             continue
-        event = to_event(image_to_doc[event_images[0]])
+        event = to_event(data, image_to_doc[event_images[0]])
         if len(event_images) > 1:
-            rest = [to_event(image_to_doc[photo_id]) for photo_id in event_images[1:]]
+            rest = [to_event(data, image_to_doc[photo_id]) for photo_id in event_images[1:]]
             event.merge_with_many(score, rest, [score] * len(rest))
         events.append(event)
 
@@ -225,9 +231,9 @@ def calculate_distance(point1: GPS, point2: GPS) -> float:
     return ((point1.lat - point2.lat) ** 2 + (point1.lon - point2.lon) ** 2) ** 0.5
 
 
-def get_location_name(request: MapRequest,
-                      data: Data = Data.LSC23
-                      ) -> Tuple[str, Optional[GPS]]:
+def get_location_name(
+    request: MapRequest, data: Data = Data.LSC23
+) -> Tuple[str, Optional[GPS]]:
     db = get_db(data)
     location = request.location
     if location == "---":
@@ -265,9 +271,7 @@ def get_location_name(request: MapRequest,
     raise ValueError("No location found")
 
 
-def get_image_center(image: str,
-                     data: Data = Data.LSC23
-                     ) -> Optional[GPS]:
+def get_image_center(image: str, data: Data = Data.LSC23) -> Optional[GPS]:
     db = get_db(data)
     doc = image_collection(db).find_one({"image.src": image})
     if doc:
@@ -275,9 +279,9 @@ def get_image_center(image: str,
     return None
 
 
-def get_location_info(request: MapRequest,
-                      data: Data = Data.LSC23
-                      ) -> Optional[Tuple[str, dict]]:
+def get_location_info(
+    request: MapRequest, data: Data = Data.LSC23
+) -> Optional[Tuple[str, dict]]:
     """
     Get the location info
     If there is only one location with the same name, return that
@@ -462,8 +466,7 @@ def get_all_images_with_location(location: str, data: Data = Data.LSC23) -> List
     return [image["image"] for image in images]
 
 
-def get_all_images_from_same_scene(image: str, data: Data = Data.LSC23
-                                   ) -> List[Image]:
+def get_all_images_from_same_scene(image: str, data: Data = Data.LSC23) -> List[Image]:
     db = get_db(data)
     scene = scene_collection(db).find_one({"images": {"$elemMatch": {"src": image}}})
     if scene:
@@ -481,6 +484,7 @@ def reverse_geomapping(center: GPS) -> Optional[str]:
         return location.address  # type: ignore
     return None
 
+
 def get_full_data(images: List[str], data: Data) -> Dict[str, Dict[str, Any]]:
     """
     Get the full data for the images
@@ -488,12 +492,15 @@ def get_full_data(images: List[str], data: Data) -> Dict[str, Dict[str, Any]]:
     db = get_db(data)
     image_data = image_collection(db).find({"image": {"$in": images}})
     # Change key cases to camel case
-    image_data = [{to_camel(key): value for key, value in image.items()} for image in image_data]
+    image_data = [
+        {to_camel(key): value for key, value in image.items()} for image in image_data
+    ]
     image_data = {image["image"]: image for image in image_data}
     # remove object id
     for image in image_data.values():
         image.pop("_id")
     return image_data
+
 
 def get_unique_values(data: Data, field: str) -> List[str]:
     """

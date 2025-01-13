@@ -171,7 +171,7 @@ FIXED_BOUNDARIES = {
 def get_segments(
     query: str,
     data: Data = Data.LSC23,
-    score_percentile: int = 90,
+    score_percentile: int = 95,
     variance_percentile: int = 75,
     max_gap: int = 2,
     max_length: int = 100,
@@ -210,7 +210,7 @@ def get_segments(
     print(f"Dynamic score threshold (percentile {score_percentile}): {score_threshold}")
 
     # Filter high-scoring images
-    high_score_indices = np.where(scores >= score_threshold)[0]
+    high_score_indices = np.where(scores > score_threshold)[0]
     # Filter out blurred images
     high_score_indices = [
         idx for idx in high_score_indices if idx not in blurred_indices[data]
@@ -223,7 +223,7 @@ def get_segments(
             "segments": [],
             "segment_scores": [],
             "scores": [],
-            "threshold": score_threshold,
+            "high_score_indices": [],
         }
 
     # Normalize scores for segment scoring
@@ -280,6 +280,7 @@ def get_segments(
     segments = []
     used_indices = set()
 
+    hits = set(high_score_indices)
     for seed in tqdm(high_score_indices):
         if seed in used_indices:
             continue  # Skip seeds already covered in a segment
@@ -288,6 +289,12 @@ def get_segments(
         left_segment = expand_segment(seed, direction=-1)
         right_segment = expand_segment(seed, direction=1)
         full_segment = sorted(set(left_segment + right_segment))
+
+        if len(full_segment) == 0:
+            continue
+
+        # Add segment to hits
+        hits.update(full_segment)
 
         # Calculate segment score
         segment_scores = normalized_scores[full_segment]
@@ -331,7 +338,7 @@ def get_segments(
         "segments": result_segments,
         "segment_scores": result_scores,
         "scores": scores,
-        "threshold": score_threshold,
+        "high_score_indices": hits,
     }
 
 # query = "I am running on a treadmill"

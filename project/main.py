@@ -187,7 +187,7 @@ async def get_choices(request: ChoicesRequest):
     """
     match (request.data, request.field):
         case Data.Deakin, "patientId":
-            return get_unique_values(request.data, "patientId")
+            return get_unique_values(request.data, "patient.id")
         case _:
             raise HTTPException(status_code=404, detail=f"{request.field} not found for {request.data}")
 

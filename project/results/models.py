@@ -14,6 +14,7 @@ from pydantic import (
 )
 from query_parse.types.elasticsearch import GPS
 from query_parse.types.lifelog import RelevantFields, TimeCondition
+from query_parse.types.requests import Data
 from query_parse.utils import (
     extend_no_duplicates,
     extend_with_count,
@@ -122,6 +123,8 @@ class Image(CamelCaseModel):
 
 
 class Event(CamelCaseModel):
+    user_id: Optional[str] = ""
+    data: Data = Data.LSC23
     # IDs
     group: str = ""
     scene: str = ""
@@ -244,8 +247,9 @@ class Event(CamelCaseModel):
         self.duration = (self.end_time - self.start_time).total_seconds()
 
         # Location
-        self.location = merge_str(self.location, other.location, " and ")
-        self.location_info = merge_str(self.location_info, other.location_info, " and ")
+        if self.data == Data.LSC23:
+            self.location = merge_str(self.location, other.location, " and ")
+            self.location_info = merge_str(self.location_info, other.location_info, " and ")
 
         # Map
         self.markers.extend(other.markers)
@@ -277,14 +281,15 @@ class Event(CamelCaseModel):
         self.duration = (self.end_time - self.start_time).total_seconds()
 
         # Location
-        self.location = " and ".join(
-            extend_no_duplicates([self.location], [x.location for x in others])
-        )
-        self.location_info = " and ".join(
-            extend_no_duplicates(
-                [self.location_info], [x.location_info for x in others]
+        if self.data == Data.LSC23:
+            self.location = " and ".join(
+                extend_no_duplicates([self.location], [x.location for x in others])
             )
-        )
+            self.location_info = " and ".join(
+                extend_no_duplicates(
+                    [self.location_info], [x.location_info for x in others]
+                )
+            )
 
         # Map
         for other in others:
@@ -351,6 +356,7 @@ class TripletEvent(CamelCaseModel):
         return iter([x for x in [self.main, self.before, self.after] if x])
 
 class HeatmapResults(Results):
+    name: str = ""
     values: List[List[int | None]] = []
     hover_info: List[List[str]] = []
     x_labels: List[str] = []

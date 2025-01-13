@@ -213,7 +213,7 @@ async def simple_search(
     # The scores are on a x-axis of time
     # We can visualize the scores in a heatmap like git commit history
     # of the scores
-    visualisation_data = get_heatmap_data(data, segment_res["scores"], segment_res["threshold"])
+    visualisation_data = get_heatmap_data(data, segment_res["scores"], segment_res["high_score_indices"])
 
     # # end test
     # es_response = await send_search_request(request)
@@ -224,7 +224,7 @@ async def simple_search(
         print(f"[green]Found {len(es_results.events)} matches for {mode}[/green]")
         es_results.min_score = main_query.min_score
         es_results.max_score = main_query.max_score
-        results = create_event_label(es_results)
+        results = create_event_label(data, es_results)
         results.heatmap = visualisation_data
     return AsyncioTaskResult(task_type="search", tag=tag, results=results)
 
@@ -449,7 +449,7 @@ async def single_query(
     )
     if not unchanged:
         print("[blue]Some changes detected[/blue]")
-        results = create_event_label(results, relevant_fields.relevant_fields)
+        results = create_event_label(data, results, relevant_fields.relevant_fields)
 
     step.step += 1
     yield Response(
@@ -698,7 +698,7 @@ async def two_queries(
             main_results, msearch_results, condition
         )
         # Give a different label:
-        merged_results = create_event_label(merged_results)
+        merged_results = create_event_label(data, merged_results)
         # Send the modified results
         yield {"type": "modified", "results": merged_results}
 
