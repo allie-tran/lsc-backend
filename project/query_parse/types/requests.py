@@ -4,7 +4,7 @@
 
 from datetime import datetime
 from enum import Enum, StrEnum
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 from myeachtra.dependencies import CamelCaseModel, ObjectId
 from pydantic import (
@@ -19,6 +19,11 @@ from query_parse.types.elasticsearch import GPS
 from query_parse.types.lifelog import EatingFilters
 from query_parse.types.options import SearchPipeline
 
+# ====================== #
+# DATA ACCESS
+class Data(StrEnum):
+    LSC23 = "LSC23"
+    Deakin = "Deakin"
 
 # ====================== #
 # Authentication
@@ -27,18 +32,20 @@ class LoginRequest(CamelCaseModel):
     username: str
     password: str
 
+class VerifyTokenRequest(CamelCaseModel):
+    token: str
+
+class CreateUserRequest(LoginRequest):
+    data_access: List[Data] = []
 
 class LoginResponse(CamelCaseModel):
     session_id: str
+    data_access: List[Data] = []
 
 
 # ====================== #
 # Search
 # ====================== #
-
-class Data(StrEnum):
-    LSC23 = "LSC23"
-    Deakin = "Deakin"
 
 
 class Step(CamelCaseModel):
@@ -140,6 +147,10 @@ class TimelineDateRequest(TemplateRequest):
 class ImageInfoRequest(TemplateRequest):
     images: List[str]
 
+class SegmentRequest(TemplateRequest):
+    patient_id: str = ""
+    date: str = ""
+
 # ====================== #
 # MAP REQUESTS
 # ====================== #
@@ -200,6 +211,7 @@ class AnswerThisRequest(TemplateRequest):
 # ====================== #
 class ChoicesRequest(TemplateRequest):
     field: str
+    condition: Optional[dict[str, Any]] = None
 
 
 AnyRequest = Union[

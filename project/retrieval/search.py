@@ -78,7 +78,7 @@ from rich import print
 
 from retrieval.async_utils import async_generator_timer, async_timer
 from retrieval.dynamic_segmentation import get_segments
-from retrieval.graph_utils import get_heatmap_data
+from retrieval.graph_utils import get_deakin_heatmap_per_hours, get_heatmap_data
 from retrieval.search_utils import (
     get_raw_search_results,
     get_search_function,
@@ -214,6 +214,11 @@ async def simple_search(
     # We can visualize the scores in a heatmap like git commit history
     # of the scores
     visualisation_data = get_heatmap_data(data, segment_res["scores"], segment_res["high_score_indices"])
+    filter_fields = main_query.filters
+    if filter_fields and filter_fields.patient_id:
+        visualisation_data.extend(
+            get_deakin_heatmap_per_hours(data, segment_res["scores"], segment_res["high_score_indices"], filter_fields.patient_id)
+        )
 
     # # end test
     # es_response = await send_search_request(request)
@@ -227,6 +232,47 @@ async def simple_search(
         results = create_event_label(data, es_results)
         results.heatmap = visualisation_data
     return AsyncioTaskResult(task_type="search", tag=tag, results=results)
+
+
+def get_segments_only(main_text: str, filters: EatingFilters, data: Data) -> List[Event]:
+    """
+    Get the segments only
+    """
+    db = get_db(data)
+    mongo_query = {
+        "patient.id": {"$in": filters.patient_id},
+    }
+    if [x for x in filters.date if x]:
+        mongo_query["date"] = {"$in": filters.date}
+    print("[green]Mongo Query[/green]", mongo_query)
+    images_cursor = image_collection(db).find(
+        mongo_query, {"image": 1}
+    )
+    images = {
+        doc["image"] for doc in images_cursor
+    }
+    if len(images) == 0:
+        print("[red]No images found[/red]")
+        return []
+    print("[green]Images found[/green]", len(images))
+    segment_res = get_segments(main_text, data, max_gap=5, filters=images, to_merge=True)
+    if not segment_res["segments"]:
+        print("[red]No segments found[/red]")
+        return []
+    print("[green]Total segments found[/green]", len(segment_res["segments"]))
+    # Ignore the score and just sort by time
+    ids = sorted(
+        range(len(segment_res["segments"])),
+        key=lambda x: segment_res["segments"][x][0],
+    )
+    events = segments_to_events(
+        data,
+        [segment_res["segments"][i] for i in ids],
+        [segment_res["segment_scores"][i] for i in ids],
+        photo_ids(data),
+    )
+    print("[green]Events found[/green]", len(events))
+    return events
 
 
 class AnswerModel(BaseModel):

@@ -1,16 +1,17 @@
 import logging
 from collections import Counter
 from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import numpy as np
 import pandas as pd
-
+from database.utils import get_unique_values
 from query_parse.types.requests import Data
 from query_parse.visual import photo_ids
 from results.models import HeatmapResults
 
 logger = logging.getLogger(__name__)
+
 
 # Convert each date to its corresponding week format
 def to_week(date):
@@ -18,21 +19,21 @@ def to_week(date):
     week_str = datetime.strftime(date, "W%W - %Y")
     return "W52 - 2019" if week_str == "W00 - 2020" else week_str
 
+
 def to_month(week):
     """Convert week to month-year string."""
     week_start = datetime.strptime(f"Mon {week}", "%a W%W - %Y")
     return week_start.strftime("%b %Y")
 
 
-def get_heatmap_data(
-    data: Data, scores: List[float], high_score_indices: List[int]
-):
+def get_heatmap_data(data: Data, scores: List[float], high_score_indices: List[int]):
     """
     Get the heatmap data for a list of scores
     """
     if data == Data.Deakin:
         return get_deakin_heatmap_data(data, scores, high_score_indices)
     return [get_lsc_heatmap_data(data, scores, high_score_indices)]
+
 
 def get_lsc_heatmap_data(
     data: Data, scores: List[float], high_score_indices: List[int]
@@ -108,6 +109,7 @@ def get_lsc_heatmap_data(
         y_labels=["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
     )
 
+
 def get_deakin_heatmap_data(
     data: Data, scores: List[float], high_score_indices: List[int]
 ):
@@ -117,12 +119,18 @@ def get_deakin_heatmap_data(
     - x-axis: patientID
     - y-axis: 2 weeks (Monday to Sunday - 14 days)
     """
+    patient_ids = set(get_unique_values(data, "patient.id"))
+    # patient_ids = sorted(patient_ids)
+
     # For each user, create a heatmap
     heatmaps = []
-    patient_ids = set([photo_id.split("/")[0] for photo_id in photo_ids(data)])
-    patient_ids = sorted(list(patient_ids))
     full_photo_ids = photo_ids(data)
     full_days = ["/".join(photo_id.split("/")[1:4]) for photo_id in full_photo_ids]
+
+    patient_ids = patient_ids.union(
+        set([photo_id.split("/")[0] for photo_id in photo_ids(data)])
+    )
+    patient_ids = sorted(list(patient_ids))
 
     patient_counts = Counter()
     all_patient_data = []
@@ -131,46 +139,62 @@ def get_deakin_heatmap_data(
 
     for patient_id in patient_ids:
         # Filter the data for the patient
-        patient_photo_ids = [photo_id for photo_id in full_photo_ids if photo_id.startswith(patient_id)]
-        patient_days = ["/".join(photo_id.split("/")[1:4]) for photo_id in patient_photo_ids]
-        if len(patient_days) == 0:
-            continue
+        patient_photo_ids = [
+            photo_id for photo_id in full_photo_ids if photo_id.startswith(patient_id)
+        ]
+        patient_days = [
+            "/".join(photo_id.split("/")[1:4]) for photo_id in patient_photo_ids
+        ]
 
-        day_to_count = Counter()
-        for day in set(patient_days):
-            day_to_count[day] = 0
+        if len(patient_days) > 0:
+            day_to_count = Counter()
+            for day in set(patient_days):
+                day_to_count[day] = 0
 
-        high_count = 0
-        for day in high_score_indices:
-            if full_days[day] in patient_days:
-                high_count += 1
-                day_to_count[full_days[day]] += 1
+            high_count = 0
+            for day in high_score_indices:
+                if full_days[day] in patient_days:
+                    high_count += 1
+                    day_to_count[full_days[day]] += 1
 
-        if high_count == 0:
-            continue
+            if high_count > 0:
+                # Convert to datetime for easier handling
+                datetimes = [
+                    datetime.strptime(day, "%Y/%m/%d") for day in day_to_count.keys()
+                ]
+                first_date = min(datetimes)
+                # get the monday before (or on) the first date
+                first_monday = first_date - pd.DateOffset(days=first_date.weekday())
+                recording_days = [
+                    first_monday + pd.DateOffset(days=i) for i in range(14)
+                ]
 
-        # Convert to datetime for easier handling
-        datetimes = [datetime.strptime(day, "%Y/%m/%d") for day in day_to_count.keys()]
-        first_date = min(datetimes)
-        # get the monday before (or on) the first date
-        first_monday = first_date - pd.DateOffset(days=first_date.weekday())
-        recording_days = [first_monday + pd.DateOffset(days=i) for i in range(14)]
+                patient_data = []
+                hover = []
+                for day in recording_days:
+                    day_str = day.strftime("%Y/%m/%d")
+                    count = day_to_count[day_str]
+                    if count:
+                        patient_data.append(count)
+                    else:
+                        patient_data.append(None)
 
-        patient_data = []
-        hover = []
-        for day in recording_days:
-            day_str = day.strftime("%Y/%m/%d")
-            count = day_to_count[day_str]
-            if count:
-                patient_data.append(count)
-            else:
-                patient_data.append(None)
-            hover.append(f"{patient_id} - {day_str} ({count})")
+                    new_day = day.strftime("%d %b %Y")
+                    hover.append(f"{patient_id} - {new_day} ({count})")
 
-        patient_counts[patient_id] = high_count
-        all_patient_data.append(patient_data)
+                patient_counts[patient_id] = high_count
+                all_patient_data.append(patient_data)
+                patient_list.append(patient_id)
+                hover_info.append(hover)
+                continue
+
+        # Empty data
+        patient_counts[patient_id] = 0
+        all_patient_data.append([None] * 14)
         patient_list.append(patient_id)
-        hover_info.append(hover)
+        hover_info.append(
+            ["" for _ in range(14)]
+        )
 
     # Tranpose the data
     all_patient_data = np.array(all_patient_data).T.tolist()
@@ -183,12 +207,80 @@ def get_deakin_heatmap_data(
             hover_info=hover_info,
             x_ticks=list(range(len(patient_list))),
             x_labels=patient_list,
-            y_labels=[f"Day {i+1}" for i in range(14)],
+            y_labels=[
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri",
+                "Sat",
+                "Sun",
+                "Mon",
+                "Tue",
+                "Wed",
+                "Thu",
+                "Fri",
+                "Sat",
+                "Sun",
+            ],
         )
     )
 
     # Sort the heatmaps based on the number of high scores
     return heatmaps
 
+def get_hour_key(photo_id: str):
+    day = "/".join(photo_id.split("/")[1:4])
+    hour = photo_id.split("_")[2][:2]
+    return f"{day} {hour}"
 
+def get_deakin_heatmap_per_hours(data: Data, scores: List[float], high_score_indices: List[int], patient_ids: list[str]):
+    """
+    Visualise a patient's heatmap per hour (for 7 days of recording)
+    x-axis is the hours of the day (0-23)
+    y-axis is the 7 days of recording
+    """
+    heatmaps = []
+    for patient_id in patient_ids:
+        full_keys = [get_hour_key(photo_id) for photo_id in photo_ids(data)]
+        patient_photo_ids = [
+            photo_id for photo_id in photo_ids(data) if photo_id.startswith(patient_id)
+        ]
+        patient_keys = [get_hour_key(photo_id) for photo_id in patient_photo_ids]
 
+        if len(patient_keys) > 0:
+            key_to_count = Counter()
+            for key in set(patient_keys):
+                key_to_count[key] = 0
+
+            high_count = 0
+            for idx in high_score_indices:
+                if full_keys[idx] in patient_keys:
+                    high_count += 1
+                    key_to_count[full_keys[idx]] += 1
+
+            if high_count > 0:
+                patient_data = []
+                hover = []
+                recording_days = sorted(set([key.split(" ")[0] for key in key_to_count.keys()]))
+                for day in recording_days:
+                    for hour in range(24):
+                        key = f"{day} {hour:02d}"
+                        count = key_to_count[key]
+                        if count:
+                            patient_data.append(count)
+                        else:
+                            patient_data.append(None)
+                        hover.append(f"{patient_id} - {key} ({count})")
+
+                heatmaps.append(
+                    HeatmapResults(
+                        name=patient_id,
+                        values=[patient_data],
+                        hover_info=[hover],
+                        x_ticks=list(range(24)),
+                        x_labels=[str(i) for i in range(24)],
+                        y_labels=recording_days,
+                    )
+                )
+    return heatmaps

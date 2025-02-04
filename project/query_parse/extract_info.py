@@ -15,7 +15,6 @@ from query_parse.es_utils import (
 from query_parse.location import search_for_locations
 from query_parse.question import parse_query
 from query_parse.time import TimeTagger, search_for_time
-from query_parse.types.eating import FoodGroup
 from query_parse.types.elasticsearch import (
     ESAndFilters,
     ESBoolQuery,
@@ -102,13 +101,8 @@ class ComboQuery(BaseModel):
 async def extract_info(
     text: str, is_question: bool, data: Data, filters: EatingFilters | None = None
 ) -> ComboQuery:
-    query_parts = await parse_query(text, is_question)
-
-    match data:
-        case Data.LSC23:
-            embed_model = "siglip"
-        case Data.Deakin:
-            embed_model = "clipa"
+    query_parts = await parse_query(text, is_question, filters)
+    embed_model = "siglip"
 
     def extract_part(
         part: SingleQuery | None, filters: EatingFilters | None = None
@@ -276,14 +270,20 @@ async def create_es_query(
         # Eating filters
         if query.eating_filters:
             for field, values in query.eating_filters.iter_fields():
-                if values:
-                    es.filter.append(ESFilter(field=field, value=values))
-            es.must_not.append(
-                ESFilter(
-                    field="food",
-                    value=[FoodGroup.NOT_EATING, ""],
-                )
-            )
+                if not values:
+                    continue
+                if field == "patient_id":
+                    es.filter.append(ESFilter(field="patient.id", value=values))
+                elif field == "date":
+                    es.filter.append(ESFilter(field="date", value=values))
+                # else:
+                #     es.filter.append(ESFilter(field=f"{field}", value=[v.value for v in values]))
+            # es.must_not.append(
+            #     ESFilter(
+            #         field="food",
+            #         value=[FoodGroup.NOT_EATING, ""],
+            #     )
+            # )
 
         if ignore_limit_score:
             max_score = 1.0
@@ -330,6 +330,7 @@ async def create_es_combo_query(
             query.main, ignore_limit_score, overwrite, mode
         )
         es = query.main.es.model_copy(deep=True)
+        es.filters = query.main.eating_filters
 
     if query.must_not:
         query.must_not.es = await create_es_query(

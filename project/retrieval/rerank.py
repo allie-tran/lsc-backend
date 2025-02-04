@@ -78,4 +78,5 @@ class Reranker:
         return scores
 
 
-reranker = Reranker(processor_path, model_path)
+reranker = None
+# reranker = Reranker(processor_path, model_path)

@@ -378,7 +378,7 @@ class GenericEventResults(Results, Generic[EventT]):
     relevant_fields: List[str] = []
 
     # For visualisation
-    heatmap: Optional[HeatmapResults] = None
+    heatmap: List[HeatmapResults] = []
 
     def __bool__(self):
         return bool(self.events)
@@ -476,8 +476,8 @@ class HighlightItem(CamelCaseModel):
     A highlight item
     """
 
-    group: str
-    scene: str
+    group: str = ""
+    scene: str = ""
     image: str
 
 

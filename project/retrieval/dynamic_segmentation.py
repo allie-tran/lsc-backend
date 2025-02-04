@@ -6,16 +6,14 @@ import pandas as pd
 from configs import CLIP_EMBEDDINGS
 from database.main import get_db, image_collection
 from query_parse.types.requests import Data
-from query_parse.visual import clip_model, get_model, photo_ids
+from query_parse.visual import clip_model, clipa_model, get_model, photo_ids
 from tqdm.auto import tqdm
 
 
 def get_blurred_indices(data: Data):
     blurred_df = pd.read_csv(f"{CLIP_EMBEDDINGS}/{data}/blurred.csv")
     blurred_df["laplacian_var"] = blurred_df["laplacian_var"].fillna(0)
-    blurred_images = (
-        blurred_df[blurred_df["laplacian_var"] < 100]["image"].tolist()
-    )
+    blurred_images = blurred_df[blurred_df["laplacian_var"] < 100]["image"].tolist()
     blurred_images = set(blurred_images)
     blurred_indices = [
         i for i, image in enumerate(photo_ids(data)) if image in blurred_images
@@ -138,6 +136,8 @@ def compare_images(data: Data, image1: dict, image2: dict):
             image1["snap"]["local_time"] - image2["snap"]["local_time"]
         ).total_seconds() > time_gap:
             return True
+        if image1["date"] != image2["date"]:
+            return True
 
     return False
 
@@ -176,48 +176,53 @@ def get_segments(
     max_gap: int = 2,
     max_length: int = 100,
     filters: Optional[Set[str]] = None,
+    to_merge: bool = False
 ):
     chosen_model = get_model(data)
+    alternative_model = clip_model if data == Data.LSC23 else clipa_model
+
     scores, encoded_query = chosen_model.score_all_images(query, data)
     photo_ids = chosen_model.photo_ids[data]
 
-    if data == Data.LSC23:
-        clip_scores, clip_encoded_query = clip_model.score_all_images(query, data)
-        scores = [lambda1 * s + lambda2 * c for s, c in zip(scores, clip_scores)]
+    alternative_scores, alternative_encoded_query = alternative_model.score_all_images(
+        query, data
+    )
+    scores = [lambda1 * s + lambda2 * c for s, c in zip(scores, alternative_scores)]
 
-        def get_group_score(segment):
-            chosen_model_score = (
-                chosen_model.norm_photo_features[data][segment] @ encoded_query.T
-            )
-            clip_score = clip_model.norm_photo_features[data][segment] @ clip_encoded_query.T
-            return np.mean(lambda1 * chosen_model_score + lambda2 * clip_score)
+    def get_group_score(segment):
+        chosen_model_score = (
+            chosen_model.norm_photo_features[data][segment] @ encoded_query.T
+        )
+        alternative_score = (
+            alternative_model.norm_photo_features[data][segment]
+            @ alternative_encoded_query.T
+        )
+        return np.mean(lambda1 * chosen_model_score + lambda2 * alternative_score)
 
-    elif data == Data.Deakin:
-
-        def get_group_score(segment):
-            return np.mean(
-                chosen_model.norm_photo_features[data][segment] @ encoded_query.T
-            )
-
-    # Filter indices based on filters
-    if filters is None:
-        filter_indices = set(range(len(photo_ids)))
-    else:
+    # Filter out blurred images
+    good_indices = [
+        i for i, image in enumerate(photo_ids) if image not in blurred_indices
+    ]
+    # Filter out images that do not match the filters
+    filter_indices = set(range(len(photo_ids)))
+    if filters:
         filter_indices = set(i for i, image in enumerate(photo_ids) if image in filters)
 
     # Dynamically determine the score threshold
-    score_threshold = np.percentile(scores, score_percentile)
+    good_indices = [
+        idx for idx in good_indices if idx in filter_indices
+    ]
+    okay_scores = [scores[i] for i in good_indices]
+    score_threshold = np.percentile(okay_scores, score_percentile)
     print(f"Dynamic score threshold (percentile {score_percentile}): {score_threshold}")
 
     # Filter high-scoring images
     high_score_indices = np.where(scores > score_threshold)[0]
-    # Filter out blurred images
-    high_score_indices = [
-        idx for idx in high_score_indices if idx not in blurred_indices[data]
-    ]
+    good_indices = [idx for idx in good_indices if idx in high_score_indices]
+
     # Keep only filtered indices
-    high_score_indices = [idx for idx in high_score_indices if idx in filter_indices]
-    if len(high_score_indices) == 0:
+    print(f"Found {len(good_indices)} high-scoring images.")
+    if len(good_indices) == 0:
         print("No high-scoring images found.")
         return {
             "segments": [],
@@ -280,8 +285,8 @@ def get_segments(
     segments = []
     used_indices = set()
 
-    hits = set(high_score_indices)
-    for seed in tqdm(high_score_indices):
+    hits = set(good_indices)
+    for seed in tqdm(good_indices):
         if seed in used_indices:
             continue  # Skip seeds already covered in a segment
 
@@ -316,14 +321,58 @@ def get_segments(
             (full_segment, segment_score, group_score, variance, length_reward)
         )
 
+    # Merge overlapping segments
+    if not to_merge:
+        merged_segments = segments
+    else:
+        # sorted segments by start index
+        segments.sort(key=lambda x: x[0][0])
+        merged_segments = []
+        i = 0
+        while i < len(segments):
+            segment = segments[i]
+            start, end = segment[0][0], segment[0][-1]
+            seg_score, group_score, variance, length_reward = (
+                segment[1],
+                segment[2],
+                segment[3],
+                segment[4],
+            )
+            j = i + 1
+            while j < len(segments):
+                next_segment = segments[j]
+                next_start, next_end = next_segment[0][0], next_segment[0][-1]
+                next_seg_score, _, next_variance, next_length_reward = (
+                    next_segment[1],
+                    next_segment[2],
+                    next_segment[3],
+                    next_segment[4],
+                )
+                if next_start <= end:
+                    # Overlapping segments
+                    end = max(end, next_end)
+                    seg_score += next_seg_score
+                    group_score = get_group_score(range(start, end + 1)) / max_score
+                    variance += next_variance
+                    length_reward += next_length_reward
+                    j += 1
+                else:
+                    break
+
+            merged_segments.append(
+                ([start, end], seg_score, group_score, variance, length_reward)
+            )
+            i = j
+
+
     # Sort segments by score
-    segments.sort(key=lambda x: x[1], reverse=True)
+    merged_segments.sort(key=lambda x: x[1], reverse=True)
 
     # Convert segment indices back to ranges
     result_segments = []
     result_scores = []
     i = 0
-    for segment, seg_score, group_score, variance, length_reward in segments:
+    for segment, seg_score, group_score, variance, length_reward in merged_segments:
         start, end = segment[0], segment[-1]
         result_segments.append((start, end + 1))  # Include end index
         result_scores.append(seg_score)
@@ -341,6 +390,16 @@ def get_segments(
         "high_score_indices": hits,
     }
 
-# query = "I am running on a treadmill"
-# segments, scores = get_segments(query=query, max_gap=5)
+
+# query = "I am having food or interacting with food"
+# results = get_segments(query=query, data=Data.Deakin, max_gap=5)
+# segments = results["segments"]
 # print("Number of segments", len(segments))
+# images = []
+# deakin_photo_ids = photo_ids(Data.Deakin)
+# for start, end in segments:
+#     images.append(deakin_photo_ids[start:end])
+# with open("segments.txt", "w") as f:
+#     for image_list in images:
+#         f.write(", ".join(image_list))
+#         f.write("\n")

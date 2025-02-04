@@ -1,9 +1,9 @@
 from datetime import datetime
+import traceback
 from typing import List, Optional
 
-from database.main import LSC_DB, get_db, group_collection, image_collection, scene_collection
+from database.main import get_db, group_collection, image_collection, scene_collection
 from pydantic import validate_call
-from pymongo.synchronous.database import Database
 from query_parse.types.requests import Data
 from results.models import (
     HighlightItem,
@@ -51,8 +51,8 @@ def get_timeline(image: str, data: Data = Data.LSC23) -> Optional[TimelineResult
         results = get_scene_for_group_ids(group_range_ids)
         print("OK")
         return TimelineResult(date=start_time, result=results, highlight=highlight)
-    except Exception as e:
-        print(e)
+    except Exception:
+        traceback.print_exc()
 
 
 @validate_call

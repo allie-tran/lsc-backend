@@ -165,7 +165,7 @@ async def to_csv(
     )
     if not unchanged:
         print("[blue]Some changes detected[/blue]")
-        results = create_event_label(results, relevant_fields.relevant_fields)
+        results = create_event_label(data, results, relevant_fields.relevant_fields)
 
     step.step += 1
     # ============================= #

@@ -7,10 +7,10 @@ from collections import defaultdict
 
 from configs import QUERY_PARSER
 from llm import gpt_llm_model, llm_model
-from llm.prompt.parse import PARSE_QUERY, REWRITE_QUESTION
+from llm.prompt.parse import PARSE_QUERY, REWRITE_QUERY, REWRITE_QUESTION
 from rich import print as rprint
 
-from query_parse.types.lifelog import ParsedQuery, SingleQuery
+from query_parse.types.lifelog import EatingFilters, ParsedQuery, SingleQuery
 
 from .constants import AUXILIARY_VERBS, QUESTION_WORDS, STOP_WORDS
 
@@ -64,7 +64,9 @@ def detect_simple_query(query: str) -> bool:
     return len(words) < 3
 
 
-async def parse_query(text: str, is_question: bool) -> ParsedQuery:
+async def parse_query(
+    text: str, is_question: bool, eating_filters: EatingFilters | None = None
+) -> ParsedQuery:
     """
     Get the relevant fields from the query
     """
@@ -75,13 +77,25 @@ async def parse_query(text: str, is_question: bool) -> ParsedQuery:
         "must_not": defaultdict(str),
     }
 
-    if QUERY_PARSER or is_question:
+    if QUERY_PARSER or is_question or eating_filters:
         # in some cases, it's inefficient to parse the query
-        if detect_simple_query(text):
+        if eating_filters is None and detect_simple_query(text):
             main = SingleQuery(visual=text, location=text, time=text, date=text)
             return ParsedQuery(main=main)
 
-        prompt = PARSE_QUERY.format(query=text)
+        eating_query = eating_filters.format() if eating_filters else ""
+        if eating_query:
+            eating_query = f"Eating filters: {eating_query}"
+
+        prompt = REWRITE_QUERY.format(query=text, eating_filters=eating_query)
+        search_text = await llm_model.generate_from_text(prompt)
+        if isinstance(search_text, dict) and "text" in search_text:
+            print(search_text)
+            text = search_text["text"]
+
+        prompt = PARSE_QUERY.format(
+            query=text, eating_filters=eating_query
+        )
         feat = await gpt_llm_model.generate_from_text(prompt)
 
         if isinstance(feat, dict):
@@ -102,5 +116,4 @@ async def parse_query(text: str, is_question: bool) -> ParsedQuery:
             print(feat)
 
     parsed_query = ParsedQuery.model_validate(template)
-    rprint(parsed_query)
     return parsed_query

@@ -100,3 +100,19 @@ class EatingContext(CamelCaseModel):
     eating_activity: Optional[EatingActivity] = None
     food: List[FoodGroup] = []
 
+
+def explain(context: EatingContext):
+    explanation = []
+    if context.mood:
+        explanation.append(MoodExplanation[context.mood])
+    if context.location_setting:
+        explanation.append(EatingLocationSettingExplanation[context.location_setting])
+    if context.location_position:
+        explanation.append(EatingLocationPositionExplanation[context.location_position])
+    if context.social_contact:
+        explanation.append(SocialContactExplanation[context.social_contact])
+    if context.eating_activity:
+        explanation.append(context.eating_activity)
+    if context.food:
+        explanation.append(f"Eating {', '.join(context.food)}")
+    return explanation

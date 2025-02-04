@@ -13,13 +13,23 @@ from rich import print
 from configs import DEV_MODE, REDIS_HOST, REDIS_PORT
 from database.encode_blurhash import batch_encode
 from database.utils import get_full_data, get_unique_values
-from myeachtra.timeline_router import timeline_router
-from myeachtra.map_router import map_router
 from myeachtra.auth_models import get_user, verify_user
-from query_parse.types.requests import AnswerThisRequest, ChoicesRequest, Data, GeneralQueryRequest, ImageInfoRequest, LoginRequest, LoginResponse
+from myeachtra.map_router import map_router
+from myeachtra.timeline_router import timeline_router
+from query_parse.types.lifelog import EatingFilters
+from query_parse.types.requests import (
+    AnswerThisRequest,
+    ChoicesRequest,
+    Data,
+    GeneralQueryRequest,
+    ImageInfoRequest,
+    LoginRequest,
+    LoginResponse,
+    SegmentRequest,
+)
 from results.models import AnswerResultWithEvent
 from retrieval.graph import get_vegalite, to_csv
-from retrieval.search import answer_single_event, streaming_manager
+from retrieval.search import answer_single_event, get_segments_only, streaming_manager
 from submit.router import submit_router
 
 logging.basicConfig(level=logging.DEBUG)
@@ -51,14 +61,13 @@ app.include_router(submit_router, prefix="/submit")
 app.include_router(timeline_router, prefix="/timeline")
 app.include_router(map_router, prefix="/location")
 
-@app.post("/login", description="Login endpoint")
+
+@app.post("/login", description="Login endpoint", response_model=LoginResponse)
 async def login(request: LoginRequest):
     """
     Login endpoint
     """
-    verified = verify_user(request)
-    return LoginResponse(session_id=verified)
-
+    return verify_user(request)
 
 @app.post(
     "/search",
@@ -165,6 +174,7 @@ async def query_to_vegalite(query: GeneralQueryRequest):
     data = await get_vegalite(query.main, query.data)
     return data
 
+
 @app.post(
     "/image-dicts",
     description="Get all information about the images in the database",
@@ -175,6 +185,7 @@ async def get_image_dicts(request: ImageInfoRequest):
     Get all information about the images in the database
     """
     return get_full_data(request.images, request.data)
+
 
 @app.post(
     "/choices",
@@ -187,7 +198,52 @@ async def get_choices(request: ChoicesRequest):
     """
     match (request.data, request.field):
         case Data.Deakin, "patientId":
-            return get_unique_values(request.data, "patient.id")
+            return get_unique_values(request.data, "patient.id", request.condition)
+        case _, "date":
+            return get_unique_values(request.data, "date", request.condition)
         case _:
-            raise HTTPException(status_code=404, detail=f"{request.field} not found for {request.data}")
+            raise HTTPException(
+                status_code=404, detail=f"{request.field} not found for {request.data}"
+            )
 
+
+@app.post(
+    "/segments",
+    description="Get all segments",
+    status_code=200,
+)
+async def get_segments(request: SegmentRequest):
+    """
+    Get all segments for a patient in a given date
+    """
+    print(request)
+    segments = []
+    events = get_segments_only(
+        "I am eating or interacting with food",
+        EatingFilters(patient_id=[request.patient_id], date=[request.date]),
+        data=request.data
+    )
+    for event in events:
+        segments.append(
+            {
+                "images": event.images,
+                "annotations": {
+                    "patientId": request.patient_id,
+                    "date": request.date,
+                    **event.model_dump(),
+                },
+            }
+        )
+    # with open("segments.txt", "r") as f:
+    #     for line in f:
+    #         if line.startswith(f"{request.patient_id}/{request.date}"):
+    #             images = line.strip().split(", ")
+    #             segments.append(
+    #                 {
+    #                     "images": image_src_to_image_object(images, request.data),
+    #                     "annotations": {
+    #                         "patientId": request.patient_id,
+    #                     },
+    #                 }
+    #             )
+    return segments

@@ -101,6 +101,14 @@ def convert_to_events(
         event.markers, event.orphans = calculate_markers(event)
     return events
 
+def image_src_to_image_object(images: List[str], data: Data) -> List[Image]:
+    db = get_db(data)
+    documents = image_collection(db).find({"image": {"$in": images}})
+    docs = {
+        doc["image"]: Image(src=doc["image"], aspect_ratio=doc["aspect_ratio"], hash_code=doc["hash_code"])
+        for doc in documents
+    }
+    return [docs[image] for image in images if image in docs]
 
 def segments_to_events(
     data: Data,
@@ -120,7 +128,7 @@ def segments_to_events(
     print(data, images[:5])
 
     if relevant_fields:
-        projection = extend_no_duplicates(relevant_fields, ESSENTIAL_FIELDS)
+        projection = extend_no_duplicates(relevant_fields, IMAGE_ESSENTIAL_FIELDS)
         try:
             documents = image_collection(db).find(
                 {"image": {"$in": images}}, projection=projection
@@ -502,10 +510,13 @@ def get_full_data(images: List[str], data: Data) -> Dict[str, Dict[str, Any]]:
     return image_data
 
 
-def get_unique_values(data: Data, field: str) -> List[str]:
+def get_unique_values(data: Data, field: str, condition: Optional[dict[str, Any]] = None) -> List[str]:
     """
     Get the unique values for a field
     """
     db = get_db(data)
-    values = image_collection(db).distinct(field)
+    if condition:
+        values = image_collection(db).distinct(field, condition)
+    else:
+        values = image_collection(db).distinct(field)
     return values

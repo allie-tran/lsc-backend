@@ -46,23 +46,7 @@ Answer in this format:
 ```
 """
 
-# Automatically parse the query into a different format
-PARSE_QUERY = """
-I need to parse information from a text query to find relevant information from the lifelog retrieval system. As my parser is rule-based, I need you to provide me with the relevant fields that I should consider. Be as specific as possible, because the parser is not very smart.
-
-The fields are:
-```
-visual: str # what the lifelogger was doing visually
-time: str # time hints, like "morning", "after 3pm", "at sunset"
-date: str # date hints, like "last year", "on Christmas", "in 2020", "June 2019"
-location: str # place's name, like "at home", "in France", "at the Guinness Storehouse", "in Barcelona"
-```
-
-If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.  Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the information is not available. Each field should be SHORT and CONCISE. Avoid saying "within the time range of 01/01/2019 and 01/07/2020" or "in the past" if the date is not specified.
-
-One last thing, include a "must-not" query if there is any information that should be excluded from the search.
-
-Some examples:
+SIMPLE_EXAMPLES = """
 Query: "I was biking in the park near my house in the early morning."
 Response:
 
@@ -87,7 +71,9 @@ Response:
     }}
 }}
 ```
+"""
 
+COMPLICATED_EXAMPLES = """
 Query: "When did I go to a restaurant outside of Ireland and not have a Guinness?"
 Response:
 ```json
@@ -120,10 +106,44 @@ Response:
     }}
 }}
 ```
+"""
+
+REWRITE_QUERY = """
+I need to rewrite the following information into a single search query to find the relevant information from the lifelog retrieval system.
+{query}
+{eating_filters}
+Response in the following format:
+```json
+{{
+    "text": "A statement that is a search query",
+}}
+```
+"""
+
+# Automatically parse the query into a different format
+PARSE_QUERY = """
+I need to parse information from a text query to find relevant information from the lifelog retrieval system. As my parser is rule-based, I need you to provide me with the relevant fields that I should consider. Be as specific as possible, because the parser is not very smart.
+
+The fields are:
+```
+visual: str # what the lifelogger was doing visually
+time: str # time hints, like "morning", "after 3pm", "at sunset"
+date: str # date hints, like "last year", "on Christmas", "in 2020", "June 2019"
+location: str # place's name, like "at home", "in France", "at the Guinness Storehouse", "in Barcelona"
+```
+
+If some location details are not specific (names of places, cities, countries), you should include them in visual field as they can be intepreted visually. Similarly, time information such as sunrise, sunset, or meal times can be included in the visual field. Only include the most specific information in the fields.  Don't say "any" or "unknown" or "unspecified". Just leave the field empty if the information is not available. Each field should be SHORT and CONCISE. Avoid saying "within the time range of 01/01/2019 and 01/07/2020" or "in the past" if the date is not specified.
+
+One last thing, include a "must-not" query if there is any information that should be excluded from the search.
+
+Some examples:
+""" + SIMPLE_EXAMPLES + """
+If there are some eating filters, please rephrase the query to include them.
 
 Now it's your turn. Use no comments.
 Provide the relevant fields for the following query:
 Query:{query}
+{eating_filters}
 Response:
 """
 

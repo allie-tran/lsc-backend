@@ -4,7 +4,7 @@
 
 from enum import Enum
 from typing import List, Literal, Optional, Self, Tuple
-from query_parse.types.eating import EatingActivity, EatingLocationPosition, EatingLocationSetting, FoodGroup, Mood, SocialContact
+from query_parse.types.eating import EatingActivity, EatingLocationPosition, EatingLocationPositionExplanation, EatingLocationSetting, EatingLocationSettingExplanation, FoodGroup, Mood, MoodExplanation, SocialContact, SocialContactExplanation
 
 from myeachtra.dependencies import CamelCaseModel
 from pydantic import field_validator, model_validator
@@ -162,6 +162,8 @@ class RelevantFields(CamelCaseModel):
 
 
 class EatingFilters(CamelCaseModel):
+    patient_id: List[str] = []
+    date: List[str] = []
     mood: List[Mood] = []
     location_setting: List[EatingLocationSetting] = []
     location_position: List[EatingLocationPosition] = []
@@ -172,6 +174,8 @@ class EatingFilters(CamelCaseModel):
     def __bool__(self) -> bool:
         return any(
             [
+                self.date,
+                self.patient_id,
                 self.mood,
                 self.location_setting,
                 self.location_position,
@@ -183,6 +187,8 @@ class EatingFilters(CamelCaseModel):
 
     def iter_fields(self):
         return {
+            "date": self.date,
+            "patient_id": self.patient_id,
             "mood": self.mood,
             "location_setting": self.location_setting,
             "location_position": self.location_position,
@@ -190,6 +196,26 @@ class EatingFilters(CamelCaseModel):
             "eating_activity": self.eating_activity,
             "food": self.food,
         }.items()
+
+    def format(self) -> str:
+        explanation = []
+        if self.mood:
+            strs = [MoodExplanation[m] for m in self.mood]
+            explanation.append(f"Mood: {', or '.join(strs)}")
+        if self.location_setting:
+            strs = [EatingLocationSettingExplanation[l] for l in self.location_setting]
+            explanation.append(f"Location setting: {', or '.join(strs)}")
+        if self.location_position:
+            strs = [EatingLocationPositionExplanation[l] for l in self.location_position]
+            explanation.append(f"Location position: {', or'.join(strs)}")
+        if self.social_contact:
+            strs = [SocialContactExplanation[l] for l in self.social_contact]
+            explanation.append(f"Social contact: {', or'.join(strs)}")
+        if self.eating_activity:
+            explanation.append(f"Eating activity: {', or'.join(self.eating_activity)}")
+        if self.food:
+            explanation.append(f"Food: {', or'.join(self.food)}")
+        return "\n".join(explanation)
 
 class SingleQuery(CamelCaseModel):
     visual: str = ""

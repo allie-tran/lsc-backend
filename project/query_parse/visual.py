@@ -325,3 +325,5 @@ def norm_photo_features(data: Data):
 def photo_ids(data: Data):
     chosen_model = get_model(data)
     return chosen_model.photo_ids[data]
+
+print("visual.py loaded")
